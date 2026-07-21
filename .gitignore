@@ -1,0 +1,67 @@
+# Environment variables and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials/
+secrets/
+
+# User uploads, generated files, and local storage
+backend/files/
+files/
+uploads/
+outputs/
+output/
+generated/
+golden-data/private/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node and frontend
+node_modules/
+dist/
+coverage/
+.vite/
+.npm/
+
+# Logs, caches, and temporary files
+*.log
+logs/
+tmp/
+temp/
+.cache/
+*.tmp
+*.bak
+
+# Local databases and runtime state
+*.db
+*.sqlite
+*.sqlite3
+redis-data/
+mysql-data/
+
+# IDE and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Microsoft Office lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
