@@ -1,0 +1,71 @@
+# Office AI Alpha 环境基线
+
+本文只记录变量名称、用途和安全录入方式。禁止把真实值写入本文件、`.env.example`、测试 fixture、日志或聊天。
+
+## 支持环境
+
+- Host：Windows 开发机
+- Runtime：Docker Compose；Node.js 和 Python 可用于本地 focused tests
+- Data：MySQL 8.0、Redis
+- Office 工具：LibreOffice Headless；Week 4 人工验收需要 Microsoft Office 与 WPS
+- 外部 Provider：Agnes API，通过管理员创建的加密 Credential 使用
+
+## 环境变量
+
+| 变量 | 用途 | 敏感 | 必需时点 | 安全录入方式 |
+|---|---|---:|---|---|
+| `OFFICE_AI_ENV` | `local/test` 运行环境 | 否 | T1-002 | Compose/CI 普通变量 |
+| `OFFICE_AI_LOG_LEVEL` | 日志级别 | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_FRONTEND_ORIGIN` | 唯一允许的前端 Origin | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_API_BASE_URL` | 前端访问 API 的基址 | 否 | T1-002 | Build/runtime 普通变量 |
+| `OFFICE_AI_MYSQL_DATABASE` | MySQL database 名 | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_MYSQL_USER` | MySQL app user | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_MYSQL_PASSWORD` | MySQL app password | 是 | T1-002 | 本地未跟踪环境或 Secret store |
+| `OFFICE_AI_MYSQL_ROOT_PASSWORD` | MySQL root password | 是 | T1-002 | 本地未跟踪环境或 Secret store |
+| `OFFICE_AI_DATABASE_URL` | SQLAlchemy 连接串 | 是 | T1-002 | 运行时组合或本地 Secret，不打印 |
+| `OFFICE_AI_REDIS_URL` | Redis internal URL | 视部署 | T1-002 | Compose internal network；生产用 Secret |
+| `OFFICE_AI_MASTER_KEY` | Provider credential 应用层加密主密钥 | 是 | T1-004 | OS secret/CI secret；禁止落库和提交 |
+| `OFFICE_AI_SESSION_SECRET` | Session 签名/派生 Secret | 是 | T1-003 | OS secret/CI secret；定期轮换 |
+| `OFFICE_AI_ACCESS_TOKEN_TTL_SECONDS` | Access Token TTL | 否 | T1-003 | Compose 普通变量 |
+| `OFFICE_AI_REFRESH_TOKEN_TTL_SECONDS` | Refresh Token TTL | 否 | T1-003 | Compose 普通变量 |
+| `OFFICE_AI_FILES_ROOT` | 受控文件根目录 | 否 | T1-005 | Compose path；默认 `/app/files` |
+| `OFFICE_AI_MAX_FILE_BYTES` | 单文件上限，默认 50 MB | 否 | T1-005 | `system_settings`/普通变量 |
+| `OFFICE_AI_MAX_TASK_BYTES` | 单任务总上限，默认 200 MB | 否 | T1-005 | `system_settings`/普通变量 |
+| `OFFICE_AI_CLAMAV_HOST` | ClamAV internal hostname | 否 | T2-001 | Compose DNS 名 |
+| `OFFICE_AI_CLAMAV_PORT` | ClamAV port | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_PADDLEOCR_URL` | OCR internal service URL | 否 | T2-002 | Compose internal URL |
+| `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
+| `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
+| `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
+| `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
+
+## Agnes Credential
+
+- Agnes API Key 不使用固定仓库变量名写入 Compose，也不进入 `system_settings`。
+- 管理员通过 `POST /api/v1/admin/credentials` 录入一个 Key；后端使用 `OFFICE_AI_MASTER_KEY` 加密后写入 `provider_credentials`。
+- 测试、Reveal、轮换和停用均通过 `credential_id`，不在 worker command、queue payload 或日志中传明文 Key。
+- `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
+
+## 本地文件与卷
+
+| 路径/卷 | 内容 | Git |
+|---|---|---|
+| `backend/files/` / `app-files` | quarantine、原文件、extracted、preview、output | 必须忽略 |
+| `mysql-data` | MySQL 数据 | 必须忽略 |
+| `redis-data` | 可丢失 Redis 状态 | 必须忽略 |
+| `shared-work` | renderer/QA 临时交换 | 必须忽略或仅 Docker volume |
+| `golden-data/private/` | 获授权且脱敏前的本地材料 | 必须忽略 |
+
+## 安全录入与验证
+
+1. 仅在本机未跟踪配置、OS environment 或 CI Secret 中设置敏感值。
+2. 不执行会回显 Secret 的诊断命令；应用日志只记录变量是否配置，不记录内容。
+3. 提交前运行：
+
+```powershell
+git check-ignore -v .env
+git status --short
+git diff --cached --name-only
+```
+
+4. 如果 `.env` 或任何 Secret 文件出现在 Git 状态/暂存区，立即停止提交并处理，不把路径内容复制到聊天。

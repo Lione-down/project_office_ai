@@ -4,9 +4,18 @@
 
 ## 当前状态
 
-项目处于规划完成、尚未开始编码的阶段。批准后的实施计划位于：
+项目按 20 个 dependency-ordered 任务实施。当前进度和下一任务以 `docs/PROGRESS.md` 为准；批准后的总计划位于：
 
 `.hermes/plans/2026-07-22_000414-office-ai-alpha.md`
+
+新会话开始前依次读取：
+
+1. `AGENTS.md`
+2. `docs/PROGRESS.md`
+3. `.hermes/plans/office-ai-alpha-tasks/README.md`
+4. 唯一 `READY` 任务文档
+
+每完成一个任务，必须更新进度记录、运行任务验证、产生一个逻辑 commit 并推送，再由新 Codex 任务继续下一项。
 
 ## 核心技术方向
 
@@ -36,3 +45,12 @@ git diff --cached --name-only
 ```
 
 只有确认暂存区不包含敏感信息后才能推送到 GitHub。
+
+## 基线文档
+
+- `docs/PLAN.md`：Alpha scope、架构、状态机、Gate 与完成定义
+- `docs/API.md`：`/api/v1` 用户端和管理端 contract
+- `docs/DATA_MODEL.md`：21 张 Alpha 表与事务边界
+- `docs/ENVIRONMENT.md`：环境变量名称与安全录入方式
+- `docs/SECURITY.md`：身份、文件、Provider、账务、日志和容器边界
+- `docs/ui-v1/README.md`：已批准 UI V1 视觉与交互基线

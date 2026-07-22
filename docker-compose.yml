@@ -1,0 +1,227 @@
+name: office-ai
+
+x-app-service: &app-service
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - private
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 10s
+
+services:
+  frontend:
+    <<: *app-service
+    image: node:22.17.0-alpine
+    user: "10001:10001"
+    working_dir: /app
+    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    environment:
+      VITE_API_BASE_URL: ${OFFICE_AI_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "${OFFICE_AI_FRONTEND_PORT:-5173}:5173"
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - edge
+      - private
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+
+  backend:
+    <<: *app-service
+    image: python:3.12.11-slim
+    user: "10001:10001"
+    working_dir: /app
+    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    environment:
+      OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
+      OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
+      OFFICE_AI_FRONTEND_ORIGIN: ${OFFICE_AI_FRONTEND_ORIGIN:-http://localhost:5173}
+      OFFICE_AI_MYSQL_DATABASE: ${OFFICE_AI_MYSQL_DATABASE:-office_ai}
+      OFFICE_AI_MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
+      OFFICE_AI_MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
+      OFFICE_AI_DATABASE_HOST: mysql
+      OFFICE_AI_REDIS_URL: redis://redis:6379/0
+      OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_MASTER_KEY: ${OFFICE_AI_MASTER_KEY:-}
+    ports:
+      - "${OFFICE_AI_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - app-files:/app/files
+    tmpfs:
+      - /tmp
+    networks:
+      - edge
+      - private
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import os; raise SystemExit(0 if os.getenv('OFFICE_AI_ENV') else 1)"]
+
+  worker:
+    <<: *app-service
+    image: python:3.12.11-slim
+    user: "10001:10001"
+    working_dir: /app
+    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    environment:
+      OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
+      OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
+      OFFICE_AI_MYSQL_DATABASE: ${OFFICE_AI_MYSQL_DATABASE:-office_ai}
+      OFFICE_AI_MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
+      OFFICE_AI_MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
+      OFFICE_AI_DATABASE_HOST: mysql
+      OFFICE_AI_REDIS_URL: redis://redis:6379/0
+      OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_CLAMAV_HOST: clamav
+      OFFICE_AI_CLAMAV_PORT: "3310"
+      OFFICE_AI_PADDLEOCR_URL: http://paddleocr:8866
+      OFFICE_AI_LIBREOFFICE_URL: http://libreoffice:2002
+      OFFICE_AI_PPT_RENDERER_URL: http://ppt-renderer:3000
+    volumes:
+      - app-files:/app/files
+      - shared-work:/app/work
+    tmpfs:
+      - /tmp
+    depends_on:
+      backend:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+      paddleocr:
+        condition: service_healthy
+      libreoffice:
+        condition: service_healthy
+      ppt-renderer:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import os; raise SystemExit(0 if os.getenv('OFFICE_AI_FILES_ROOT') else 1)"]
+
+  ppt-renderer:
+    <<: *app-service
+    image: node:22.17.0-alpine
+    user: "10001:10001"
+    working_dir: /app
+    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    environment:
+      NODE_ENV: ${OFFICE_AI_ENV:-local}
+      REDIS_URL: redis://redis:6379/1
+      WORK_ROOT: /app/work
+      LIBREOFFICE_URL: http://libreoffice:2002
+    volumes:
+      - shared-work:/app/work
+    tmpfs:
+      - /tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+      libreoffice:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+
+  mysql:
+    <<: *app-service
+    image: mysql:8.4.5
+    user: "999:999"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      MYSQL_DATABASE: ${OFFICE_AI_MYSQL_DATABASE:-office_ai}
+      MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
+      MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
+      MYSQL_ROOT_PASSWORD: ${OFFICE_AI_MYSQL_ROOT_PASSWORD:-local-dev-root-change-me}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+
+  redis:
+    <<: *app-service
+    image: redis:7.4.5-alpine
+    user: "999:999"
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+
+  clamav:
+    <<: *app-service
+    image: clamav/clamav:1.4.2
+    user: "100:101"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      <<: *healthcheck
+      start_period: 120s
+      test: ["CMD-SHELL", "clamdscan --ping 1 >/dev/null 2>&1"]
+
+  paddleocr:
+    <<: *app-service
+    image: paddlepaddle/paddle:3.0.0
+    user: "10001:10001"
+    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import paddle"]
+
+  libreoffice:
+    <<: *app-service
+    image: lscr.io/linuxserver/libreoffice:25.2.3
+    user: "1000:1000"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Asia/Shanghai
+    volumes:
+      - shared-work:/app/work
+      - libreoffice-config:/config
+    tmpfs:
+      - /tmp
+    healthcheck:
+      <<: *healthcheck
+      start_period: 30s
+      test: ["CMD-SHELL", "pgrep -f 'soffice|libreoffice' >/dev/null"]
+
+networks:
+  edge:
+    driver: bridge
+  private:
+    driver: bridge
+    internal: true
+
+volumes:
+  app-files:
+  shared-work:
+  mysql-data:
+  redis-data:
+  clamav-data:
+  libreoffice-config:
