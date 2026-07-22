@@ -177,3 +177,41 @@
 
 - T1-003 严格范围内实现、focused/broad 可用验证、dependency gate、环境缺口与文档记录已完成；单一逻辑 commit 推送后交接。
 - T1-004 是唯一 `READY` 任务；新会话必须重新按 `AGENTS.md` 启动顺序核对 current Git/runtime 状态，不得提前进入 T1-005。
+
+## T1-003 本机 Runtime 补验
+
+### 授权与范围
+
+- 用户明确授权本次执行在进程内读取项目 `.env`，使用其中 MySQL 连接信息创建目标 database 和表结构；所有 Secret 均未回显、写入文档或提交。
+- 本补验没有进入 T1-004，只修正 T1-003 的 direct Windows runtime、现有 `.env` 变量兼容和认证 schema 中文 COMMENT。
+- 未修改历史 migrations `20260722_0001`/`20260722_0002`，新增 additive `20260722_0003_auth_schema_comments.py`。
+
+### Runtime 调查与根因
+
+- Windows services：`MySQL80`、`Redis` 均为 `Running / Automatic`；3306/6379 均监听并可连接。
+- MySQL：8.0.43，`.env` 凭据认证成功且目标 database 原先不存在。
+- Redis：Windows Redis 3.0.504，启用 `requirepass`；无认证返回 `NOAUTH`，从 service config 临时注入认证后 `PING=True`。
+- 先前 runtime 缺口的根因是只检查 Docker；同时 `.env` 使用 `OFFICE_AI_DB_*`，Settings 只接受 canonical MySQL变量，且 `.env` 没有 Redis URL。
+
+### 实现与数据库结果
+
+- Settings 使用 `AliasChoices` 兼容 `OFFICE_AI_DB_HOST/PORT/NAME/USER/PASSWORD`，canonical变量仍优先；应用仍不自动读取 `.env`。
+- 4 个 ORM tables 和全部 columns 增加中文 comment；ORM unique constraints/indexes/FKs 与历史 `20260722_0002` 精确对齐。
+- 使用授权连接创建目标 database，字符集 `utf8mb4`、collation `utf8mb4_0900_ai_ci`；真实 Alembic upgrade 从 base 运行到 `20260722_0003`。
+- `information_schema`：4/4 table comments、41/41 column comments 非空；`alembic current=20260722_0003`，`alembic check` 为 `No new upgrade operations detected`。
+
+### 验证
+
+- TDD RED：DB alias、ORM中文 comments、Alembic 0003/offline COMMENT、constraint/index/FK 对齐测试均在实现前按预期失败。
+- Focused：`backend/.venv/Scripts/python.exe -m pytest backend/tests/auth -q`，`41 passed`。
+- Broad：Backend 根目录 `.venv/Scripts/python.exe -m pytest -q`，`49 passed`。
+- Quality：`ruff check app tests alembic`、`ruff format --check app tests alembic` 均通过。
+- Live readiness：使用 `.env` MySQL配置并临时注入 Redis认证 URL，`GET /health/ready` 返回 `200 ready`，dependencies 为 `mysql=up`、`redis=up`。
+- Redis `INFO server` 因旧 Windows build 输出含非 UTF-8 本机路径而与新版 redis-py 解码不兼容；不影响 authenticated PING 和 readiness，本项不伪装为 INFO 通过。
+
+### Changed files 与交接
+
+- Backend：`backend/app/settings/config.py`、认证 4 个 model files、`backend/alembic/versions/20260722_0003_auth_schema_comments.py`、相关 auth tests。
+- Records：T1-003 task、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- `.env` 未修改、未暂存；`design-system/` 和旧版 `docs/ui-mockups/` 继续保留为用户未跟踪文件。
+- T1-004 仍是唯一 `READY` 任务；后续本机启动必须以本地 Secret 提供 `OFFICE_AI_REDIS_URL`。

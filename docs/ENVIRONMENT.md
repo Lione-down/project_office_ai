@@ -43,6 +43,13 @@
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
+### 本机兼容变量
+
+- Settings 同时接受现有本地 `.env` 的 `OFFICE_AI_DB_HOST`、`OFFICE_AI_DB_PORT`、`OFFICE_AI_DB_NAME`、`OFFICE_AI_DB_USER`、`OFFICE_AI_DB_PASSWORD`，分别对应上表的 canonical MySQL变量。
+- Canonical变量优先；兼容 alias 只用于保留现有本机配置，不写入 Compose，也不改变部署契约。
+- 应用不会自动读取 `.env`。本机命令需使用 `python -m dotenv -f <path> run -- <command>` 或由 OS/IDE 注入；禁止用会回显变量值的命令检查配置。
+- 本机 Windows Redis service 启用了密码认证。`OFFICE_AI_REDIS_URL` 必须通过本地未跟踪配置或临时进程环境注入；不得把 service config 中的密码复制到文档或 Git。
+
 ## Agnes Credential
 
 - Agnes API Key 不使用固定仓库变量名写入 Compose，也不进入 `system_settings`。

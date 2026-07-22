@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T1-003` migration `20260722_0002` 已 additive 建立认证相关 4 张表，其余表由后续任务演进
+- 状态：逻辑契约；`T1-003` migrations `20260722_0002`/`20260722_0003` 已 additive 建立认证相关 4 张表及中文注释，其余表由后续任务演进
 
 ## 全局约定
 
@@ -116,6 +116,7 @@
 
 - `T1-002` 已创建 `20260722_0001` 初始空 migration 与基础连接；应用启动不自动建表。
 - `T1-003` 已创建 `20260722_0002`，建立 `users`、`user_sessions`、`invite_codes`、`credit_ledger`；UUID 为 `BINARY(16)`，时间为 MySQL `DATETIME(6)`。
+- `T1-003` runtime 补验新增 `20260722_0003`，为上述 4 张表及全部 41 个字段写入非空中文 COMMENT；2026-07-22 已在本机 MySQL 8.0.43 空库真实升级并通过 `information_schema` 与 `alembic check` 核对。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

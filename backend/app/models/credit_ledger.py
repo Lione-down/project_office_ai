@@ -22,19 +22,39 @@ class CreditLedger(Base):
             "entry_type",
             name="uq_credit_ledger_user_idempotency_type",
         ),
+        {"comment": "积分流水表"},
     )
 
-    id: Mapped[UUID] = mapped_column(UuidBinary(), primary_key=True, default=new_uuid7)
+    id: Mapped[UUID] = mapped_column(
+        UuidBinary(),
+        primary_key=True,
+        default=new_uuid7,
+        comment="积分流水ID（UUIDv7二进制）",
+    )
     user_id: Mapped[UUID] = mapped_column(
-        UuidBinary(), ForeignKey("users.id"), index=True
+        UuidBinary(),
+        ForeignKey("users.id", name="fk_credit_ledger_user"),
+        index=True,
+        comment="用户ID",
     )
-    task_id: Mapped[UUID | None] = mapped_column(UuidBinary(), nullable=True)
-    entry_type: Mapped[str] = mapped_column(String(40), index=True)
-    amount: Mapped[int] = mapped_column(Integer)
-    balance_after: Mapped[int] = mapped_column(Integer)
+    task_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(), nullable=True, comment="关联生成任务ID"
+    )
+    entry_type: Mapped[str] = mapped_column(
+        String(40), index=True, comment="积分流水类型"
+    )
+    amount: Mapped[int] = mapped_column(Integer, comment="积分变动数量")
+    balance_after: Mapped[int] = mapped_column(Integer, comment="变动后余额快照")
     related_entry_id: Mapped[UUID | None] = mapped_column(
-        UuidBinary(), ForeignKey("credit_ledger.id"), nullable=True
+        UuidBinary(),
+        ForeignKey("credit_ledger.id", name="fk_credit_ledger_related"),
+        nullable=True,
+        comment="关联积分流水ID",
     )
-    idempotency_key: Mapped[str] = mapped_column(String(128))
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(utc_datetime_type(), default=utc_now)
+    idempotency_key: Mapped[str] = mapped_column(String(128), comment="幂等键")
+    description: Mapped[str | None] = mapped_column(
+        Text, nullable=True, comment="流水说明"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        utc_datetime_type(), default=utc_now, comment="创建时间（UTC）"
+    )

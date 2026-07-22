@@ -49,6 +49,19 @@
 - 本任务处理：对注册回滚、Session rotation、Refresh Hash、限速 key 脱敏、Bootstrap 幂等和 HTTP envelope 建立 focused tests，并保留 Docker runtime 验证缺口。
 - 预防/验证：Docker runtime 可用后补跑任务卡原始 Compose 命令；成功登录不得消耗失败限速预算，避免注册后自动登录被误限速。
 
+### 2026-07-22 · T1-003 补验 · Windows direct MySQL/Redis 被遗漏
+
+- 现象：Docker CLI/daemon 不可用曾被记录为 MySQL/Redis runtime 不可用，但本机实际存在 Automatic `MySQL80`/`Redis` Windows services，并分别监听 3306/6379。
+- 根因：验证只检查 Docker 和无认证 Redis `PING`；项目 `.env` 使用 `OFFICE_AI_DB_*`，与 Settings canonical变量不一致，Redis 又启用了 `requirepass`。
+- 本任务处理：Settings 增加兼容 alias；用 `.env` 凭据创建目标 database 并真实升级到 `20260722_0003`；临时注入 Redis认证 URL 后 `/health/ready=200`。
+- 预防/验证：Docker 缺失时仍检查 Windows service、process、port 和 authenticated protocol；不得把容器 runtime 与 direct Windows runtime 混为一谈。
+
+### 2026-07-22 · T1-003 补验 · 旧 Redis INFO 编码
+
+- 现象：Windows Redis 3.0.504 authenticated `PING` 成功，但新版 redis-py 解析 `INFO server` 时因输出包含非 UTF-8 本机路径而报 `UnicodeDecodeError`。
+- 影响：INFO 解析失败不能用于否定 Redis 可用性；当前认证限速所需的 PING/INCR/EXPIRE path 不依赖 INFO。
+- 预防/验证：本机 gate 使用 authenticated `PING` 与应用 `/health/ready`；后续升级 Redis 时再恢复 INFO compatibility 检查。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

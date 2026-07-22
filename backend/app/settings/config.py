@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,16 +16,28 @@ class Settings(BaseSettings):
         "http://localhost:5173", validation_alias="OFFICE_AI_FRONTEND_ORIGIN"
     )
     mysql_database: str = Field(
-        "office_ai", validation_alias="OFFICE_AI_MYSQL_DATABASE"
+        "office_ai",
+        validation_alias=AliasChoices("OFFICE_AI_MYSQL_DATABASE", "OFFICE_AI_DB_NAME"),
     )
-    mysql_user: str = Field("office_ai", validation_alias="OFFICE_AI_MYSQL_USER")
+    mysql_user: str = Field(
+        "office_ai",
+        validation_alias=AliasChoices("OFFICE_AI_MYSQL_USER", "OFFICE_AI_DB_USER"),
+    )
     mysql_password: SecretStr = Field(
         SecretStr("local-dev-change-me"),
-        validation_alias="OFFICE_AI_MYSQL_PASSWORD",
+        validation_alias=AliasChoices(
+            "OFFICE_AI_MYSQL_PASSWORD", "OFFICE_AI_DB_PASSWORD"
+        ),
         repr=False,
     )
-    database_host: str = Field("mysql", validation_alias="OFFICE_AI_DATABASE_HOST")
-    database_port: int = Field(3306, validation_alias="OFFICE_AI_DATABASE_PORT")
+    database_host: str = Field(
+        "mysql",
+        validation_alias=AliasChoices("OFFICE_AI_DATABASE_HOST", "OFFICE_AI_DB_HOST"),
+    )
+    database_port: int = Field(
+        3306,
+        validation_alias=AliasChoices("OFFICE_AI_DATABASE_PORT", "OFFICE_AI_DB_PORT"),
+    )
     explicit_database_url: SecretStr | None = Field(
         None, validation_alias="OFFICE_AI_DATABASE_URL", repr=False
     )

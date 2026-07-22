@@ -43,3 +43,18 @@ docker compose run --rm backend pytest -q
 
 - 不实现短信验证码、手机号自助找回、微信、Workspace 或团队体系。
 - 回滚 API 与迁移时保留向下兼容；已产生的积分流水不得原地修改，只能用反向流水更正。
+
+## 2026-07-22 本机 Runtime 补验
+
+- 用户明确授权本次执行只在进程内读取项目 `.env`，使用其中 MySQL 连接信息创建目标 database 并执行 migration；禁止回显、记录或提交 Secret。
+- 保持 T1-004 不变。本补验只处理 `OFFICE_AI_DB_*` 本地变量兼容、认证 4 张表的中文 table/column comments、MySQL 空库升级和 Redis authenticated runtime verification。
+- 不修改已推送的 `20260722_0001`、`20260722_0002`；schema comment 通过新的 additive migration 交付。
+- 成功标准：目标 database 存在且 Alembic current=head；4 张认证表和全部字段均有非空中文 COMMENT；Redis authenticated `PING` 通过；应用 `/health/ready` 在真实 MySQL/Redis 下返回 `200`。
+- 若本机旧 Redis 的非 UTF-8 `INFO` 文本与新版 redis-py 不兼容，只以 authenticated `PING` 作为可用性 gate，不把 INFO 解码失败误报为 Redis 不可用。
+
+### 补验结果
+
+- Windows `MySQL80` 与 `Redis` services 均为 Automatic/Running；MySQL 8.0.43 认证成功，Redis authenticated `PING=True`。
+- `.env` 指定的目标 database 已按 `utf8mb4 / utf8mb4_0900_ai_ci` 创建并升级至 `20260722_0003`。
+- `information_schema` 验证 4 张认证表、4 个 table comments、41 个 column comments 全部存在；`alembic check` 无 schema drift。
+- 临时注入 Redis认证 URL 后，真实应用 `/health/ready` 返回 `200`，MySQL/Redis 均为 `up`。
