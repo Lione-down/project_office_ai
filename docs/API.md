@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：`T1-004` 已实现 Auth、Admin Invite、Provider/Credential/Model Registry；其余接口按后续任务实现
+- 状态：`T1-005` 已实现 Auth、Admin Invite、Provider/Credential/Model Registry、Projects 与 Assets；其余接口按后续任务实现
 
 ## 共同行为
 
@@ -61,12 +61,16 @@ Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invi
 | POST | `/projects` | 创建项目；直接生成时可自动创建 |
 | PATCH | `/projects/{project_id}` | 改名或归档 |
 | DELETE | `/projects/{project_id}` | 软删除并安排文件清理 |
-| POST | `/assets/uploads` | 上传到 quarantine，校验数量与体积后异步处理 |
+| POST | `/assets/uploads` | 单文件 multipart 流式上传到 quarantine；必须提供 `Idempotency-Key` |
 | GET | `/assets` | 当前用户资产列表 |
 | GET | `/assets/{asset_id}` | 资产元数据与处理状态 |
 | GET | `/assets/{asset_id}/preview` | 鉴权预览，不暴露 storage key |
 | GET | `/assets/{asset_id}/download` | 鉴权下载 |
 | DELETE | `/assets/{asset_id}` | `deleting -> deleted`，活动存储立即清理 |
+
+T1-005 上传支持 XLSX、XLSM、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、TXT、MD 的扩展名/MIME 初检；PDF、Office ZIP 与图片同时检查最小 magic header。单文件默认上限 50 MB，图片默认上限 20 MB；同一用户重放相同 `Idempotency-Key` 时，`quarantined` 及后续已持久化状态返回既有资产且不重复读取或写入文件，`uploaded`/`deleting` 则在读取 body 前稳定返回 `409 asset_upload_in_progress`。单次 API 只接受一个 `file` 和至多一个 `project_id`，额外文件或未知 multipart 字段以 `upload_form_invalid` 拒绝；必须提供唯一、合法且与实际 bytes 一致的 `Content-Length`，不能使用 `Transfer-Encoding`。upload ASGI middleware 在读取 body 前验证 Bearer Session 和 replay policy；新请求先写入 middleware 自己的 1 MiB memory-threshold 受控 preflight spool，以 `max_file_bytes + 64 KiB` 验证完整 body 后才 replay 给 Starlette multipart parser。拒绝路径不会创建 parser file spool，临时 preflight spool 始终在 `finally` 关闭。20 文件/200 MB 是后续 generation input selection 与 T2-001 安全解析 gate，不以一次 multipart batch 实现。
+
+资产响应不返回 `storage_key` 或磁盘路径。preview/download 先做 owner scope 鉴权，响应包含 `Cache-Control: private, no-store` 与 `X-Content-Type-Options: nosniff`，preview 额外使用 `Content-Security-Policy: sandbox`。已完成的同 owner/idempotency replay 在 preflight spool 与 `request.form()` 前返回，HTTP body receive、multipart parser/spool 与 service upload 均不进入；incomplete replay 在相同位置返回 409，同样不消费 body。数据库 unique race fallback 使用同一 policy，不会把并发 `uploaded`/`deleting` checkpoint 当成 201 成功；signature/stream 失败且 cleanup 成功删除 checkpoint 后，later retry 可重新上传。新上传先提交 `uploaded` checkpoint，再写入文件并最终更新为 `quarantined`；若最终事务异常或 cancellation，文件仍由该 checkpoint 定位，cleanup 失败则保留 `deleting` 供恢复。cleanup/reconciliation failure 不替换 `file_signature_invalid`、`file_too_large`、unexpected stream error 或 cancellation 主因；direct/generic/cancellation 路径均写脱敏 `asset_recovery_failed` 日志与 checkpoint 状态。项目 PATCH 不接受显式 `null`；项目删除仅允许空项目。资产删除先检查活动父版本引用；物理删除失败保留 `deleting` 状态并明确返回失败，不伪报 `deleted`。稳定错误码包括 `project_not_found`、`project_not_empty`、`project_update_invalid`、`project_id_invalid`、`file_required`、`upload_form_invalid`、`asset_not_found`、`asset_in_use`、`asset_delete_failed`、`asset_upload_in_progress`、`upload_body_invalid`、`upload_body_too_large`、`quarantine_cleanup_failed`、`file_type_unsupported`、`file_mime_mismatch`、`file_signature_invalid`、`file_too_large` 与 `idempotency_key_invalid`。
 
 ## Skills、Models、Templates 与术语
 
@@ -137,9 +141,11 @@ Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invi
 
 `T1-004` 已实现 Provider/Credential/Model Registry。Agnes 配置在写入前验证 HTTPS、保守 `256K` Context 和正 timeout；Credential 创建响应只返回掩码并使用 `Cache-Control: no-store`。Reveal 要求管理员 Session、当前密码和 reason，成功/失败均审计，响应禁止缓存。Credential test 要求 reason、受 Redis 限速，`401/403` 会暂停 Credential，timeout 返回不确定状态而不自动重试。用户 `/models` 只返回 Provider、Credential、Model 都为 active 且 `user_visible=true` 的记录。
 
+`T1-005` 已实现用户 Projects/Assets HTTP contract。管理员全局资产读取当前只在 service-level 提供独立 admin role + reason + audit 边界并覆盖成功/失败审计；不暴露缺少近期重新认证的半成品 Admin HTTP 端点，完整 preview/download/delete re-auth 闭环仍由 `T4-002` 交付。
+
 ## 后续 contract gate
 
-- `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model。
-- `T1-005` 实现 Projects/Assets；`T2-003` 实现术语；`T2-004`/`T2-005` 实现 Brief/Preflight。
+- `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
+- `T2-001` 实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 实现术语；`T2-004`/`T2-005` 实现 Brief/Preflight。
 - `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

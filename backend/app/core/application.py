@@ -12,7 +12,7 @@ from app.controllers.health import DependencyReadinessChecker
 from app.core.database import DatabaseManager
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
-from app.core.middleware import TraceIdMiddleware
+from app.core.middleware import TraceIdMiddleware, UploadBodyLimitMiddleware
 from app.core.redis import RedisManager
 from app.services.auth_registration import RegistrationService
 from app.services.auth_invites import InviteAdminService
@@ -23,10 +23,12 @@ from app.services.auth_security import (
     TokenCodec,
 )
 from app.services.auth_sessions import AuthSessionService
+from app.services.asset_management import AssetManagementService
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
 from app.settings.config import Settings, get_settings
+from app.storage.local import LocalStorageAdapter
 
 
 class ReadinessChecker(Protocol):
@@ -45,6 +47,7 @@ def create_app(
     readiness_checker: ReadinessChecker | None = None,
     auth_services: AuthServices | None = None,
     provider_services: object | None = None,
+    asset_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
@@ -114,6 +117,15 @@ def create_app(
                 rate_limiter=RedisRateLimiter(redis),
             )
 
+    if asset_services is None and database is not None and auth_services is not None:
+        asset_services = AssetManagementService(
+            database.session_factory,
+            auth_services.sessions,
+            LocalStorageAdapter(application_settings.files_root),
+            max_file_bytes=application_settings.max_file_bytes,
+            max_image_bytes=application_settings.max_image_bytes,
+        )
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
@@ -124,6 +136,13 @@ def create_app(
     app.state.readiness_checker = readiness_checker
     app.state.auth_services = auth_services
     app.state.provider_services = provider_services
+    app.state.asset_services = asset_services
+    app.add_middleware(
+        UploadBodyLimitMiddleware,
+        max_body_bytes=application_settings.max_upload_body_bytes,
+        auth_sessions=auth_services.sessions if auth_services is not None else None,
+        asset_services=asset_services,
+    )
     app.add_middleware(TraceIdMiddleware)
     app.add_middleware(
         CORSMiddleware,

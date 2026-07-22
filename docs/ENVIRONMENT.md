@@ -34,6 +34,7 @@
 | `OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD` | 初始管理员密码 | 是 | T1-003 Bootstrap | 仅本地未跟踪环境或 Secret store；无默认值 |
 | `OFFICE_AI_FILES_ROOT` | 受控文件根目录 | 否 | T1-005 | Compose path；默认 `/app/files` |
 | `OFFICE_AI_MAX_FILE_BYTES` | 单文件上限，默认 50 MB | 否 | T1-005 | `system_settings`/普通变量 |
+| `OFFICE_AI_MAX_IMAGE_BYTES` | 图片上限，默认 20 MB | 否 | T1-005 | `system_settings`/普通变量 |
 | `OFFICE_AI_MAX_TASK_BYTES` | 单任务总上限，默认 200 MB | 否 | T1-005 | `system_settings`/普通变量 |
 | `OFFICE_AI_CLAMAV_HOST` | ClamAV internal hostname | 否 | T2-001 | Compose DNS 名 |
 | `OFFICE_AI_CLAMAV_PORT` | ClamAV port | 否 | T2-001 | Compose 普通变量 |
@@ -67,6 +68,11 @@
 - Bootstrap 完成后应从当前进程环境移除这两个变量；真实值不得写入 Compose 文件、`.env.example`、测试 fixture、日志或聊天。
 
 ## 本地文件与卷
+
+- Compose backend 固定挂载 `app-files:/app/files`，并显式映射 50 MB 单文件、20 MB 图片和 200 MB 单任务默认值。
+- ASGI upload body gate 自动使用 `OFFICE_AI_MAX_FILE_BYTES + 64 KiB`；64 KiB 只用于单文件 multipart header、清理后文件名、UUID field、boundary/framing，不是额外文件容量。新请求 body 先进入 middleware 自己的 `SpooledTemporaryFile`（1 MiB memory threshold），完整验证后才 replay 给 multipart parser；该 preflight spool 与 parser/file spool 都不写入公开目录，并在请求结束或拒绝时关闭。
+- Local Storage key 固定为 `users/{user_id}/quarantine/{asset_id}/original.{ext}`；原始文件名、手机号和客户端路径不参与磁盘定位。
+- T1-005 API 每次只流式接收一个文件；`OFFICE_AI_MAX_TASK_BYTES` 在 T2-001/T3-001 的 generation input selection gate 使用，当前不把多次独立上传错误聚合成一个任务。
 
 | 路径/卷 | 内容 | Git |
 |---|---|---|

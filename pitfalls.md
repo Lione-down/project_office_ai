@@ -83,6 +83,62 @@
 - 本任务处理：在 `app.router.lifespan_context(app)` 内重跑 readiness，MySQL/Redis 均 up、Provider service 配置成功且无清理 warning。
 - 预防/验证：直接 ASGI probe 若创建真实资源，必须显式进入/退出 lifespan；测试 client 成功响应不能替代资源关闭验证。
 
+### 2026-07-22 · T1-005 · 文件初检不得整文件读入内存
+
+- 现象：初版 signature probe 使用 `Path.read_bytes()[:12]`，虽然只保留 12 bytes，实际仍先分配并读取整个最大 50 MB 文件。
+- 影响：并发上传会放大内存占用，破坏“流式上传”的资源边界。
+- 本任务处理：先用 monkeypatch 禁止 `read_bytes()` 得到 RED，再改为 `open("rb").read(12)`；上传正文按 1 MiB chunk 写入并增量计算 SHA-256。
+- 预防/验证：任何 header/magic 检查都必须限制实际读取长度，不能在切片语法后隐藏整文件读取。
+
+### 2026-07-22 · T1-005 · Alembic Head 测试不能永久写死上一任务
+
+- 现象：新增 additive `20260722_0005` 后，T1-004 的 provider migration test 仍断言唯一 Head 为 `0004`，导致 full suite 唯一失败。
+- 影响：每个正常后续 migration 都会制造伪回归，或诱使开发者跳过 broad suite。
+- 本任务处理：改为断言唯一 Head 是当前 `0005`，且 `0005.down_revision == 0004`，同时保留 provider migration 位于单链中的证明。
+- 预防/验证：历史任务测试应验证自己的 revision 存在和链路连续；当前 Head 只由最新 migration task 断言。
+
+### 2026-07-22 · T1-005 · 文件删除与数据库状态不能伪一致
+
+- 现象：初版 `shutil.rmtree(..., ignore_errors=True)` 会吞掉权限/锁定错误，service 随后仍把资产标成 `deleted`；非唯一冲突的 metadata commit 失败也不会清理已写 quarantine 文件。
+- 影响：用户收到删除成功但敏感文件仍在磁盘，或磁盘出现没有 `file_assets` 记录的 orphan file。
+- 本任务处理：缺失目录保持幂等，其他物理删除错误返回 `asset_delete_failed` 并保留 `deleting`；首次 checkpoint commit 在文件 I/O 前失败时无需文件清理，finalization metadata commit 异常则保留 `uploaded` checkpoint 与已写文件供恢复，只有 signature/stream 等失败才清理本次 asset UUID 目录与 checkpoint。
+- 预防/验证：文件系统/数据库跨资源流程必须用 fault-injection 测试覆盖每个失败点，并区分“安全删除失败产物”和“保留 durable checkpoint 以追踪已写文件”，不能用 `ignore_errors` 伪造一致性。
+
+### 2026-07-22 · T1-005 · 默认项目与上传需要数据库并发约束
+
+- 现象：默认项目最初是 unlocked read-then-insert，且上传在写文件前读取 project、写库时不重验；并发请求可创建多个默认项目或向刚归档/删除的项目写入资产。
+- 影响：幂等上传仍可能留下 orphan default project，project 状态与资产归属不一致。
+- 本任务处理：新增 `active_default_owner_id` generated key 唯一约束；默认项目冲突 rollback 后回读 winner；资产 insert 前在同一事务中 `FOR UPDATE` 锁定并重验 project。
+- 预防/验证：业务唯一性必须由数据库约束兜底；跨 I/O 的授权/状态快照在最终持久化事务内重新确认。
+
+### 2026-07-22 · T1-005 · Service 文件上限不能替代 multipart 解析前上限
+
+- 现象：初版只在 `UploadFile` 传入 service 后按 chunk 限制 50 MB，但 Starlette 已在此前把 multipart file spool 到临时存储；任意大或 chunked body 可先耗尽 `/tmp`/Host storage。
+- 影响：业务测试显示 `file_too_large` 仍不能证明 request parser 具备 DoS 边界。
+- 本任务处理：新增 upload 专用纯 ASGI gate；缺失/非法 `Content-Length`、任何 `Transfer-Encoding`、声明或实际 bytes 超过 `max_file_bytes + 64 KiB` 均在 service 调用前返回稳定 413。
+- 预防/验证：上传限制必须分别验证 transport/parser gate 和业务 file gate；测试需证明拒绝时 receive/body 与 service 都未被消费。
+
+### 2026-07-23 · T1-005 · 文件落盘前必须建立可恢复 checkpoint
+
+- 现象：原流程先写 quarantine 文件、再插入 `file_assets`；metadata commit、signature cleanup 或 `CancelledError` 可在两个资源之间中断，留下无数据库定位的文件，cleanup exception 还可能遮蔽原始错误。
+- 影响：orphan file 无法由状态机发现或安全重试，未认证 multipart 请求也可能在鉴权前反复占用 spool/disk I/O。
+- 本任务处理：upload middleware 在 body receive/parser 前验证 Session；service 在文件 I/O 前提交 `uploaded` checkpoint，成功后更新 `quarantined`，cleanup 失败保留 `deleting`；Local Storage 显式捕获 cancellation，所有 reconciliation failure 只作为 exception note，不覆盖主因。
+- 预防/验证：跨数据库与文件系统操作必须先有 durable owner/key/status；测试同时断言 pre-auth receive count 为 0、stream cancellation 无 partial、cleanup failure 可追踪、finalization failure 仍有 `uploaded` 记录。
+
+### 2026-07-23 · T1-005 · parser 中途 disconnect 不能替代完整 body preflight
+
+- 现象：streaming ASGI gate 在实际 bytes 超限时向下游返回 `http.disconnect`；若 parser 已处理首个 chunk 并把 UploadFile 滚盘，Starlette 异常路径可能留下未关闭的 spool handle。
+- 影响：低报 `Content-Length` 的重复请求可积累临时文件与句柄，虽然单请求有大小上限，仍形成资源耗尽面。
+- 本任务处理：认证和 completed replay 后，middleware 先把新请求写入自有 1 MiB threshold `SpooledTemporaryFile`，完整校验实际/声明长度和上限后才 replay 给 parser；所有出口 `finally close`。
+- 预防/验证：body gate 测试必须使用至少两个 ASGI message，让第一段足以触发 parser roll、第二段才越界，并断言拒绝时 parser spool 根本未创建；不要只用单 message 超限测试代替。
+
+### 2026-07-23 · T1-005 · incomplete checkpoint 不能伪装成幂等成功
+
+- 现象：并发请求可在首请求已提交 `uploaded` checkpoint、但尚未通过 signature/stream gate 时命中相同 `Idempotency-Key`；初版 lookup 会直接把该 incomplete row 当作 201 replay。若首请求随后失败并清理 checkpoint，客户端已收到的“成功资产”会消失。
+- 影响：幂等响应不稳定，调用方可能把尚未形成合法 quarantine 的资产当成可用输入；数据库 unique race fallback 也存在同一误判。
+- 本任务处理：统一 replay policy 将 `uploaded`/`deleting` 映射为 `409 asset_upload_in_progress`，completed/后续已持久化状态才返回既有资产；普通 lookup 与 `IntegrityError` fallback 共用该 policy，且 middleware 在 body receive 前返回冲突。
+- 预防/验证：并发测试必须让首请求停在 durable checkpoint 后，证明第二请求为零 body read 的 409；还要覆盖首请求 signature/stream 失败 cleanup 后，同 key later retry 能重新成功。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

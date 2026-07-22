@@ -41,6 +41,13 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - XLSM 只提取安全数据且不执行宏；拒绝 XLS；不跟随文档 URL或外部连接。
 - 文档文本始终是 untrusted data，不拼入 System Prompt，不改变工具权限。
 - 活动文件按不可变 `user_id/asset_id` 存储，不使用手机号或原始文件名作为路径。
+- T1-005 Local Storage 只接受结构化 UUID key，解析后必须仍位于受控 root；客户端不能提交磁盘路径或 `storage_key`。
+- 上传按 1 MiB chunk 写入并增量计算 SHA-256；signature probe 只读 12-byte header，不把完整文件加载到内存。文件名经过 NFKC、basename、长度与 Unicode control category 清理。
+- upload 专用 ASGI middleware 在读取 body 前先验证 Bearer Session 和 owner/idempotency replay policy，再要求唯一合法且与实际 bytes 一致的 `Content-Length`、拒绝 `Transfer-Encoding`。新请求先进入 1 MiB memory-threshold 的受控 preflight spool，完整限额验证后才 replay 给 Starlette parser；低报/超限拒绝路径不会创建 parser spool，preflight spool 在 `finally` 关闭。未认证、completed replay 或 incomplete replay conflict 均零 body receive。
+- 相同用户的 `Idempotency-Key` 由数据库唯一约束兜底；`quarantined` 及后续已持久化状态在 middleware preflight spool 与 endpoint `request.form()` 前返回既有资产，`uploaded`/`deleting` 在相同位置稳定返回 `409 asset_upload_in_progress`。数据库 unique race fallback 使用相同分类，测试证明两条路径的 body receive、multipart parser/spool 与 service upload 均为零；signature/stream cleanup 成功删除 checkpoint 后 later retry 可重新成功。新请求只允许一个 `file` 与至多一个 `project_id`，拒绝额外文件/未知字段。preview/download 只返回 owner-scoped FileResponse 和安全 Header，不返回存储定位。
+- 默认项目通过 generated owner key 保证每个用户最多一个活动默认项目；上传在文件 I/O 前提交 owner-scoped `uploaded` checkpoint，最终状态事务再次锁定并重验项目。signature/project cleanup 成功后移除 checkpoint，cleanup 失败保留 `deleting`；最终 transaction failure/cancellation 保留 `uploaded` 定位已写文件，归档/删除不能与上传交错放行，也不产生无数据库记录的 orphan file。cleanup/reconciliation failure 只作为安全 exception note/marker 与脱敏 `asset_recovery_failed` 日志记录，不覆盖 signature、size、stream 或 cancellation 主因。
+- 资产物理删除错误不得忽略；只有具体资产目录清理成功或本就不存在时才进入 `deleted`。首次 checkpoint commit 发生在文件 I/O 前，失败时没有 quarantine 文件；finalization metadata commit 异常保留 `uploaded` checkpoint 与已写文件供恢复，不做破坏 durable tracking 的删除。signature/stream 等写入失败才清理本次 quarantine 目录与 checkpoint；partial write 的清理失败显式记录并保留 `deleting`，不能被二次 cleanup 覆盖或静默留下 orphan file。
+- T1-005 只做扩展名/MIME/minimal signature 初检；ClamAV、Zip Bomb、加密/损坏 Office、页数/Sheet/单元格与 20 文件/200 MB 组合门禁属于 T2-001，未扫描资产保持 `quarantined`，不得标记 `ready`。
 
 ## Provider 与 Prompt 安全
 

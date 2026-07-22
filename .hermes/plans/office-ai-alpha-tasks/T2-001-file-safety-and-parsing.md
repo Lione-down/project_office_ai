@@ -1,6 +1,6 @@
 # T2-001 文件扫描与解析沙箱
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T1-005`
 - 来源：总计划第 7、8、13 节与 Day 6
 - 建议 commit：`feat(parser): add sandboxed office file ingestion`

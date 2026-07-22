@@ -1,8 +1,14 @@
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# One file and one UUID field leave a bounded allowance for multipart headers,
+# the sanitized filename, boundaries, and framing bytes.
+SINGLE_UPLOAD_MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
 
 class Settings(BaseSettings):
@@ -68,6 +74,22 @@ class Settings(BaseSettings):
         validation_alias="OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD",
         repr=False,
     )
+    files_root: Path = Field(
+        Path("/app/files"), validation_alias="OFFICE_AI_FILES_ROOT"
+    )
+    max_file_bytes: int = Field(
+        50 * 1024 * 1024, validation_alias="OFFICE_AI_MAX_FILE_BYTES", ge=1
+    )
+    max_image_bytes: int = Field(
+        20 * 1024 * 1024, validation_alias="OFFICE_AI_MAX_IMAGE_BYTES", ge=1
+    )
+    max_task_bytes: int = Field(
+        200 * 1024 * 1024, validation_alias="OFFICE_AI_MAX_TASK_BYTES", ge=1
+    )
+
+    @property
+    def max_upload_body_bytes(self) -> int:
+        return self.max_file_bytes + SINGLE_UPLOAD_MULTIPART_OVERHEAD_BYTES
 
     @field_validator(
         "session_secret",

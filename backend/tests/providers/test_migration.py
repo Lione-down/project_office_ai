@@ -51,10 +51,12 @@ def test_provider_migration_upgrades_empty_database(monkeypatch, tmp_path) -> No
     assert "uq_ai_models_provider_code_credential" in model_uniques
 
 
-def test_provider_migration_is_the_single_head() -> None:
-    heads = ScriptDirectory.from_config(alembic_config()).get_heads()
+def test_provider_migration_remains_in_the_single_head_chain() -> None:
+    scripts = ScriptDirectory.from_config(alembic_config())
+    heads = scripts.get_heads()
 
-    assert heads == ["20260722_0004"]
+    assert heads == ["20260722_0005"]
+    assert scripts.get_revision("20260722_0005").down_revision == "20260722_0004"
 
 
 def test_provider_migration_emits_mysql_chinese_comments(monkeypatch) -> None:

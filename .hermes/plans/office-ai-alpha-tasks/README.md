@@ -34,8 +34,8 @@
 | `T1-002` | FastAPI、Vue 与数据库骨架 | `T1-001` | `BLOCKED` | |
 | `T1-003` | 用户、Session 与邀请码 | `T1-002` | `BLOCKED` | |
 | `T1-004` | Provider、Credential 与模型后台 | `T1-003` | `BLOCKED` | |
-| `T1-005` | 项目与资产上传 | `T1-004` | `BLOCKED` | Week 1 |
-| `T2-001` | 文件扫描与解析沙箱 | `T1-005` | `BLOCKED` | |
+| `T1-005` | 项目与资产上传 | `T1-004` | `DONE` | Week 1 |
+| `T2-001` | 文件扫描与解析沙箱 | `T1-005` | `READY` | |
 | `T2-002` | OCR 与 Evidence Manifest | `T2-001` | `BLOCKED` | |
 | `T2-003` | 术语库与证据标准化 | `T2-002` | `BLOCKED` | |
 | `T2-004` | Skills 与 Agnes Structured Brief | `T2-003` | `BLOCKED` | |

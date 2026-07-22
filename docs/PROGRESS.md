@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
-- 最后更新：`2026-07-22`
-- 最近完成：`T1-004 Provider、Credential 与模型后台`
-- 下一任务：`T1-005 项目与资产上传`
-- 当前状态：`T1-005 READY`
+- 最后更新：`2026-07-23`
+- 最近完成：`T1-005 项目与资产上传`
+- 下一任务：`T2-001 文件扫描与解析沙箱`
+- 当前状态：`T2-001 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -28,8 +28,8 @@
 | T1-002 | DONE | T1-001 | `chore(core): bootstrap frontend backend and database`；Docker runtime 缺口见下文 |
 | T1-003 | DONE | T1-002 | `feat(auth): add invite based phone authentication`；Docker runtime 缺口见下文 |
 | T1-004 | DONE | T1-003 | `feat(provider): add encrypted multi provider model registry`；验证证据见下文 |
-| T1-005 | READY | T1-004 | 项目与资产上传；Week 1 Gate |
-| T2-001 | BLOCKED | T1-005 | 文件扫描与解析沙箱 |
+| T1-005 | DONE | T1-004 | `feat(asset): add isolated local asset management`；验证证据见下文 |
+| T2-001 | READY | T1-005 | 文件扫描与解析沙箱 |
 | T2-002 | BLOCKED | T2-001 | OCR 与 Evidence Manifest |
 | T2-003 | BLOCKED | T2-002 | 术语库与证据标准化 |
 | T2-004 | BLOCKED | T2-003 | Skills 与 Agnes Structured Brief |
@@ -275,3 +275,68 @@
 
 - T1-004 严格范围内的实现、TDD、focused/broad、真实 MySQL/Redis runtime、dependency/security gate 和文档记录已完成；单一逻辑 commit 推送后闭环。
 - T1-005 是下一唯一 `READY` 任务；本会话没有实现 Project、Asset、上传、文件存储或任何 T1-005 代码。
+
+## T1-005 执行记录
+
+### 范围
+
+- 建立 `projects`、`file_assets` ORM 与 additive migration `20260722_0005`；当前实现 10/21 张 Alpha 表。
+- 实现用户 Project 创建、列表、改名/归档、空项目软删除，以及无显式项目上传时自动创建默认项目。
+- 实现 Local Storage Adapter：固定 `users/{user_id}/quarantine/{asset_id}/original.{ext}`，按 1 MiB chunk 写入、增量 SHA-256、大小 gate 和具体资产目录清理。
+- 实现单文件 multipart 上传、扩展名/MIME/minimal signature 初检、Quarantine、幂等重放、资产列表/详情/preview/download/删除与父版本引用检查。
+- 实现 owner-scoped 用户 HTTP API 与管理员 service-level role + reason + audit 读取边界；未提前暴露 T4-002 的管理员资产 HTTP/re-auth/delete 闭环，未做 ClamAV、深度 Office/PDF 解析、OCR、OSS 或 Outbox。
+
+### Changed files
+
+- Models/Migration：`backend/app/models/{projects,file_assets}.py`、model registry、`backend/alembic/versions/20260722_0005_projects_and_file_assets.py`。
+- Storage/Services：`backend/app/storage/local.py`、`backend/app/services/{asset_contracts,asset_management,asset_uploads}.py`、Settings/Application/Error wiring。
+- API/Schemas：`backend/app/api/v1/assets.py`、router、`backend/app/schemas/assets.py`。
+- Tests/Dependency：`backend/tests/assets/**`、`backend/tests/security/**`、provider migration chain test、`backend/pyproject.toml`；新增 `python-multipart>=0.0.20,<1`。
+- Runtime/Records：`docker-compose.yml`、task README、T1-005/T2-001 task cards、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret 或用户文件。
+
+### TDD 与 focused verification
+
+- RED：模型/migration、Local Storage、service ownership/idempotency/audit/delete、HTTP/settings、12-byte signature probe、Unicode control filename 和 Compose limit contracts 均先观察到目标能力缺失或错误行为后再实现。
+- `backend/.venv/Scripts/python.exe -m pytest tests/assets -q`：`56 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest tests/security -q`：`10 passed`；覆盖不可变 UUID key、路径穿越/伪造 key、大小溢出清理、partial/cancellation cleanup、cleanup failure cause、只删除具体资产目录和物理删除失败显式上报。
+- 跨用户 get/open 返回同一 `asset_not_found` 404；管理员独立读取写入不含 `storage_key` 的 `asset.admin_read` audit。
+- 独立 pre-commit review 首轮发现物理删除静默失败、PATCH null、project state race、默认项目并发和非 IntegrityError orphan file 五项阻断；新增 10 个定向测试先 `10 failed`，最小修复后 `10 passed`，随后 focused/broad 全绿。
+- 第二轮独立 review 发现 multipart parser 前缺少 request body bound、partial write 仍有 silent cleanup 两项阻断；最终 auto-fix cycle 的 10 个定向测试先 RED，修复后 `10 passed`，新增 pre-parser ASGI gate 与显式 `quarantine_cleanup_failed`。
+- 最终 review 的三项 blocker 由 8 个新回归测试复现为 `8 failed`：未认证上传先进入 multipart parser、`CancelledError` 留下 22-byte partial、写文件前无 durable checkpoint、cleanup 覆盖 signature 主因及 finalization failure 无追踪记录。修复后同组 `8 passed`。
+- 独立 re-review 继续发现已完成 idempotency replay 仍进入 multipart parser/spool，以及 cleanup failure 在 HTTP 主异常位置遮蔽 signature/cancellation。新增 5 个定向断言先得到 `3 failed, 1 passed`（随后修正两个误改/缺 header 的 test maintenance 问题），改为 endpoint pre-form replay lookup、original-error-first marker/note、`deleting` checkpoint 与脱敏 recovery log 后 `5 passed`；最终 assets/security 合并 `53 passed`。
+- 第二次 re-review 发现多 chunk 低报长度会在 parser 已滚盘后用 disconnect 中止并留下未关闭 spool，且 generic/direct/cancellation recovery log 覆盖不全；额外 multipart 文件也未拒绝。新增 5 个用例先 `5 failed`，改为 middleware 受控 preflight spool、middleware completed replay、统一 recovery logger 和严格单文件 form 后同组 `5 passed`，含 replay 回归共 `6 passed`；最终 assets/security 合并 `58 passed`。
+- 第二次 auto-fix 后的最终 re-review probe 确认上述 parser spool、completed replay、direct/generic/cancellation logging 与严格 form blocker 均闭环，但发现 `_finalize_checkpoint` 在 commit 主异常/`CancelledError` 后的 `session.rollback()` 若再抛异常，会覆盖主因且没有 `recovery_failure` marker、安全 note 或 recovery log；fault probe 得到最终 `OSError` 而非原 `CancelledError`。该项阻止 commit。
+- 新 goal continuation 重新启用 strict TDD/review workflow；独立 fix agent 对 finalization commit `RuntimeError`/`CancelledError` + rollback `OSError` 组合新增参数化 fault test，先得到 `2 failed`，再将 rollback failure 转为 primary 上的 `recovery_failure=True` 与仅含 `OSError` 类型的安全 note，原样重抛 primary 后 `2 passed`。主 agent 复跑同组、assets/security 与 broad 均通过。
+- Fresh reviewer 发现并发相同 key 会把首请求尚未完成的 `uploaded` checkpoint 当作 201 replay，且 unique `IntegrityError` fallback 同样误判。独立 fix agent 新增 service 并发 signature/stream failure + later retry、真实 middleware `uploaded`/`deleting` 零 receive/零 upload 409、unique race 三组参数化用例，先得到 service `4 failed`、HTTP `2 failed`；统一 replay policy 后分别 `4 passed`、`2 passed`，完整 assets 为 `56 passed`。
+- 修复后独立 re-review 重新读取 39 个 staged 文件并复跑 incomplete replay、fault recovery、assets/security/broad 与 quality gates，确认普通 lookup、middleware、unique race fallback 和文档一致性全部闭环，结论为 `PASS`，无新增 security/logic blocker。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend 根目录 `.venv/Scripts/python.exe -m pytest -q`：`150 passed`。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 均通过；全部 Python 文件不超过 500 行。
+- `alembic heads`：`20260722_0005 (head)`；SQLite 空库完整 upgrade、active default/storage location/user idempotency 三个唯一约束、中文 COMMENT 和 MySQL dialect offline `upgrade head --sql` 通过。
+- `pip check` 通过；`pip-audit` 为 `0 known vulnerabilities`，仅按预期跳过本地非 PyPI package；12 个 direct production dependency license metadata 无缺失。
+
+### Runtime 缺口与证据边界
+
+- 任务卡三条命令已逐条实际执行：assets、security、broad Docker pytest 都因 PowerShell `docker` command not found 在容器创建前 exit `1`；不标记容器 runtime 通过。
+- Direct Windows focused/broad、SQLite migration、MySQL offline DDL 和 `tmp_path` 受控文件 I/O 通过；这些证据不冒充 Docker volume/non-root 或真实 MySQL `0005` runtime upgrade。
+- 当前会话遵守项目规则，未读取 ignored `.env`；因此没有使用已有数据库 Secret 运行真实 MySQL migration。Docker 或经用户明确授权的 Secret 注入环境可用后，应补跑 Compose 原始命令与真实 `alembic upgrade head/check`。
+
+### 安全与决策
+
+- 客户端不能提交或获得磁盘路径/`storage_key`；结构化 key 必须解析为指定 owner/asset UUID 且仍位于受控 root。
+- 文件名使用 NFKC、basename、255 字符和 Unicode control category 清理；binary signature 只读取 12-byte header，不把最大 50 MB 文件整体加载内存。
+- 用户/幂等键唯一约束与 application lookup 共同保证已完成 replay 在 `request.form()` 前返回；`uploaded`/`deleting` incomplete replay 则稳定返回 `409 asset_upload_in_progress`，两者都保持零 body receive/parser/spool/service upload。普通 lookup 与 unique race fallback 共用 replay policy；signature/stream cleanup 成功删除 checkpoint 后，同 key later retry 可重新成功。storage location 另有唯一约束，文件二进制不进入 MySQL。
+- preview/download 使用 `private, no-store`、`nosniff`，preview 额外 `CSP sandbox`；资产保持 `quarantined`，T2-001 完成 ClamAV/深度类型/容量/解析前不得进入 `ready`。
+- upload gate 在 body receive 前验证 Bearer Session 与 replay policy；新请求进入 middleware 自有 1 MiB threshold preflight spool，只有声明/实际长度一致且不超过 `max_file_bytes + 64 KiB` 才 replay 给 parser。拒绝路径不创建 parser spool，preflight spool 始终关闭；未认证/completed replay/incomplete conflict 均不消费 body。
+- 项目删除当前只允许空项目；资产删除按 `deleting -> deleted` 并检查活动父版本引用。未来 `generation_task_inputs` 建立后必须把历史生成引用加入同一 delete gate。
+- 每个用户的活动默认项目通过 generated owner key 唯一约束；上传在文件 I/O 前提交 `uploaded` checkpoint，最终事务锁定并重验 project 后更新 `quarantined`。finalization 异常/cancellation 保留 checkpoint 与具体 storage key，文件始终可恢复追踪。物理删除失败保留 `deleting` 并返回 `asset_delete_failed`，不静默标记成功。
+- stream/open/write 失败后的 partial quarantine cleanup 不使用 `ignore_errors`；目录已不存在保持幂等，其他清理失败保留原始 signature/size/stream/cancellation 主因，并以安全 note/marker、`deleting` checkpoint 和脱敏 `asset_recovery_failed` 日志记录恢复失败。人工/适配器直接抛出的 `quarantine_cleanup_failed` 仍稳定翻译，service 不做会覆盖它的二次删除。
+
+### 完成结论
+
+- 最终 review 与两次 re-review 的 parser/replay/storage blocker 已完成 TDD remediation：pre-auth/completed replay 都发生在 receive 前；受控 preflight spool 在 parser 前完整验证并关闭；文件 I/O 前持久化 `uploaded` checkpoint；Local Storage cleanup 保留原始错误、可恢复状态与 direct/generic/cancellation 脱敏日志。
+- 当前 direct Windows evidence：assets `56 passed`、security `10 passed`、broad `150 passed`；Ruff check/format、Alembic single head/offline SQL、`pip check`、`pip-audit`、`git diff --check` 均通过。Docker 仍为 command not found，不冒充容器 runtime evidence；未读取 ignored `.env`，未运行真实 MySQL `0005` upgrade。
+- T1-005 已通过独立 pre-commit re-review、focused/broad/quality/migration/dependency 与敏感信息门禁；状态与依赖链已收口为 `DONE`，T2-001 是唯一 `READY` 任务。新会话必须按“新会话必读”顺序重新读取文件记录后再实现 T2-001。
