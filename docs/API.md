@@ -70,7 +70,44 @@ Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invi
 
 T1-005 上传支持 XLSX、XLSM、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、TXT、MD 的扩展名/MIME 初检；PDF、Office ZIP 与图片同时检查最小 magic header。单文件默认上限 50 MB，图片默认上限 20 MB；同一用户重放相同 `Idempotency-Key` 时，`quarantined` 及后续已持久化状态返回既有资产且不重复读取或写入文件，`uploaded`/`deleting` 则在读取 body 前稳定返回 `409 asset_upload_in_progress`。单次 API 只接受一个 `file` 和至多一个 `project_id`，额外文件或未知 multipart 字段以 `upload_form_invalid` 拒绝；必须提供唯一、合法且与实际 bytes 一致的 `Content-Length`，不能使用 `Transfer-Encoding`。upload ASGI middleware 在读取 body 前验证 Bearer Session 和 replay policy；新请求先写入 middleware 自己的 1 MiB memory-threshold 受控 preflight spool，以 `max_file_bytes + 64 KiB` 验证完整 body 后才 replay 给 Starlette multipart parser。拒绝路径不会创建 parser file spool，临时 preflight spool 始终在 `finally` 关闭。20 文件/200 MB 是后续 generation input selection 与 T2-001 安全解析 gate，不以一次 multipart batch 实现。
 
-资产响应不返回 `storage_key` 或磁盘路径。preview/download 先做 owner scope 鉴权，响应包含 `Cache-Control: private, no-store` 与 `X-Content-Type-Options: nosniff`，preview 额外使用 `Content-Security-Policy: sandbox`。已完成的同 owner/idempotency replay 在 preflight spool 与 `request.form()` 前返回，HTTP body receive、multipart parser/spool 与 service upload 均不进入；incomplete replay 在相同位置返回 409，同样不消费 body。数据库 unique race fallback 使用同一 policy，不会把并发 `uploaded`/`deleting` checkpoint 当成 201 成功；signature/stream 失败且 cleanup 成功删除 checkpoint 后，later retry 可重新上传。新上传先提交 `uploaded` checkpoint，再写入文件并最终更新为 `quarantined`；若最终事务异常或 cancellation，文件仍由该 checkpoint 定位，cleanup 失败则保留 `deleting` 供恢复。cleanup/reconciliation failure 不替换 `file_signature_invalid`、`file_too_large`、unexpected stream error 或 cancellation 主因；direct/generic/cancellation 路径均写脱敏 `asset_recovery_failed` 日志与 checkpoint 状态。项目 PATCH 不接受显式 `null`；项目删除仅允许空项目。资产删除先检查活动父版本引用；物理删除失败保留 `deleting` 状态并明确返回失败，不伪报 `deleted`。稳定错误码包括 `project_not_found`、`project_not_empty`、`project_update_invalid`、`project_id_invalid`、`file_required`、`upload_form_invalid`、`asset_not_found`、`asset_in_use`、`asset_delete_failed`、`asset_upload_in_progress`、`upload_body_invalid`、`upload_body_too_large`、`quarantine_cleanup_failed`、`file_type_unsupported`、`file_mime_mismatch`、`file_signature_invalid`、`file_too_large` 与 `idempotency_key_invalid`。
+资产响应不返回 `storage_key`、`parsed_storage_key` 或磁盘路径。T2-001 在原响应上增加可空 `parser_name`/`parser_version`、`processing_warnings`、`processing_error_code` 与脱敏 `processing_error_message`；不返回结构化内容本体。preview/download 先做 owner scope 鉴权，响应包含 `Cache-Control: private, no-store` 与 `X-Content-Type-Options: nosniff`，preview 额外使用 `Content-Security-Policy: sandbox`。已完成的同 owner/idempotency replay 在 preflight spool 与 `request.form()` 前返回，HTTP body receive、multipart parser/spool 与 service upload 均不进入；incomplete replay 在相同位置返回 409，同样不消费 body。数据库 unique race fallback 使用同一 policy，不会把并发 `uploaded`/`deleting` checkpoint 当成 201 成功；signature/stream 失败且 cleanup 成功删除 checkpoint 后，later retry 可重新上传。新上传先提交 `uploaded` checkpoint，再写入文件并最终更新为 `quarantined`；若最终事务异常或 cancellation，文件仍由该 checkpoint 定位，cleanup 失败则保留 `deleting` 供恢复。cleanup/reconciliation failure 不替换 `file_signature_invalid`、`file_too_large`、unexpected stream error 或 cancellation 主因；direct/generic/cancellation 路径均写脱敏 `asset_recovery_failed` 日志与 checkpoint 状态。项目 PATCH 不接受显式 `null`；项目删除仅允许空项目。资产删除先检查活动父版本引用；物理删除失败保留 `deleting` 状态并明确返回失败，不伪报 `deleted`。T2-001 可持久化处理错误码以完整 contract 表为准；上传/资产稳定错误码继续包括 `project_not_found`、`project_not_empty`、`project_update_invalid`、`project_id_invalid`、`file_required`、`upload_form_invalid`、`asset_not_found`、`asset_in_use`、`asset_delete_failed`、`asset_upload_in_progress`、`upload_body_invalid`、`upload_body_too_large`、`quarantine_cleanup_failed`、`file_type_unsupported`、`file_mime_mismatch`、`file_signature_invalid`、`file_too_large` 与 `idempotency_key_invalid`。
+
+### T2-001 可持久化处理错误码
+
+| processing_error_code |
+|---|
+| `archive_bomb_detected` |
+| `archive_member_invalid` |
+| `excel_cell_limit_exceeded` |
+| `excel_sheet_limit_exceeded` |
+| `file_corrupt` |
+| `file_encoding_unsupported` |
+| `file_encrypted` |
+| `file_integrity_mismatch` |
+| `file_mime_mismatch` |
+| `file_parse_failed` |
+| `file_too_large` |
+| `file_type_unsupported` |
+| `file_unavailable` |
+| `image_corrupt` |
+| `image_decoded_too_large` |
+| `image_too_large` |
+| `malware_scan_failed` |
+| `malware_scan_unavailable` |
+| `office_xml_member_too_large` |
+| `parsed_output_too_large` |
+| `parsed_output_write_failed` |
+| `parser_process_failed` |
+| `parser_structure_limit_exceeded` |
+| `parser_timeout` |
+| `pdf_page_limit_exceeded` |
+| `processing_cancelled` |
+| `processing_failed` |
+| `processing_lease_expired` |
+| `processing_state_conflict` |
+| `storage_provider_unsupported` |
+| `unsafe_xml_detected` |
+| `virus_detected` |
 
 ## Skills、Models、Templates 与术语
 

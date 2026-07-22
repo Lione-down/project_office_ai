@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UuidBinary, new_uuid7, utc_datetime_type, utc_now
@@ -67,6 +67,30 @@ class FileAsset(Base):
     )
     manifest_key: Mapped[str | None] = mapped_column(
         String(768), nullable=True, comment="Evidence Manifest存储键"
+    )
+    parsed_storage_key: Mapped[str | None] = mapped_column(
+        String(768), nullable=True, comment="解析结果存储键"
+    )
+    parser_name: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="安全解析器名称"
+    )
+    parser_version: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="安全解析器版本"
+    )
+    processing_warnings: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True, default=list, comment="解析告警代码列表"
+    )
+    processing_error_code: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="处理错误代码"
+    )
+    processing_error_message: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="脱敏处理错误"
+    )
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        utc_datetime_type(), nullable=True, comment="处理开始时间（UTC）"
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(
+        utc_datetime_type(), nullable=True, comment="处理完成时间（UTC）"
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         utc_datetime_type(), nullable=True, comment="软删除时间（UTC）"

@@ -42,5 +42,10 @@ class AssetResponse(StrictModel):
     byte_size: int
     sha256: str
     processing_status: str
+    parser_name: str | None
+    parser_version: str | None
+    processing_warnings: list[str]
+    processing_error_code: str | None
+    processing_error_message: str | None
     created_at: datetime
     updated_at: datetime

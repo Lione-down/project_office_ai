@@ -31,6 +31,7 @@
 
 5. `file_assets`
    - 用户、项目、清理后的原文件名、分类、MIME、字节数、SHA-256、storage provider/key、处理状态、上传幂等键、父版本、生成任务、manifest key、删除状态。
+   - T2-001 additive metadata：结构化解析结果 key、parser 名称/版本、告警代码 JSON、稳定错误码、脱敏错误、处理开始/完成 UTC 时间；进入 `parsing` 时先持久化 deterministic intended output key，确保 output write 后 hard crash 仍有精确 recovery 定位；文件内容仍不进入 MySQL。
 
 6. `templates`
    - 类型、来源/预览资产、分类、样式关键字、设计配置、版本、状态、排序、使用次数。
@@ -121,6 +122,7 @@
 - `T1-003` runtime 补验新增 `20260722_0003`，为上述 4 张表及全部 41 个字段写入非空中文 COMMENT；2026-07-22 已在本机 MySQL 8.0.43 空库真实升级并通过 `information_schema` 与 `alembic check` 核对。
 - `T1-004` 新增 `20260722_0004`，建立 `ai_providers`、`provider_credentials`、`ai_models`、`audit_logs`；2026-07-22 已在本机 MySQL 从 `0003` 真实升级，4/4 table comments、52/52 column comments、两项关键唯一约束通过 `information_schema` 与事务内 rollback probe 核对，`alembic check` 无 drift。
 - `T1-005` 新增 `20260722_0005`，建立 `projects`、`file_assets`，包含 owner/project/parent 外键、active default generated key、storage location 与 user idempotency 唯一约束及中文注释；SQLite 空库完整升级、MySQL dialect offline SQL 和单一 Head `20260722_0005` 已验证。当前会话未获授权读取本地 `.env`，因此未把 offline 结果冒充真实 MySQL runtime upgrade。
+- `T2-001` 新增 `20260723_0006`，只向 `file_assets` additive 增加 8 个安全处理 metadata 字段；SQLite 空库完整升级、MySQL dialect offline SQL、中文 COMMENT 与唯一 Head `20260723_0006` 已验证。当前会话未读取本地 `.env`，未把 offline 结果冒充真实 MySQL runtime upgrade。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

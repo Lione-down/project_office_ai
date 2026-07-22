@@ -139,6 +139,34 @@
 - 本任务处理：统一 replay policy 将 `uploaded`/`deleting` 映射为 `409 asset_upload_in_progress`，completed/后续已持久化状态才返回既有资产；普通 lookup 与 `IntegrityError` fallback 共用该 policy，且 middleware 在 body receive 前返回冲突。
 - 预防/验证：并发测试必须让首请求停在 durable checkpoint 后，证明第二请求为零 body read 的 409；还要覆盖首请求 signature/stream 失败 cleanup 后，同 key later retry 能重新成功。
 
+### 2026-07-23 · T2-001 · OOXML 不能只相信 ZIP magic 或扩展名
+
+- 现象：DOCX/XLSX/XLSM 都以 `PK` 开头，伪装的 PPTX、加密 OLE package、DTD/entity、异常压缩率和 path traversal member 可绕过 T1-005 的 12-byte 初检。
+- 影响：只按扩展名或 magic 放行会让 parser 面对错误容器、XML entity expansion 或 archive resource exhaustion。
+- 本任务处理：在 ClamAV/解析前核对 OOXML Content Types，拒绝 OLE encrypted package、ZIP encryption、损坏 archive、非法 member、DTD/entity，并限制 member 数量、总解压量和单 member 压缩率。
+- 预防/验证：Office parser 必须先通过 archive metadata gate；禁止 `extractall`，所有 XML 解析入口统一拒绝 DTD/entity，新增格式时先补伪装与压缩炸弹 RED。
+
+### 2026-07-23 · T2-001 · 解析输出也需要 durable recovery 边界
+
+- 现象：结构化 JSON 已原子写入独立 volume 后，数据库 finalization 仍可能失败；若随后的精确文件清理也失败，单纯把资产标成 rejected 会留下无定位输出。
+- 影响：即使原始 quarantine 有 checkpoint，解析结果仍会形成不可追踪 orphan，且重复处理无法安全判断清理范围。
+- 本任务处理：输出固定到 owner/asset UUID key 并限制 10 MB；进入 `parsing` 时在文件写入前先持久化 deterministic intended key，因此 output write 后 hard crash 仍可由 stale reconciliation 精确定位。finalization 与 cleanup 同时失败时，rejected 记录保留 `parsed_storage_key` 与 `parsed_output_cleanup_failed` 告警，原始错误仍为主因。
+- 预防/验证：所有数据库与文件系统双写路径都要 fault-injection 覆盖“output write 后 hard crash”和“主写失败 + cleanup 失败”；只允许记录精确恢复 key，禁止递归清理 broad root 或用 ignore-errors 伪造成功。
+
+### 2026-07-23 · T2-001 · 内容 byte quota 不能替代结构预算与可终止 timeout
+
+- 现象：delimiter-only CSV 的字段内容为零字节，XLSX 可先装载大量未引用 shared strings，单个 Office XML member 也可在总 Archive 250 MB 限额内先触发巨大 DOM；普通 thread timeout 无法终止仍在运行的 parser。
+- 影响：攻击输入可绕过输出容量门禁，占满 768 MB worker 或长期消耗 CPU；worker crash 后若没有 stale lease reconciliation，资产会永久停在 `scanning/parsing`。
+- 本任务处理：所有 parser 共用总结构项预算，Office XML member 在读取和 DOM 前单独限额；parser 在可 terminate/kill 的子进程中运行，polling 先把过期处理租约 fail closed 到 `rejected`。
+- 预防/验证：资源门禁测试必须包含“零内容但高结构”“未引用结构”“单 member 超限”和 timeout 后子进程不能继续写 marker；状态机需覆盖 crash/DB 恢复后的 stale lease 收口。
+
+### 2026-07-23 · T2-001 · 图片 magic bytes 不是完整性证明
+
+- 现象：只有 PNG/JPEG/WEBP 头部 magic 的截断文件，以及 CRC、deflate、RIFF size 或 frame header 损坏的文件，都会通过简单 signature gate。
+- 影响：损坏图片可被误标为 `pending_ocr/ready`，把不可信 decoder 风险和不稳定失败推迟到 OCR 阶段。
+- 本任务处理：在进入 `pending_ocr` 前以 bounded streaming 校验 PNG chunk/CRC/zlib/IHDR、JPEG marker/segment/frame/scan/EOI 和 WEBP RIFF/chunk/frame header，再通过 decoded-size gate 与 Pillow full decode；解码运行在受 timeout 的 parser 子进程中。
+- 预防/验证：每种图片格式都保留真实最小结构样本和截断/损坏 adversarial fixture；新增格式不得只补 magic bytes。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

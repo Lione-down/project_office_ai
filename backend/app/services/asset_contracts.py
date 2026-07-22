@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import unicodedata
@@ -86,6 +86,11 @@ class AssetSummary:
     processing_status: str
     created_at: datetime
     updated_at: datetime
+    parser_name: str | None = None
+    parser_version: str | None = None
+    processing_warnings: list[str] = field(default_factory=list)
+    processing_error_code: str | None = None
+    processing_error_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -163,6 +168,11 @@ def asset_summary(asset: FileAsset) -> AssetSummary:
         byte_size=asset.byte_size,
         sha256=asset.sha256,
         processing_status=asset.processing_status,
+        parser_name=asset.parser_name,
+        parser_version=asset.parser_version,
+        processing_warnings=list(asset.processing_warnings or []),
+        processing_error_code=asset.processing_error_code,
+        processing_error_message=asset.processing_error_message,
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )

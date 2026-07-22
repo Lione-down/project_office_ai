@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,8 +83,65 @@ class Settings(BaseSettings):
     max_image_bytes: int = Field(
         20 * 1024 * 1024, validation_alias="OFFICE_AI_MAX_IMAGE_BYTES", ge=1
     )
+    max_image_decoded_bytes: int = Field(
+        128 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_IMAGE_DECODED_BYTES",
+        ge=1,
+    )
     max_task_bytes: int = Field(
         200 * 1024 * 1024, validation_alias="OFFICE_AI_MAX_TASK_BYTES", ge=1
+    )
+    max_task_files: int = Field(20, validation_alias="OFFICE_AI_MAX_TASK_FILES", ge=1)
+    parsed_root: Path = Field(
+        Path("/app/parsed"), validation_alias="OFFICE_AI_PARSED_ROOT"
+    )
+    max_parsed_output_bytes: int = Field(
+        10 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_PARSED_OUTPUT_BYTES",
+        ge=1,
+    )
+    max_pdf_pages: int = Field(200, validation_alias="OFFICE_AI_MAX_PDF_PAGES", ge=1)
+    max_excel_sheets: int = Field(
+        30, validation_alias="OFFICE_AI_MAX_EXCEL_SHEETS", ge=1
+    )
+    max_excel_non_empty_cells: int = Field(
+        300_000,
+        validation_alias="OFFICE_AI_MAX_EXCEL_NON_EMPTY_CELLS",
+        ge=1,
+    )
+    max_archive_entries: int = Field(
+        10_000, validation_alias="OFFICE_AI_MAX_ARCHIVE_ENTRIES", ge=1
+    )
+    max_archive_uncompressed_bytes: int = Field(
+        250 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_ARCHIVE_UNCOMPRESSED_BYTES",
+        ge=1,
+    )
+    max_archive_compression_ratio: int = Field(
+        100, validation_alias="OFFICE_AI_MAX_ARCHIVE_COMPRESSION_RATIO", ge=1
+    )
+    max_office_xml_member_bytes: int = Field(
+        16 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES",
+        ge=1,
+    )
+    max_parser_structural_items: int = Field(
+        1_500_000,
+        validation_alias="OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS",
+        ge=1,
+    )
+    parser_timeout_seconds: float = Field(
+        30.0, validation_alias="OFFICE_AI_PARSER_TIMEOUT_SECONDS", gt=0
+    )
+    processing_lease_seconds: int = Field(
+        300, validation_alias="OFFICE_AI_PROCESSING_LEASE_SECONDS", ge=1
+    )
+    clamav_host: str = Field("clamav", validation_alias="OFFICE_AI_CLAMAV_HOST")
+    clamav_port: int = Field(
+        3310, validation_alias="OFFICE_AI_CLAMAV_PORT", ge=1, le=65535
+    )
+    clamav_timeout_seconds: float = Field(
+        30.0, validation_alias="OFFICE_AI_CLAMAV_TIMEOUT_SECONDS", gt=0
     )
 
     @property
@@ -121,6 +178,18 @@ class Settings(BaseSettings):
         if value is not None and len(value.get_secret_value()) < 12:
             raise ValueError("bootstrap password must contain at least 12 characters")
         return value
+
+    @model_validator(mode="after")
+    def validate_processing_lease_covers_timeouts(self):
+        minimum_lease = max(
+            300,
+            int(self.clamav_timeout_seconds + self.parser_timeout_seconds) + 60,
+        )
+        if self.processing_lease_seconds < minimum_lease:
+            raise ValueError(
+                "processing lease must cover scan/parser timeouts and I/O overhead"
+            )
+        return self
 
     @property
     def database_url(self) -> SecretStr:

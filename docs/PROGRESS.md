@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T1-005 项目与资产上传`
-- 下一任务：`T2-001 文件扫描与解析沙箱`
-- 当前状态：`T2-001 READY`
+- 最近完成：`T2-001 文件扫描与解析沙箱`
+- 下一任务：`T2-002 OCR 与 Evidence Manifest`
+- 当前状态：`T2-002 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -29,8 +29,8 @@
 | T1-003 | DONE | T1-002 | `feat(auth): add invite based phone authentication`；Docker runtime 缺口见下文 |
 | T1-004 | DONE | T1-003 | `feat(provider): add encrypted multi provider model registry`；验证证据见下文 |
 | T1-005 | DONE | T1-004 | `feat(asset): add isolated local asset management`；验证证据见下文 |
-| T2-001 | READY | T1-005 | 文件扫描与解析沙箱 |
-| T2-002 | BLOCKED | T2-001 | OCR 与 Evidence Manifest |
+| T2-001 | DONE | T1-005 | `feat(parser): add sandboxed office file ingestion`；验证证据见下文 |
+| T2-002 | READY | T2-001 | OCR 与 Evidence Manifest |
 | T2-003 | BLOCKED | T2-002 | 术语库与证据标准化 |
 | T2-004 | BLOCKED | T2-003 | Skills 与 Agnes Structured Brief |
 | T2-005 | BLOCKED | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
@@ -340,3 +340,52 @@
 - 最终 review 与两次 re-review 的 parser/replay/storage blocker 已完成 TDD remediation：pre-auth/completed replay 都发生在 receive 前；受控 preflight spool 在 parser 前完整验证并关闭；文件 I/O 前持久化 `uploaded` checkpoint；Local Storage cleanup 保留原始错误、可恢复状态与 direct/generic/cancellation 脱敏日志。
 - 当前 direct Windows evidence：assets `56 passed`、security `10 passed`、broad `150 passed`；Ruff check/format、Alembic single head/offline SQL、`pip check`、`pip-audit`、`git diff --check` 均通过。Docker 仍为 command not found，不冒充容器 runtime evidence；未读取 ignored `.env`，未运行真实 MySQL `0005` upgrade。
 - T1-005 已通过独立 pre-commit re-review、focused/broad/quality/migration/dependency 与敏感信息门禁；状态与依赖链已收口为 `DONE`，T2-001 是唯一 `READY` 任务。新会话必须按“新会话必读”顺序重新读取文件记录后再实现 T2-001。
+
+## T2-001 执行记录
+
+### 范围
+
+- 建立 Quarantine 资产的完整性复核、ClamAV `INSTREAM` fail-closed 扫描、安全类型/容量门禁、隔离 parser 与结构化输出存储；未新增用户 HTTP API、Evidence Manifest、OCR、Agnes、Redis Outbox 或积分路径。
+- 支持 DOCX、PDF、XLSX、CSV、TXT、MD 的版本化结构化结果；XLSM 只读取安全数据并标记宏未执行；PNG/JPG/JPEG/WEBP 通过完整性和解码预算后只生成 `pending_ocr`。
+- 拒绝 XLS/PPTX、伪装 MIME、病毒、加密/密码保护、损坏、Zip Bomb、危险 OOXML、DTD/entity、超限文件/PDF/Excel/Archive/结构、不可解码或膨胀图片。
+- 持久化 `quarantined -> scanning -> parsing -> ready/rejected`、parser metadata、warnings、稳定错误码和 deterministic parsed-output recovery key；20 文件/200 MiB batch contract 在 claim/scan 前 fail-fast。
+
+### Changed files
+
+- Model/Migration/Schema：`backend/app/models/file_assets.py`、`backend/alembic/versions/20260723_0006_file_processing_metadata.py`、`backend/app/schemas/assets.py`、`backend/app/services/asset_contracts.py`。
+- File safety：`backend/app/services/file_safety/` 下 ClamAV client、limits/contracts、深度 validation、安全 parsers、可终止 parser runtime 与 parsed output store。
+- Worker/Runtime：`backend/app/workers/asset_processing/`、`backend/app/settings/config.py`、`docker-compose.yml`；worker 使用只读输入 volume、独立限额输出 volume、只读 root、tmpfs、non-root、resource limits 和 internal network，且不挂载 Provider/Master Key。
+- Tests/Dependencies：`backend/tests/file_safety/`、`backend/tests/parsing/`、相关 asset/provider migration tests、`backend/pyproject.toml`；新增 `pypdf>=6.14.2,<7` 与 `Pillow>=12.3,<13`。
+- Records：T2-001 task card/index、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏黄金材料。
+
+### TDD 与 focused verification
+
+- 首轮按 contracts、ClamAV、各格式真实最小样本、worker state machine、output recovery 和 Compose/settings contract 分组先观察 RED，再最小实现转 GREEN。
+- 首次独立 review 发现 delimiter-only CSV/Office 结构预算与 parser timeout、stale processing、截断图片、batch gate 未接入四类 blocker；修复前定向回归为 `13 failed, 36 passed`，随后图片强化 `2 failed`、Windows spawn entrypoint `1 failed`、DOM 前预算/真实 decode/lease 配置 `4 failed`，均完成 GREEN。
+- 第二次独立 review 发现 output 落盘后、DB 完成前 hard crash 会留下无 recovery key 的 orphan，以及 API error-code contract 不完整；新增两项定向测试先 `2 failed`，写前 durable deterministic key checkpoint、unknown-code fail-closed registry 和文档 contract 后 `2 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest tests/file_safety -q`：`27 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest tests/parsing -q`：`60 passed`；focused 合并为 `87 passed`。
+- 最终独立 pre-commit re-review 复核 crash recovery、stale key、稳定错误码和 staged diff，结论 `PASS`、无 findings。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend 根目录 `.venv/Scripts/python.exe -m pytest -q`：`238 passed`。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 均通过；全部 Python 文件不超过 500 行。
+- `alembic heads`：`20260723_0006 (head)`；processing migration 定向测试 `3 passed`，MySQL dialect offline `upgrade head --sql` 生成通过。
+- Compose/settings 静态 contract tests 通过：worker 无 Provider/Master Key、输入只读、输出独立且限额、无 external network；这些静态证据不冒充容器 runtime。
+- `pip check` 通过；`pip-audit` 为 `0 known vulnerabilities`，仅按预期跳过本地非 PyPI package；14 个 direct production dependency license metadata 无缺失。
+- `git diff --cached --check`、staged added-line secret/dangerous-call scan、binary scan 和禁止路径检查均通过；未发现 Secret signature、危险动态执行、新增二进制或用户 UI 资料。
+
+### Runtime 缺口、风险与决策
+
+- 任务卡四条 Docker 命令已逐条实际执行：`docker compose up -d clamav`、file-safety、parsing、backend broad 均因 PowerShell `docker` command not found 在容器创建前 exit `1`；不标记 ClamAV/Compose/non-root/volume runtime 通过。
+- Direct Windows focused/broad、SQLite migration contract、MySQL offline DDL 与 `tmp_path` 受控文件 I/O 通过；未读取 ignored `.env`，因此未运行真实 MySQL `0006` upgrade。
+- Parser 在 spawned child process 中受 wall-clock timeout，Office XML 在 DOM 前受 member/总结构预算，图片受 bounded structural validation、decoded-size gate 与 Pillow full decode；感染、服务异常、timeout、parser crash 和未知错误码全部 fail closed。
+- `scanning/parsing` 超过至少 300 秒且覆盖 scan/parser timeout 与 I/O 余量的 lease 后稳定拒绝；本任务选择安全拒绝而不是自动重试。极慢 I/O 超过 lease 仍会 rejected，未来若引入多 worker 长任务恢复，应增加 owner/heartbeat lease，不在 T2-001 提前实现 T3 orchestration。
+- Output write 前先持久化 deterministic recovery key；hard crash 后 stale reconciliation 保留精确 key，不形成不可追踪 orphan。自动物理删除留给后续受审计 recovery，避免与并发恢复误删。
+
+### 完成结论
+
+- T2-001 严格范围内的实现、TDD、两轮独立 review remediation、focused/broad/quality/migration/dependency 与敏感信息门禁已完成；Docker 和真实 MySQL runtime 缺口已如实记录。
+- T2-001 以单一逻辑 commit 推送后收口为 `DONE`；T2-002 是下一唯一 `READY` 任务，本会话未实现任何 OCR 或 Evidence Manifest 代码。

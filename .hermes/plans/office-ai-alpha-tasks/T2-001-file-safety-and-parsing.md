@@ -1,6 +1,6 @@
 # T2-001 文件扫描与解析沙箱
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`T1-005`
 - 来源：总计划第 7、8、13 节与 Day 6
 - 建议 commit：`feat(parser): add sandboxed office file ingestion`
@@ -24,6 +24,23 @@
 3. 在无公网、无 Provider 密钥、输入只读、输出限额的 Worker 中解析允许格式。
 4. 禁止宏、外部连接、嵌入对象和文档 URL 执行；文档内容只作为不可信数据。
 5. 记录解析器版本、告警和脱敏错误，更新安全与环境文档。
+
+## 本次执行设计
+
+1. 先用纯 contract 测试锁定单文件、任务组合、PDF、Excel、Archive 与输出容量边界，以及支持/拒绝格式矩阵。
+2. 再用 ClamAV protocol 测试锁定 `clean/infected/error/timeout/unavailable` 五类结果；只有 `clean` 可以进入解析。
+3. 分格式用真实最小样本驱动 parser：UTF-8 CSV/TXT/MD、DOCX、PDF、XLSX/XLSM；图片仅生成待 OCR 结构化记录，不在本任务执行 OCR。
+4. 用 worker service 测试锁定 `quarantined -> scanning -> parsing -> ready/rejected`、并发 claim、结构化输出持久化、parser metadata/warning/error 脱敏与失败不触碰积分表。
+5. 解析输入从只读根目录读取，结构化输出写入独立受控根目录并受 byte quota；Compose worker 不挂载 Provider/Master Key，且只连接 internal network。
+6. 不新增用户 HTTP API，不创建 Evidence Manifest，不接入 Redis/Outbox/Agnes；T3-001 前以可直接调用的 asset-processing worker contract 作为处理入口。
+
+## 本次成功标准
+
+- 所有新增行为都先观察到预期 RED，再以最小实现转 GREEN；focused suites 为 `backend/tests/file_safety` 与 `backend/tests/parsing`。
+- DOCX/PDF/XLSX/CSV/TXT/MD 可产生版本化、限额内的结构化中间结果；PNG/JPG/JPEG/WEBP 只产生 `pending_ocr` 记录；XLSM 不保留或执行 VBA。
+- XLS/PPTX、病毒、伪装类型、加密/密码保护、损坏、Zip Bomb、超限页/Sheet/单元格/文件/任务稳定拒绝，ClamAV/Parser 异常 fail closed。
+- 资产状态与 parser metadata、warnings、脱敏错误持久化；只有完成扫描和解析的资产进入 `ready`，失败资产进入 `rejected`，且无任何 `generation_reserve` 写入路径。
+- focused verification、backend broad suite、Ruff、migration/offline SQL、Compose contract、dependency/vulnerability/license 与敏感信息检查全部有实际结果；Docker 不可用时记录原始缺口，不冒充 runtime 通过。
 
 ## 验收标准
 

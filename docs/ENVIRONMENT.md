@@ -35,9 +35,24 @@
 | `OFFICE_AI_FILES_ROOT` | 受控文件根目录 | 否 | T1-005 | Compose path；默认 `/app/files` |
 | `OFFICE_AI_MAX_FILE_BYTES` | 单文件上限，默认 50 MB | 否 | T1-005 | `system_settings`/普通变量 |
 | `OFFICE_AI_MAX_IMAGE_BYTES` | 图片上限，默认 20 MB | 否 | T1-005 | `system_settings`/普通变量 |
+| `OFFICE_AI_MAX_IMAGE_DECODED_BYTES` | 图片 full decode 内存估算上限，默认 128 MB | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_TASK_FILES` | 单处理批次文件数上限，默认 20 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_MAX_TASK_BYTES` | 单任务总上限，默认 200 MB | 否 | T1-005 | `system_settings`/普通变量 |
+| `OFFICE_AI_PARSED_ROOT` | 结构化解析结果根目录，默认 `/app/parsed` | 否 | T2-001 | 独立受控 volume/path |
+| `OFFICE_AI_MAX_PARSED_OUTPUT_BYTES` | 单资产结构化解析输出上限，默认 10 MB | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_PDF_PAGES` | PDF 页数上限，默认 200 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_EXCEL_SHEETS` | Excel Sheet 上限，默认 30 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_EXCEL_NON_EMPTY_CELLS` | Excel 非空单元格上限，默认 300000 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_ARCHIVE_ENTRIES` | Office Archive member 上限，默认 10000 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_ARCHIVE_UNCOMPRESSED_BYTES` | Office Archive 解压后总量上限，默认 250 MB | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_ARCHIVE_COMPRESSION_RATIO` | 单 member 最大压缩率，默认 100 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES` | 单个 Office XML member 上限，默认 16 MB | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS` | 单资产 parser 总结构项预算，默认 1500000 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_PARSER_TIMEOUT_SECONDS` | 隔离 parser timeout，默认 30 秒 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_PROCESSING_LEASE_SECONDS` | scanning/parsing stale lease，默认且最少 300 秒，并覆盖 scan/parser timeout 与 I/O 余量 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_CLAMAV_HOST` | ClamAV internal hostname | 否 | T2-001 | Compose DNS 名 |
 | `OFFICE_AI_CLAMAV_PORT` | ClamAV port | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_CLAMAV_TIMEOUT_SECONDS` | ClamAV 单文件 timeout，默认 30 秒 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_PADDLEOCR_URL` | OCR internal service URL | 否 | T2-002 | Compose internal URL |
 | `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
@@ -72,11 +87,14 @@
 - Compose backend 固定挂载 `app-files:/app/files`，并显式映射 50 MB 单文件、20 MB 图片和 200 MB 单任务默认值。
 - ASGI upload body gate 自动使用 `OFFICE_AI_MAX_FILE_BYTES + 64 KiB`；64 KiB 只用于单文件 multipart header、清理后文件名、UUID field、boundary/framing，不是额外文件容量。新请求 body 先进入 middleware 自己的 `SpooledTemporaryFile`（1 MiB memory threshold），完整验证后才 replay 给 multipart parser；该 preflight spool 与 parser/file spool 都不写入公开目录，并在请求结束或拒绝时关闭。
 - Local Storage key 固定为 `users/{user_id}/quarantine/{asset_id}/original.{ext}`；原始文件名、手机号和客户端路径不参与磁盘定位。
-- T1-005 API 每次只流式接收一个文件；`OFFICE_AI_MAX_TASK_BYTES` 在 T2-001/T3-001 的 generation input selection gate 使用，当前不把多次独立上传错误聚合成一个任务。
+- T1-005 API 每次只流式接收一个文件；T2-001 worker service 的 batch contract 在 claim/scan 前一次性校验最多 20 个文件和 200 MB 总量，当前不新增用户 batch HTTP API。
+- T2-001 worker 将 `app-files` 只读挂载到 `/app/files`，将独立 `parsed-files` 可写挂载到 `/app/parsed`；结构化结果固定为 `users/{user_id}/parsed/{asset_id}/content.json`，单结果默认不超过 10 MB。
+- 解析 worker 使用 backend 镜像与真实 polling entrypoint，只连接 internal `private` network，不挂载 Master/Provider Key；root filesystem 只读，`/tmp` 使用 tmpfs，并限制为 `768m` memory、`1.0` CPU 和 `128` PIDs。Office XML member、parser 总结构项和结构化输出分别有独立预算；parser 在可终止子进程中执行并受 timeout 约束。
 
 | 路径/卷 | 内容 | Git |
 |---|---|---|
 | `backend/files/` / `app-files` | quarantine、原文件、extracted、preview、output | 必须忽略 |
+| `parsed-files` | T2-001 结构化中间结果；不含 Evidence Manifest | Docker volume，不进入 Git |
 | `mysql-data` | MySQL 数据 | 必须忽略 |
 | `redis-data` | 可丢失 Redis 状态 | 必须忽略 |
 | `shared-work` | renderer/QA 临时交换 | 必须忽略或仅 Docker volume |

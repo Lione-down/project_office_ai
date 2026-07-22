@@ -67,6 +67,8 @@ services:
       OFFICE_AI_FILES_ROOT: /app/files
       OFFICE_AI_MAX_FILE_BYTES: ${OFFICE_AI_MAX_FILE_BYTES:-52428800}
       OFFICE_AI_MAX_IMAGE_BYTES: ${OFFICE_AI_MAX_IMAGE_BYTES:-20971520}
+      OFFICE_AI_MAX_IMAGE_DECODED_BYTES: ${OFFICE_AI_MAX_IMAGE_DECODED_BYTES:-134217728}
+      OFFICE_AI_MAX_TASK_FILES: ${OFFICE_AI_MAX_TASK_FILES:-20}
       OFFICE_AI_MAX_TASK_BYTES: ${OFFICE_AI_MAX_TASK_BYTES:-209715200}
       OFFICE_AI_MASTER_KEY: ${OFFICE_AI_MASTER_KEY:-}
     ports:
@@ -89,10 +91,16 @@ services:
 
   worker:
     <<: *app-service
-    image: python:3.12.11-slim
+    build:
+      context: ./backend
+    image: office-ai-backend:local
     user: "10001:10001"
     working_dir: /app
-    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    command: ["python", "-m", "app.workers.asset_processing"]
+    read_only: true
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
     environment:
       OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
       OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
@@ -102,14 +110,35 @@ services:
       OFFICE_AI_DATABASE_HOST: mysql
       OFFICE_AI_REDIS_URL: redis://redis:6379/0
       OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_PARSED_ROOT: /app/parsed
+      OFFICE_AI_MAX_FILE_BYTES: ${OFFICE_AI_MAX_FILE_BYTES:-52428800}
+      OFFICE_AI_MAX_IMAGE_BYTES: ${OFFICE_AI_MAX_IMAGE_BYTES:-20971520}
+      OFFICE_AI_MAX_IMAGE_DECODED_BYTES: ${OFFICE_AI_MAX_IMAGE_DECODED_BYTES:-134217728}
+      OFFICE_AI_MAX_TASK_FILES: ${OFFICE_AI_MAX_TASK_FILES:-20}
+      OFFICE_AI_MAX_TASK_BYTES: ${OFFICE_AI_MAX_TASK_BYTES:-209715200}
+      OFFICE_AI_MAX_PARSED_OUTPUT_BYTES: ${OFFICE_AI_MAX_PARSED_OUTPUT_BYTES:-10485760}
+      OFFICE_AI_MAX_PDF_PAGES: ${OFFICE_AI_MAX_PDF_PAGES:-200}
+      OFFICE_AI_MAX_EXCEL_SHEETS: ${OFFICE_AI_MAX_EXCEL_SHEETS:-30}
+      OFFICE_AI_MAX_EXCEL_NON_EMPTY_CELLS: ${OFFICE_AI_MAX_EXCEL_NON_EMPTY_CELLS:-300000}
+      OFFICE_AI_MAX_ARCHIVE_ENTRIES: ${OFFICE_AI_MAX_ARCHIVE_ENTRIES:-10000}
+      OFFICE_AI_MAX_ARCHIVE_UNCOMPRESSED_BYTES: ${OFFICE_AI_MAX_ARCHIVE_UNCOMPRESSED_BYTES:-262144000}
+      OFFICE_AI_MAX_ARCHIVE_COMPRESSION_RATIO: ${OFFICE_AI_MAX_ARCHIVE_COMPRESSION_RATIO:-100}
+      OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES: ${OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES:-16777216}
+      OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS: ${OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS:-1500000}
+      OFFICE_AI_PARSER_TIMEOUT_SECONDS: ${OFFICE_AI_PARSER_TIMEOUT_SECONDS:-30}
+      OFFICE_AI_PROCESSING_LEASE_SECONDS: ${OFFICE_AI_PROCESSING_LEASE_SECONDS:-300}
       OFFICE_AI_CLAMAV_HOST: clamav
       OFFICE_AI_CLAMAV_PORT: "3310"
-      OFFICE_AI_PADDLEOCR_URL: http://paddleocr:8866
-      OFFICE_AI_LIBREOFFICE_URL: http://libreoffice:2002
-      OFFICE_AI_PPT_RENDERER_URL: http://ppt-renderer:3000
+      OFFICE_AI_CLAMAV_TIMEOUT_SECONDS: ${OFFICE_AI_CLAMAV_TIMEOUT_SECONDS:-30}
     volumes:
-      - app-files:/app/files
-      - shared-work:/app/work
+      - type: volume
+        source: app-files
+        target: /app/files
+        read_only: true
+      - type: volume
+        source: parsed-files
+        target: /app/parsed
+        read_only: false
     tmpfs:
       - /tmp
     depends_on:
@@ -121,15 +150,9 @@ services:
         condition: service_healthy
       clamav:
         condition: service_healthy
-      paddleocr:
-        condition: service_healthy
-      libreoffice:
-        condition: service_healthy
-      ppt-renderer:
-        condition: service_healthy
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "python", "-c", "import os; raise SystemExit(0 if os.getenv('OFFICE_AI_FILES_ROOT') else 1)"]
+      test: ["CMD", "python", "-c", "import app.workers.asset_processing"]
 
   ppt-renderer:
     <<: *app-service
@@ -234,6 +257,7 @@ networks:
 
 volumes:
   app-files:
+  parsed-files:
   shared-work:
   mysql-data:
   redis-data:
