@@ -58,3 +58,4 @@ docker compose run --rm backend pytest -q
 - `.env` 指定的目标 database 已按 `utf8mb4 / utf8mb4_0900_ai_ci` 创建并升级至 `20260722_0003`。
 - `information_schema` 验证 4 张认证表、4 个 table comments、41 个 column comments 全部存在；`alembic check` 无 schema drift。
 - 临时注入 Redis认证 URL 后，真实应用 `/health/ready` 返回 `200`，MySQL/Redis 均为 `up`。
+- 用户后续授权将已验证的认证 URL 写入本机 ignored `.env`；重新加载后的 `/health/ready` 仍为 `200`，Secret 未进入 tracked files、暂存区或任务记录。

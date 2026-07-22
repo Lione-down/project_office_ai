@@ -209,9 +209,15 @@
 - Live readiness：使用 `.env` MySQL配置并临时注入 Redis认证 URL，`GET /health/ready` 返回 `200 ready`，dependencies 为 `mysql=up`、`redis=up`。
 - Redis `INFO server` 因旧 Windows build 输出含非 UTF-8 本机路径而与新版 redis-py 解码不兼容；不影响 authenticated PING 和 readiness，本项不伪装为 INFO 通过。
 
+### Runtime 本地配置闭环
+
+- 用户后续明确授权编辑本项目 `.env`；先按无认证默认 URL 验证得到 `503`、`mysql=up`、`redis=down`，与 Redis CLI 的 `NOAUTH` 一致。
+- 用户提供的候选 Redis Secret 经仅进程内 authenticated `PING` 验证成功；随后只在 ignored `.env` 中配置默认 `127.0.0.1:6379` 的认证 URL，未改动 Windows Redis service config。
+- 重新加载 `.env` 后，真实 `GET /health/ready` 返回 `200 ready`，dependencies 为 `mysql=up`、`redis=up`；Secret 未写入 tracked files、暂存区、日志或本文档。
+
 ### Changed files 与交接
 
 - Backend：`backend/app/settings/config.py`、认证 4 个 model files、`backend/alembic/versions/20260722_0003_auth_schema_comments.py`、相关 auth tests。
 - Records：T1-003 task、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/PROGRESS.md`、`pitfalls.md`。
-- `.env` 未修改、未暂存；`design-system/` 和旧版 `docs/ui-mockups/` 继续保留为用户未跟踪文件。
-- T1-004 仍是唯一 `READY` 任务；后续本机启动必须以本地 Secret 提供 `OFFICE_AI_REDIS_URL`。
+- `.env` 已在用户明确授权下写入本机 Redis URL，保持 ignored 且未暂存；`design-system/` 和旧版 `docs/ui-mockups/` 继续保留为用户未跟踪文件。
+- T1-004 仍是唯一 `READY` 任务；新会话必须从 `AGENTS.md`、本文件、任务索引、T1-004 任务卡和专题文档重新读取事实，不得仅依赖聊天交接。
