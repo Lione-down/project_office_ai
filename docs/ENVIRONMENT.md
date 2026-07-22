@@ -30,6 +30,8 @@
 | `OFFICE_AI_SESSION_SECRET` | Session 签名/派生 Secret | 是 | T1-003 | OS secret/CI secret；定期轮换 |
 | `OFFICE_AI_ACCESS_TOKEN_TTL_SECONDS` | Access Token TTL | 否 | T1-003 | Compose 普通变量 |
 | `OFFICE_AI_REFRESH_TOKEN_TTL_SECONDS` | Refresh Token TTL | 否 | T1-003 | Compose 普通变量 |
+| `OFFICE_AI_BOOTSTRAP_ADMIN_PHONE` | 初始管理员 `+86` 手机号 | 是 | T1-003 Bootstrap | 仅本地未跟踪环境或 Secret store；无默认值 |
+| `OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD` | 初始管理员密码 | 是 | T1-003 Bootstrap | 仅本地未跟踪环境或 Secret store；无默认值 |
 | `OFFICE_AI_FILES_ROOT` | 受控文件根目录 | 否 | T1-005 | Compose path；默认 `/app/files` |
 | `OFFICE_AI_MAX_FILE_BYTES` | 单文件上限，默认 50 MB | 否 | T1-005 | `system_settings`/普通变量 |
 | `OFFICE_AI_MAX_TASK_BYTES` | 单任务总上限，默认 200 MB | 否 | T1-005 | `system_settings`/普通变量 |
@@ -47,6 +49,13 @@
 - 管理员通过 `POST /api/v1/admin/credentials` 录入一个 Key；后端使用 `OFFICE_AI_MASTER_KEY` 加密后写入 `provider_credentials`。
 - 测试、Reveal、轮换和停用均通过 `credential_id`，不在 worker command、queue payload 或日志中传明文 Key。
 - `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
+
+## Auth 与管理员 Bootstrap
+
+- `OFFICE_AI_SESSION_SECRET` 缺失时 Auth/Invite 路由 fail closed 并返回 `auth_not_configured`；应用不提供源码默认签名 Secret。
+- Access Token 默认 900 秒，Refresh Token 默认 2592000 秒；Refresh Token 轮换后旧值立即失效。
+- 初始管理员手机号和密码必须同时由 runtime environment 提供。执行 `python -m app.commands.bootstrap_admin` 创建；重复执行只报告已存在，不修改密码，也不记录手机号或密码。
+- Bootstrap 完成后应从当前进程环境移除这两个变量；真实值不得写入 Compose 文件、`.env.example`、测试 fixture、日志或聊天。
 
 ## 本地文件与卷
 

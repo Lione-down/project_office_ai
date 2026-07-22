@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T1-002` 已建立空 Alembic baseline，业务 DDL 由后续模型任务 additive 演进
+- 状态：逻辑契约；`T1-003` migration `20260722_0002` 已 additive 建立认证相关 4 张表，其余表由后续任务演进
 
 ## 全局约定
 
@@ -20,7 +20,7 @@
    - 不拆 `user_profiles`；Alpha 不加入微信字段。
 
 2. `user_sessions`
-   - 用户、Refresh Token hash、设备信息、IP、过期时间、撤销时间。
+   - 用户、Refresh Token hash、设备信息、IP、过期时间、撤销时间和撤销原因。
 
 3. `invite_codes`
    - 邀请码 hash、可识别前缀、最大/已用次数、有效期、状态、注册赠送积分、创建管理员。
@@ -115,5 +115,7 @@
 ## Migration gate
 
 - `T1-002` 已创建 `20260722_0001` 初始空 migration 与基础连接；应用启动不自动建表。
+- `T1-003` 已创建 `20260722_0002`，建立 `users`、`user_sessions`、`invite_codes`、`credit_ledger`；UUID 为 `BINARY(16)`，时间为 MySQL `DATETIME(6)`。
+- 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

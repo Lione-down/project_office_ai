@@ -12,9 +12,12 @@
 
 - 密码使用 Argon2id；禁止明文或可逆保存。
 - Refresh Token 仅保存 hash，支持撤销和轮换；密码重置后强制改密并撤销相关 Session。
+- Access Token 必须同时通过签名/过期校验，并关联数据库中未过期、未撤销的 Session；退出、改密与管理员 reset 均使相关 Session 失效。
+- 注册密码长度为 12–128；管理员 Bootstrap 不提供默认凭据，且只读取 runtime environment。
 - 用户只能访问自己的项目、资产、Brief、任务、输出和积分流水。
 - 管理员敏感操作要求近期重新认证与非空原因；失败尝试同样写 audit log。
 - 登录、注册、邀请码、密码重置和 Credential 测试使用 Redis 限速，并保留 CAPTCHA gate。
+- 登录失败才消耗失败限速预算；注册与邀请码校验分别按脱敏 key 限速，Redis key 不包含明文手机号、IP 或邀请码。
 
 ## Secret 管理
 

@@ -42,6 +42,13 @@
 - 本任务处理：在连接串 contract test 先得到 RED 后，切换为 SQLAlchemy `mysql+aiomysql` 与 `aiomysql 0.3.2`；同时升级 pytest 到已修复版本，复跑 audit 得到 0 known vulnerabilities。
 - 预防/验证：每次新增或升级 Python/Node dependency 后运行 vulnerability 与 license metadata 检查，不以“尚未调用危险 API”为理由忽略已知 advisory。
 
+### 2026-07-22 · T1-003 · 认证 runtime 与 offline 证据边界
+
+- 现象：Docker CLI/daemon 仍不可用，standalone Compose 可解析配置，但无法连接 `//./pipe/docker_engine` 拉取 MySQL/Redis。
+- 影响：SQLite 事务/migration 和 MySQL dialect offline DDL 只能证明代码路径与 SQL 生成，不能证明真实 MySQL row lock、Redis 限速或容器 health。
+- 本任务处理：对注册回滚、Session rotation、Refresh Hash、限速 key 脱敏、Bootstrap 幂等和 HTTP envelope 建立 focused tests，并保留 Docker runtime 验证缺口。
+- 预防/验证：Docker runtime 可用后补跑任务卡原始 Compose 命令；成功登录不得消耗失败限速预算，避免注册后自动登录被误限速。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

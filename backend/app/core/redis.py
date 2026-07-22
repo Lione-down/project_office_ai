@@ -11,5 +11,11 @@ class RedisManager:
     async def ping(self) -> None:
         await self._client.ping()
 
+    async def incr(self, key: str) -> int:
+        return await self._client.incr(key)
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        return await self._client.expire(key, seconds)
+
     async def close(self) -> None:
         await self._client.aclose()

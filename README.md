@@ -28,7 +28,18 @@
 - ClamAV + PaddleOCR
 - Docker Compose
 
-## T1-002 本地验证入口
+## T1-003 认证入口
+
+认证服务要求通过 runtime Secret 配置 `OFFICE_AI_SESSION_SECRET`。初始管理员只允许通过未跟踪的 runtime environment 提供 `OFFICE_AI_BOOTSTRAP_ADMIN_PHONE` 与 `OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD`，迁移后执行：
+
+```powershell
+docker compose run --rm backend alembic upgrade head
+docker compose run --rm backend python -m app.commands.bootstrap_admin
+```
+
+Bootstrap 不含默认手机号或密码，重复执行不会修改已有管理员密码。管理员登录后通过 `POST /api/v1/admin/invite-codes` 创建邀请码；创建响应仅一次返回完整 code。
+
+## 本地验证入口
 
 Docker runtime 可用时：
 
@@ -38,12 +49,14 @@ docker compose run --rm backend pytest -q
 docker compose run --rm frontend npm run test
 docker compose run --rm frontend npm run build
 docker compose run --rm backend alembic upgrade head
+docker compose run --rm backend pytest tests/auth -q
 ```
 
 Docker 不可用时，只能运行不替代 MySQL/Redis runtime 的 focused verification：
 
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest -q
+backend\.venv\Scripts\python.exe -m pytest backend/tests/auth -q
 Set-Location frontend
 npm run test
 npm run build

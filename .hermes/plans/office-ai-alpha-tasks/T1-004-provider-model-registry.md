@@ -1,6 +1,6 @@
 # T1-004 Provider、Credential 与模型后台
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T1-003`
 - 来源：总计划第 3、6、10、12、13 节与 Day 4
 - 建议 commit：`feat(provider): add encrypted multi provider model registry`

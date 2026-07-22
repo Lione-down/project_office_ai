@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-22`
-- 最近完成：`T1-002 FastAPI、Vue 与数据库骨架`
-- 下一任务：`T1-003 用户、Session 与邀请码`
-- 当前状态：`T1-003 READY`
+- 最近完成：`T1-003 用户、Session 与邀请码`
+- 下一任务：`T1-004 Provider、Credential 与模型后台`
+- 当前状态：`T1-004 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -26,8 +26,8 @@
 |---|---|---|---|
 | T1-001 | DONE | 无 | `chore(project): establish office ai alpha baseline`；验证证据见下文 |
 | T1-002 | DONE | T1-001 | `chore(core): bootstrap frontend backend and database`；Docker runtime 缺口见下文 |
-| T1-003 | READY | T1-002 | 用户、Session 与邀请码 |
-| T1-004 | BLOCKED | T1-003 | Provider、Credential 与模型后台 |
+| T1-003 | DONE | T1-002 | `feat(auth): add invite based phone authentication`；Docker runtime 缺口见下文 |
+| T1-004 | READY | T1-003 | Provider、Credential 与模型后台 |
 | T1-005 | BLOCKED | T1-004 | 项目与资产上传；Week 1 Gate |
 | T2-001 | BLOCKED | T1-005 | 文件扫描与解析沙箱 |
 | T2-002 | BLOCKED | T2-001 | OCR 与 Evidence Manifest |
@@ -126,3 +126,54 @@
 
 - T1-002 严格范围内的实现、focused/broad 可用验证、dependency gate 和记录已完成；单一逻辑 commit 推送后交接。
 - T1-003 是唯一 `READY` 任务；新 Codex 任务必须重新按 `AGENTS.md` 的启动顺序读取文件记录，不得依赖聊天摘要，并继续保留用户未跟踪 UI 资料。
+
+## T1-003 执行记录
+
+### 范围
+
+- 建立 `users`、`user_sessions`、`invite_codes`、`credit_ledger` 模型与 additive migration `20260722_0002`；UUID 使用 `BINARY(16)`，MySQL 时间编译为 `DATETIME(6)`。
+- 实现 `+86` 邀请码注册、登录、Refresh rotation、退出、当前用户、修改密码、管理员 reset service policy，以及管理员邀请码创建/脱敏查询 API。
+- 密码使用 Argon2id；Access Token 使用 HS256 且关联数据库 Session；Refresh Token、邀请码分别只保存 SHA-256 hash、peppered HMAC hash。
+- 注册在单一事务中锁定并消费邀请码、创建用户、追加 `registration_grant`、同步余额；流水写入失败时四项整体回滚。
+- 实现 Redis 失败限速、注册/邀请码限速、runtime-only 幂等管理员 Bootstrap；未实现短信、找回、微信、Workspace、T1-004 Provider 能力或 T4-002 audit HTTP 闭环。
+
+### Changed files
+
+- Models/Migration：`backend/app/models/{base,users,user_sessions,invite_codes,credit_ledger}.py`、`backend/alembic/versions/20260722_0002_auth_and_invites.py`、`backend/alembic/env.py`。
+- Services/Runtime：`backend/app/services/auth_*.py`、`backend/app/services/rate_limit.py`、`backend/app/core/{application,database,errors,redis}.py`、`backend/app/settings/config.py`、`backend/app/commands/bootstrap_admin.py`。
+- API/Schemas：`backend/app/api/v1/{auth,invite_codes}.py`、`backend/app/api/router.py`、`backend/app/schemas/{auth,invites}.py`。
+- Tests/Dependencies：`backend/tests/auth/**`、`backend/pyproject.toml`；新增 `argon2-cffi` 与 `PyJWT`。
+- Runtime/Docs：`docker-compose.yml`、`README.md`、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md` 与 T1-003/T1-004 状态。
+- 未触碰：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`。
+
+### TDD 与 focused verification
+
+- RED：依次确认 auth security/settings、4 个模型与注册事务、Session/rate limit、migration/Bootstrap/HTTP、邀请码管理、失败限速预算、UTC 时间归一化、MySQL `DATETIME(6)` 和空 Secret fail-closed 在实现前按预期失败。
+- GREEN：`backend/.venv/Scripts/python.exe -m pytest backend/tests/auth -q`，`36 passed`。
+- 注册 rollback test 通过 SQLAlchemy `before_insert` 触发真实流水写入异常，验证 user/ledger 均为 0、invite `used_count` 保持 0。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 均通过；无超过 500 行的 Python 文件。
+
+### Broad verification 与 dependency gate
+
+- Backend 根目录 `.venv/Scripts/python.exe -m pytest -q`：`44 passed`。
+- Alembic：`heads` 为 `20260722_0002 (head)`；SQLite 临时空库 `upgrade head` 由 test 通过；MySQL dialect `upgrade head --sql` exit `0`，包含 `BINARY(16)`、`DATETIME(6)` 与两条命名外键。
+- Compose standalone v5.1.4：`config --quiet` exit `0`。
+- `pip-audit`：0 known vulnerabilities；仅按预期跳过本地非 PyPI package `office-ai-backend`。9 个 direct production dependency license metadata 均存在。
+- 全套测试曾发现 Alembic `fileConfig` 禁用应用 logger 的全局状态污染；改为 `disable_existing_loggers=False` 后既有 request log regression 通过。
+
+### Docker runtime preflight 与未验证项
+
+- `docker`、`docker-compose` 均不在 PATH，Docker Desktop/daemon 不可用；standalone `pull mysql redis` exit `1`，缺少 `npipe:////./pipe/docker_engine`。
+- 任务卡三个命令均已用 standalone Compose 实际尝试：Auth pytest、`alembic upgrade head`、Backend broad pytest 分别 exit `1`，都在容器创建前因缺少 engine pipe 失败。
+- 因此真实 MySQL row lock/空库 migration、Redis rate limit/Session runtime、容器内 36/44 tests 与 health 均未验证；SQLite/offline 结果不代表这些 runtime 通过。Docker 可用后必须原样补跑任务卡命令。
+
+### 安全与决策
+
+- Session Secret、Bootstrap 手机号/密码均无源码默认值；Compose 空字符串归一化为未配置，Session Secret 少于 32 字符、Bootstrap 密码少于 12 字符会拒绝。
+- token 响应与一次性邀请码响应使用 `Cache-Control: no-store`；错误 envelope 和 request log 不记录 body，不回显密码、邀请码或 Token；限速 Redis key 只含 SHA-256 摘要。
+- 管理员 reset 已实现密码 Hash、强制改密和 Session 撤销的 service behavior；为避免绕过 re-auth、reason 和 audit，`/admin/users/{id}/reset-password` HTTP 端点留给 `T4-002`，未暴露半成品敏感接口。
+
+### 完成结论
+
+- T1-003 严格范围内实现、focused/broad 可用验证、dependency gate、环境缺口与文档记录已完成；单一逻辑 commit 推送后交接。
+- T1-004 是唯一 `READY` 任务；新会话必须重新按 `AGENTS.md` 启动顺序核对 current Git/runtime 状态，不得提前进入 T1-005。

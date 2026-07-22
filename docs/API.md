@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：接口契约基线，实现在后续任务中完成
+- 状态：`T1-003` 已实现 Auth 与 Admin Invite；其余接口按后续任务实现
 
 ## 共同行为
 
@@ -40,6 +40,8 @@ Health endpoint 是不带 `/api/v1` 前缀的运行时探针，不承载业务�
 
 ## Auth
 
+以下路径均位于 `/api/v1`。注册要求 `+86` 中国大陆手机号、长度 12–128 的密码、有效邀请码及明确接受协议。注册、登录、刷新与改密响应统一 `Cache-Control: no-store`；Access Token 使用 `Authorization: Bearer`，Refresh Token 每次使用后轮换。
+
 | Method | Path | 说明 |
 |---|---|---|
 | POST | `/auth/register` | 邀请码与未注册 `+86` 手机号注册；同事务消费邀请码并赠送积分 |
@@ -48,6 +50,8 @@ Health endpoint 是不带 `/api/v1` 前缀的运行时探针，不承载业务�
 | POST | `/auth/logout` | 撤销当前 Session |
 | GET | `/auth/me` | 当前用户、角色、状态与强制改密标记 |
 | POST | `/auth/change-password` | 修改密码并按策略撤销旧 Session |
+
+Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invite_expired`、`invite_exhausted`、`invalid_credentials`、`refresh_token_invalid`、`session_invalid`、`rate_limit_exceeded` 与 `auth_not_configured`。响应不得回显密码、邀请码或 Token。
 
 ## Projects 与 Assets
 
@@ -125,9 +129,11 @@ Health endpoint 是不带 `/api/v1` 前缀的运行时探针，不承载业务�
 | POST | `/admin/credits/adjustments` | 只追加管理员积分调整流水 |
 | GET | `/admin/audit-logs` | 只读查询 audit log，无编辑或删除接口 |
 
+`T1-003` 已实现 `/admin/invite-codes` 的创建与查询：创建响应只返回一次完整 code 且禁止缓存，列表只返回 prefix、次数、有效期、状态和赠送积分。管理员密码 reset 的 service-level 撤销与 `must_change_password` 行为已实现；需要重新认证、reason 和 `audit_logs` 的 HTTP 闭环仍由 `T4-002` 交付，不在 T1-003 暴露不完整的敏感端点。
+
 ## 后续 contract gate
 
-- `T1-003` 实现并测试 Auth/Invite；`T1-004` 实现 Admin Provider/Credential/Model。
+- `T1-003` 已实现并测试 Auth/Invite；`T1-004` 实现 Admin Provider/Credential/Model。
 - `T1-005` 实现 Projects/Assets；`T2-003` 实现术语；`T2-004`/`T2-005` 实现 Brief/Preflight。
 - `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

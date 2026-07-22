@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +34,55 @@ class Settings(BaseSettings):
         validation_alias="OFFICE_AI_REDIS_URL",
         repr=False,
     )
+    session_secret: SecretStr | None = Field(
+        None, validation_alias="OFFICE_AI_SESSION_SECRET", repr=False
+    )
+    access_token_ttl_seconds: int = Field(
+        900, validation_alias="OFFICE_AI_ACCESS_TOKEN_TTL_SECONDS", ge=60
+    )
+    refresh_token_ttl_seconds: int = Field(
+        2_592_000,
+        validation_alias="OFFICE_AI_REFRESH_TOKEN_TTL_SECONDS",
+        ge=300,
+    )
+    bootstrap_admin_phone: str | None = Field(
+        None, validation_alias="OFFICE_AI_BOOTSTRAP_ADMIN_PHONE"
+    )
+    bootstrap_admin_password: SecretStr | None = Field(
+        None,
+        validation_alias="OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD",
+        repr=False,
+    )
+
+    @field_validator(
+        "session_secret",
+        "bootstrap_admin_phone",
+        "bootstrap_admin_password",
+        mode="before",
+    )
+    @classmethod
+    def empty_auth_value_is_unconfigured(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("session_secret")
+    @classmethod
+    def validate_session_secret_length(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("session secret must contain at least 32 characters")
+        return value
+
+    @field_validator("bootstrap_admin_password")
+    @classmethod
+    def validate_bootstrap_password_length(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 12:
+            raise ValueError("bootstrap password must contain at least 12 characters")
+        return value
 
     @property
     def database_url(self) -> SecretStr:

@@ -3,6 +3,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.services.auth_registration import AuthOperationError
+from app.services.rate_limit import RateLimitExceeded
+
 
 def _error_response(
     request: Request, status_code: int, error_code: str, message: str
@@ -37,7 +40,17 @@ async def handle_unexpected_error(request: Request, _: Exception) -> JSONRespons
     return _error_response(request, 500, "internal_error", "服务内部错误")
 
 
+async def handle_auth_operation_error(
+    request: Request, exception: AuthOperationError | RateLimitExceeded
+) -> JSONResponse:
+    return _error_response(
+        request, exception.status_code, exception.error_code, exception.message
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
+    app.add_exception_handler(AuthOperationError, handle_auth_operation_error)
+    app.add_exception_handler(RateLimitExceeded, handle_auth_operation_error)
     app.add_exception_handler(Exception, handle_unexpected_error)

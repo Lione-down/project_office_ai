@@ -1,6 +1,10 @@
 from pydantic import SecretStr
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 
 class DatabaseManager:
@@ -10,6 +14,7 @@ class DatabaseManager:
             pool_pre_ping=True,
             hide_parameters=True,
         )
+        self.session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
 
     async def ping(self) -> None:
         async with self._engine.connect() as connection:

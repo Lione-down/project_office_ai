@@ -1,6 +1,6 @@
 # T1-003 用户、Session 与邀请码
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`T1-002`
 - 来源：总计划第 2、3、6、7、12、13 节与 Day 3
 - 建议 commit：`feat(auth): add invite based phone authentication`
