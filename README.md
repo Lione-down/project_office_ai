@@ -28,6 +28,27 @@
 - ClamAV + PaddleOCR
 - Docker Compose
 
+## T1-002 本地验证入口
+
+Docker runtime 可用时：
+
+```powershell
+docker compose up -d mysql redis
+docker compose run --rm backend pytest -q
+docker compose run --rm frontend npm run test
+docker compose run --rm frontend npm run build
+docker compose run --rm backend alembic upgrade head
+```
+
+Docker 不可用时，只能运行不替代 MySQL/Redis runtime 的 focused verification：
+
+```powershell
+backend\.venv\Scripts\python.exe -m pytest -q
+Set-Location frontend
+npm run test
+npm run build
+```
+
 ## 敏感信息规则
 
 - 不提交 `.env`、`.env.*`、API Key、Token、密码、证书或私钥。

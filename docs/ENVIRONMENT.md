@@ -17,11 +17,13 @@
 | `OFFICE_AI_ENV` | `local/test` 运行环境 | 否 | T1-002 | Compose/CI 普通变量 |
 | `OFFICE_AI_LOG_LEVEL` | 日志级别 | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_FRONTEND_ORIGIN` | 唯一允许的前端 Origin | 否 | T1-002 | Compose 普通变量 |
-| `OFFICE_AI_API_BASE_URL` | 前端访问 API 的基址 | 否 | T1-002 | Build/runtime 普通变量 |
+| `OFFICE_AI_API_BASE_URL` | Compose 提供的前端 API 基址，映射为容器内 `VITE_API_BASE_URL` | 否 | T1-002 | Build/runtime 普通变量 |
 | `OFFICE_AI_MYSQL_DATABASE` | MySQL database 名 | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_MYSQL_USER` | MySQL app user | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_MYSQL_PASSWORD` | MySQL app password | 是 | T1-002 | 本地未跟踪环境或 Secret store |
 | `OFFICE_AI_MYSQL_ROOT_PASSWORD` | MySQL root password | 是 | T1-002 | 本地未跟踪环境或 Secret store |
+| `OFFICE_AI_DATABASE_HOST` | MySQL internal hostname，Compose 默认 `mysql` | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_DATABASE_PORT` | MySQL internal port，默认 `3306` | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_DATABASE_URL` | SQLAlchemy 连接串 | 是 | T1-002 | 运行时组合或本地 Secret，不打印 |
 | `OFFICE_AI_REDIS_URL` | Redis internal URL | 视部署 | T1-002 | Compose internal network；生产用 Secret |
 | `OFFICE_AI_MASTER_KEY` | Provider credential 应用层加密主密钥 | 是 | T1-004 | OS secret/CI secret；禁止落库和提交 |

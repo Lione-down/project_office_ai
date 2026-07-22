@@ -27,6 +27,17 @@
 }
 ```
 
+## Platform Health
+
+Health endpoint 是不带 `/api/v1` 前缀的运行时探针，不承载业务数据：
+
+| Method | Path | 说明 |
+|---|---|---|
+| GET | `/health/live` | 进程存活、应用可处理请求；响应和 Header 均携带 Trace ID |
+| GET | `/health/ready` | MySQL 与 Redis 均可用时返回 `200 ready`；否则返回脱敏的 `503 service_not_ready` |
+
+探针不得返回连接串、用户名、密码、内部异常或 stack trace。
+
 ## Auth
 
 | Method | Path | 说明 |

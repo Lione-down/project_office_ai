@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；DDL/Alembic 在 `T1-002` 起实现
+- 状态：逻辑契约；`T1-002` 已建立空 Alembic baseline，业务 DDL 由后续模型任务 additive 演进
 
 ## 全局约定
 
@@ -114,6 +114,6 @@
 
 ## Migration gate
 
-- `T1-002` 创建初始 Alembic 环境与基础连接，不得在代码中自动建表。
+- `T1-002` 已创建 `20260722_0001` 初始空 migration 与基础连接；应用启动不自动建表。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

@@ -1,0 +1,1 @@
+This Alembic environment owns schema migrations. Application startup must never call create_all().

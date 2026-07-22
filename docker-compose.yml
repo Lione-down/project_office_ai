@@ -17,10 +17,12 @@ x-healthcheck: &healthcheck
 services:
   frontend:
     <<: *app-service
-    image: node:22.17.0-alpine
+    build:
+      context: ./frontend
+    image: office-ai-frontend:local
     user: "10001:10001"
     working_dir: /app
-    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     environment:
       VITE_API_BASE_URL: ${OFFICE_AI_API_BASE_URL:-http://localhost:8000/api/v1}
     ports:
@@ -28,6 +30,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/dist
     networks:
       - edge
       - private
@@ -36,14 +39,16 @@ services:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "node", "-e", "process.exit(0)"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
   backend:
     <<: *app-service
-    image: python:3.12.11-slim
+    build:
+      context: ./backend
+    image: office-ai-backend:local
     user: "10001:10001"
     working_dir: /app
-    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
       OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
@@ -52,6 +57,7 @@ services:
       OFFICE_AI_MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
       OFFICE_AI_MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
       OFFICE_AI_DATABASE_HOST: mysql
+      OFFICE_AI_DATABASE_PORT: "3306"
       OFFICE_AI_REDIS_URL: redis://redis:6379/0
       OFFICE_AI_FILES_ROOT: /app/files
       OFFICE_AI_MASTER_KEY: ${OFFICE_AI_MASTER_KEY:-}
@@ -71,7 +77,7 @@ services:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "python", "-c", "import os; raise SystemExit(0 if os.getenv('OFFICE_AI_ENV') else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
 
   worker:
     <<: *app-service

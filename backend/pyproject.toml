@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "office-ai-backend"
+version = "0.1.0"
+description = "Office AI Alpha FastAPI backend"
+requires-python = ">=3.12,<3.14"
+license = "LicenseRef-Proprietary"
+dependencies = [
+  "alembic>=1.16,<2",
+  "aiomysql>=0.3.2,<1",
+  "fastapi>=0.116,<0.139",
+  "pydantic-settings>=2.10,<3",
+  "redis>=6.2,<7",
+  "sqlalchemy[asyncio]>=2.0.41,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+test = [
+  "aiosqlite>=0.21,<1",
+  "httpx>=0.28,<1",
+  "pytest>=9.0.3,<10",
+  "pytest-asyncio>=1.1,<2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+asyncio_mode = "auto"
+cache_dir = "/tmp/office-ai-pytest-cache"
+testpaths = ["tests"]

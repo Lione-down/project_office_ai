@@ -1,6 +1,6 @@
 # T1-002 FastAPI、Vue 与数据库骨架
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`T1-001`
 - 来源：总计划第 5、6、12 节与 Day 2
 - 建议 commit：`chore(core): bootstrap frontend backend and database`
