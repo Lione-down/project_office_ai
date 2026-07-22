@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T1-003` migrations `20260722_0002`/`20260722_0003` 已 additive 建立认证相关 4 张表及中文注释，其余表由后续任务演进
+- 状态：逻辑契约；`T1-004` migration `20260722_0004` 已 additive 建立 Provider 相关 4 张表及中文注释，当前共实现 8/21 张表
 
 ## 全局约定
 
@@ -70,19 +70,19 @@
     - 只追加；它是账务真相，`users.credit_balance` 只是缓存。
 
 17. `ai_providers`
-    - 厂家、显示名称、protocol、base URL、状态、默认 timeout、非敏感配置。
+    - 厂家、显示名称、protocol、base URL、状态、默认 timeout、非敏感 JSON 配置、创建/更新时间。
 
 18. `ai_models`
-    - Provider、Credential、model code、展示名称、能力、context、输出上限、用户可见、推荐状态、积分倍率、允许 Skills。
+    - Provider、Credential、model code、展示名称、能力、context、输出上限、用户可见、推荐状态、积分倍率、允许 Skills、状态和时间戳。
 
 19. `provider_credentials`
-    - 每行只存一个 API Key：唯一 ID、Provider、名称、encrypted key、fingerprint、状态、RPM、TPM、最大并发、测试结果、轮换来源、创建管理员。
+    - 每行只存一个 API Key：唯一 ID、Provider、名称、Fernet encrypted key、SHA-256 fingerprint、状态、RPM、TPM、最大并发、最近测试结果/时间、轮换来源、创建管理员和时间戳。
 
 20. `system_settings`
     - 非敏感平台配置、文件限制、feature flag 和默认值；API Key 禁止进入此表。
 
 21. `audit_logs`
-    - actor、action、target type/id、IP、User-Agent、原因、结果、脱敏 context 和时间；只追加。
+    - actor、action、target type/id、IP、User-Agent、原因、结果、脱敏 JSON context、Trace ID 和时间；只追加。
 
 ## 关键唯一约束
 
@@ -117,6 +117,7 @@
 - `T1-002` 已创建 `20260722_0001` 初始空 migration 与基础连接；应用启动不自动建表。
 - `T1-003` 已创建 `20260722_0002`，建立 `users`、`user_sessions`、`invite_codes`、`credit_ledger`；UUID 为 `BINARY(16)`，时间为 MySQL `DATETIME(6)`。
 - `T1-003` runtime 补验新增 `20260722_0003`，为上述 4 张表及全部 41 个字段写入非空中文 COMMENT；2026-07-22 已在本机 MySQL 8.0.43 空库真实升级并通过 `information_schema` 与 `alembic check` 核对。
+- `T1-004` 新增 `20260722_0004`，建立 `ai_providers`、`provider_credentials`、`ai_models`、`audit_logs`；2026-07-22 已在本机 MySQL 从 `0003` 真实升级，4/4 table comments、52/52 column comments、两项关键唯一约束通过 `information_schema` 与事务内 rollback probe 核对，`alembic check` 无 drift。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

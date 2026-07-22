@@ -1,6 +1,6 @@
 # T1-004 Provider、Credential 与模型后台
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`T1-003`
 - 来源：总计划第 3、6、10、12、13 节与 Day 4
 - 建议 commit：`feat(provider): add encrypted multi provider model registry`
@@ -44,3 +44,27 @@ docker compose run --rm backend pytest -q
 
 - 不认证 Agnes 之外 Provider，不做静默 Provider 切换，不公开本地图片 URL。
 - 回滚时停用新增配置而非覆盖历史 Credential；禁止在回滚输出中打印解密值。
+
+## 2026-07-22 执行计划
+
+1. RED：先覆盖 Master Key fail-closed、单 Key 单记录、应用层密文、同 Provider Fingerprint 唯一、Model 绑定 Credential、Reveal 重新认证与成功/失败审计。
+2. RED：覆盖管理员 Provider/Credential/Model API、掩码/禁止缓存、Credential 健康测试和用户可见模型过滤，确保常规响应与日志不含明文 Key。
+3. RED：覆盖 Agnes Adapter 七项固定合同、默认 Base URL/模型/256K Context/120 秒 timeout，以及 `400`、`401/403`、`429/5xx`、timeout 分类和 usage 提取。
+4. GREEN：以 additive migration 建立 `ai_providers`、`provider_credentials`、`ai_models`、`audit_logs`，实现最小 service/API/adapter，不进入 T1-005。
+5. VERIFY：依次运行 providers focused、admin focused、Backend broad、ruff、migration/offline SQL、真实 MySQL upgrade/check 与真实 MySQL/Redis readiness；无真实 Agnes Key 时只记录 Mock Contract Test。
+6. CLOSE：同步 API、DATA_MODEL、ENVIRONMENT、SECURITY、PROGRESS 和 pitfalls；完成敏感信息检查、精确路径暂存、单一 commit 和 `origin/main` 推送后，仅交接 T1-005 为下一唯一 READY。
+
+### 成功标准
+
+- 四张表、唯一约束、外键、中文 table/column comments 与 ORM/migration 一致，真实 MySQL 从 `20260722_0003` additive 升级到新 Head。
+- Master Key 缺失或无效时创建、Reveal 与 Provider 调用 fail closed；Key 只以密文和不可逆 Fingerprint 持久化。
+- Reveal 必须同时满足管理员 Session、当前密码重新认证和非空 reason，响应 `Cache-Control: no-store`，成功与失败均产生不含 Key/Fingerprint 的 audit。
+- Agnes Mock Contract Test 覆盖固定 adapter 方法和错误分类；没有真实 Agnes Key 时不声称真实兼容通过。
+
+### 执行结果
+
+- RED→GREEN→REFACTOR 完成；Providers `33 passed`、Admin `2 passed`、Backend broad `84 passed`，Ruff check/format 全通过。
+- Alembic 单 Head 为 `20260722_0004`；真实 MySQL 从 `0003` 升级并通过 `alembic check`、4/4 table comments、52/52 column comments、唯一约束和 rollback runtime probe。
+- 真实 `/health/ready=200`，MySQL/Redis 均 up；Docker CLI 不可用，Compose 入口未伪造通过。
+- Agnes 七项合同与错误分类只完成 Mock Contract Test；没有读取真实 Agnes Key，不声称真实 Agnes 兼容通过。
+- T1-005 仅交接为下一唯一 `READY`，未实现 Project/Asset/upload 范围。

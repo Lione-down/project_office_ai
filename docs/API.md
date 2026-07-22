@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：`T1-003` 已实现 Auth 与 Admin Invite；其余接口按后续任务实现
+- 状态：`T1-004` 已实现 Auth、Admin Invite、Provider/Credential/Model Registry；其余接口按后续任务实现
 
 ## 共同行为
 
@@ -115,11 +115,15 @@ Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invi
 | POST | `/admin/invite-codes` | 创建邀请码与赠送规则 |
 | GET | `/admin/invite-codes` | 查询邀请码状态和使用情况 |
 | POST | `/admin/providers` | 创建 Provider 配置 |
+| GET | `/admin/providers` | 管理员查询 Provider 配置，不含 Secret |
 | PATCH | `/admin/providers/{provider_id}` | 修改非 Secret 配置和状态 |
 | POST | `/admin/credentials` | 每条记录写入一个加密 API Key |
+| GET | `/admin/credentials` | 管理员查询固定掩码、限流、状态和最近测试结果；不解密 Key |
+| PATCH | `/admin/credentials/{credential_id}` | 只修改名称、状态、RPM/TPM/最大并发；轮换 Key 必须新建记录 |
 | POST | `/admin/credentials/{credential_id}/test` | 测试认证和能力，结果脱敏 |
 | POST | `/admin/credentials/{credential_id}/reveal` | 重新认证后临时 reveal，禁止缓存并审计 |
 | POST | `/admin/models` | 创建 Provider 模型 |
+| GET | `/admin/models` | 管理员查询全部模型配置 |
 | PATCH | `/admin/models/{model_id}` | 能力、可见性、倍率和状态 |
 | GET | `/admin/tasks` | 查看持久任务和异常状态 |
 | POST | `/admin/tasks/{task_id}/retry` | 对可安全重试任务执行受审计重试 |
@@ -131,9 +135,11 @@ Auth 稳定错误码包括 `phone_already_registered`、`invite_invalid`、`invi
 
 `T1-003` 已实现 `/admin/invite-codes` 的创建与查询：创建响应只返回一次完整 code 且禁止缓存，列表只返回 prefix、次数、有效期、状态和赠送积分。管理员密码 reset 的 service-level 撤销与 `must_change_password` 行为已实现；需要重新认证、reason 和 `audit_logs` 的 HTTP 闭环仍由 `T4-002` 交付，不在 T1-003 暴露不完整的敏感端点。
 
+`T1-004` 已实现 Provider/Credential/Model Registry。Agnes 配置在写入前验证 HTTPS、保守 `256K` Context 和正 timeout；Credential 创建响应只返回掩码并使用 `Cache-Control: no-store`。Reveal 要求管理员 Session、当前密码和 reason，成功/失败均审计，响应禁止缓存。Credential test 要求 reason、受 Redis 限速，`401/403` 会暂停 Credential，timeout 返回不确定状态而不自动重试。用户 `/models` 只返回 Provider、Credential、Model 都为 active 且 `user_visible=true` 的记录。
+
 ## 后续 contract gate
 
-- `T1-003` 已实现并测试 Auth/Invite；`T1-004` 实现 Admin Provider/Credential/Model。
+- `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model。
 - `T1-005` 实现 Projects/Assets；`T2-003` 实现术语；`T2-004`/`T2-005` 实现 Brief/Preflight。
 - `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

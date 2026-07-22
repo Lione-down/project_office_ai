@@ -62,6 +62,27 @@
 - 影响：INFO 解析失败不能用于否定 Redis 可用性；当前认证限速所需的 PING/INCR/EXPIRE path 不依赖 INFO。
 - 预防/验证：本机 gate 使用 authenticated `PING` 与应用 `/health/ready`；后续升级 Redis 时再恢复 INFO compatibility 检查。
 
+### 2026-07-22 · T1-004 · focused 通过但 broad pytest collection 冲突
+
+- 现象：`tests/auth/` 与 `tests/providers/` 各自 focused 通过，但全套 pytest 因同名 `test_models.py`、`test_migration.py`、`test_security.py` 被导入为相同顶层 module 而 collection error。
+- 影响：只跑单目录不能证明 broad suite 可收集；后续业务域继续出现同名测试文件时会复发。
+- 本任务处理：为新增 `tests/providers/` 与 `tests/admin/` 增加 package marker，随后 Backend 最终全套 `84 passed`。
+- 预防/验证：新增测试业务域后同时运行 focused 与仓库根 broad；不得用 focused 通过替代全套 collection evidence。
+
+### 2026-07-22 · T1-004 · 新 encryption dependency 必须先过 audit
+
+- 现象：初始约束安装 `cryptography 45.0.7`，`pip-audit` 报告 6 条已知漏洞，修复版本最高要求 `48.0.1`。
+- 影响：Fernet 功能测试通过不代表 dependency 可交付；带已知漏洞提交会违反 security gate。
+- 本任务处理：提升并固定为 `cryptography>=48.0.1,<49`，重新安装后复跑 focused/broad 和 `pip-audit`，结果为 0 known vulnerabilities。
+- 预防/验证：新增 dependency 后在文档/commit 前运行 `pip check`、vulnerability audit 和完整回归，不只依赖 resolver 成功。
+
+### 2026-07-22 · T1-004 · ASGI Runtime probe 必须关闭 lifespan
+
+- 现象：首次真实 readiness probe 直接使用 `ASGITransport`，业务断言通过，但进程退出时因 app lifespan 未运行导致 aiomysql connection cleanup warning。
+- 影响：warning 会污染 Runtime 证据，也可能掩盖资源泄漏。
+- 本任务处理：在 `app.router.lifespan_context(app)` 内重跑 readiness，MySQL/Redis 均 up、Provider service 配置成功且无清理 warning。
+- 预防/验证：直接 ASGI probe 若创建真实资源，必须显式进入/退出 lifespan；测试 client 成功响应不能替代资源关闭验证。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

@@ -1,6 +1,6 @@
 # T1-005 项目与资产上传
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T1-004`
 - 来源：总计划第 2–8、12、13 节与 Day 5
 - 建议 commit：`feat(asset): add isolated local asset management`

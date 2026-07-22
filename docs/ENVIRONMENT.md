@@ -26,7 +26,7 @@
 | `OFFICE_AI_DATABASE_PORT` | MySQL internal port，默认 `3306` | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_DATABASE_URL` | SQLAlchemy 连接串 | 是 | T1-002 | 运行时组合或本地 Secret，不打印 |
 | `OFFICE_AI_REDIS_URL` | Redis internal URL | 视部署 | T1-002 | Compose internal network；生产用 Secret |
-| `OFFICE_AI_MASTER_KEY` | Provider credential 应用层加密主密钥 | 是 | T1-004 | OS secret/CI secret；禁止落库和提交 |
+| `OFFICE_AI_MASTER_KEY` | Provider credential Fernet 应用层加密主密钥 | 是 | T1-004 | URL-safe Base64 编码的 32-byte Key；仅 OS secret/CI secret，禁止落库和提交 |
 | `OFFICE_AI_SESSION_SECRET` | Session 签名/派生 Secret | 是 | T1-003 | OS secret/CI secret；定期轮换 |
 | `OFFICE_AI_ACCESS_TOKEN_TTL_SECONDS` | Access Token TTL | 否 | T1-003 | Compose 普通变量 |
 | `OFFICE_AI_REFRESH_TOKEN_TTL_SECONDS` | Refresh Token TTL | 否 | T1-003 | Compose 普通变量 |
@@ -54,8 +54,10 @@
 
 - Agnes API Key 不使用固定仓库变量名写入 Compose，也不进入 `system_settings`。
 - 管理员通过 `POST /api/v1/admin/credentials` 录入一个 Key；后端使用 `OFFICE_AI_MASTER_KEY` 加密后写入 `provider_credentials`。
+- Master Key 必须使用密码学安全随机源生成并符合 Fernet key 格式；不得使用人类密码、源码默认值或 Provider Key 直接充当 Master Key。
 - 测试、Reveal、轮换和停用均通过 `credential_id`，不在 worker command、queue payload 或日志中传明文 Key。
 - `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
+- Master Key 轮换不覆盖旧 Credential；新 Key 以新的 Credential ID 和 `rotation_source` 录入，旧记录停用并保留审计链。跨 Master Key 重新加密工具不在 T1-004 范围。
 
 ## Auth 与管理员 Bootstrap
 

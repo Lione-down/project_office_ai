@@ -5,6 +5,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.services.auth_registration import AuthOperationError
 from app.services.rate_limit import RateLimitExceeded
+from app.services.provider_admin import ProviderOperationError
+from app.services.provider_security import ProviderConfigurationError
 
 
 def _error_response(
@@ -48,9 +50,27 @@ async def handle_auth_operation_error(
     )
 
 
+async def handle_provider_operation_error(
+    request: Request, exception: ProviderOperationError
+) -> JSONResponse:
+    return _error_response(
+        request, exception.status_code, exception.error_code, exception.message
+    )
+
+
+async def handle_provider_configuration_error(
+    request: Request, exception: ProviderConfigurationError
+) -> JSONResponse:
+    return _error_response(request, 503, exception.error_code, exception.message)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(AuthOperationError, handle_auth_operation_error)
     app.add_exception_handler(RateLimitExceeded, handle_auth_operation_error)
+    app.add_exception_handler(ProviderOperationError, handle_provider_operation_error)
+    app.add_exception_handler(
+        ProviderConfigurationError, handle_provider_configuration_error
+    )
     app.add_exception_handler(Exception, handle_unexpected_error)

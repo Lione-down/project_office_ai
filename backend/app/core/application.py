@@ -24,6 +24,8 @@ from app.services.auth_security import (
 )
 from app.services.auth_sessions import AuthSessionService
 from app.services.rate_limit import RedisRateLimiter
+from app.services.provider_admin import ProviderAdminService
+from app.services.provider_security import CredentialCipher, ProviderConfigurationError
 from app.settings.config import Settings, get_settings
 
 
@@ -42,6 +44,7 @@ def create_app(
     settings: Settings | None = None,
     readiness_checker: ReadinessChecker | None = None,
     auth_services: AuthServices | None = None,
+    provider_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
@@ -91,6 +94,26 @@ def create_app(
             ),
         )
 
+    if (
+        provider_services is None
+        and database is not None
+        and redis is not None
+        and auth_services is not None
+        and application_settings.master_key is not None
+    ):
+        try:
+            credential_cipher = CredentialCipher(application_settings.master_key)
+        except ProviderConfigurationError:
+            credential_cipher = None
+        if credential_cipher is not None:
+            provider_services = ProviderAdminService(
+                database.session_factory,
+                auth_services.sessions,
+                PasswordService(),
+                credential_cipher,
+                rate_limiter=RedisRateLimiter(redis),
+            )
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
@@ -100,6 +123,7 @@ def create_app(
     app = FastAPI(title="Office AI API", version="0.1.0", lifespan=lifespan)
     app.state.readiness_checker = readiness_checker
     app.state.auth_services = auth_services
+    app.state.provider_services = provider_services
     app.add_middleware(TraceIdMiddleware)
     app.add_middleware(
         CORSMiddleware,

@@ -21,9 +21,10 @@
 
 ## Secret 管理
 
-- API Key 每个数据库记录只保存一个加密值和不可逆 fingerprint。
+- API Key 每个数据库记录只保存一个随机化 Fernet 密文和 SHA-256 不可逆 fingerprint；同 Provider fingerprint 唯一。
 - 应用层 Master Key 只来自 runtime Secret，不写数据库、不进入镜像、不提交。
 - Credential 默认掩码；Reveal 响应 `Cache-Control: no-store`，仅短暂返回并记录 actor、reason、result。
+- Credential 常规列表使用固定掩码且不调用 decrypt；名称、状态和限流 PATCH 不允许替换 encrypted key 或 fingerprint，轮换通过新 ID 完成。
 - Provider Key 不进入 queue payload、worker environment、trace、exception 或 audit context。
 - 缺少 Master Key、解密失败或 credential 状态异常时 fail closed，不静默切换 Provider。
 
@@ -48,6 +49,7 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - Structured Brief 通过 Pydantic/JSON Schema，schema 修复只允许一次。
 - 模型推断必须标记 `ai_inference`，不能冒充 `source_fact`。
 - `400` 不重试，`401/403` 暂停 Credential，`429/5xx` 有限重试，timeout 不确定进入 `provider_uncertain`。
+- Agnes 配置写入前验证 HTTPS、默认 `agnes-2.0-flash`、保守 `256K` Context 与 120 秒 timeout；Alpha 不认证其他 Provider，不静默切换。
 
 ## 任务与账务
 

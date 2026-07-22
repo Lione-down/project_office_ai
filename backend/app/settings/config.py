@@ -46,6 +46,9 @@ class Settings(BaseSettings):
         validation_alias="OFFICE_AI_REDIS_URL",
         repr=False,
     )
+    master_key: SecretStr | None = Field(
+        None, validation_alias="OFFICE_AI_MASTER_KEY", repr=False
+    )
     session_secret: SecretStr | None = Field(
         None, validation_alias="OFFICE_AI_SESSION_SECRET", repr=False
     )
@@ -68,6 +71,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "session_secret",
+        "master_key",
         "bootstrap_admin_phone",
         "bootstrap_admin_password",
         mode="before",

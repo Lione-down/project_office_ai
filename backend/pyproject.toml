@@ -12,7 +12,9 @@ dependencies = [
   "alembic>=1.16,<2",
   "aiomysql>=0.3.2,<1",
   "argon2-cffi>=23.1,<26",
+  "cryptography>=48.0.1,<49",
   "fastapi>=0.116,<0.139",
+  "httpx>=0.28,<1",
   "PyJWT>=2.10,<3",
   "pydantic-settings>=2.10,<3",
   "redis>=6.2,<7",
@@ -23,7 +25,6 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "aiosqlite>=0.21,<1",
-  "httpx>=0.28,<1",
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.1,<2",
 ]

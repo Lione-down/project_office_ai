@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-22`
-- 最近完成：`T1-003 用户、Session 与邀请码`
-- 下一任务：`T1-004 Provider、Credential 与模型后台`
-- 当前状态：`T1-004 READY`
+- 最近完成：`T1-004 Provider、Credential 与模型后台`
+- 下一任务：`T1-005 项目与资产上传`
+- 当前状态：`T1-005 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -27,8 +27,8 @@
 | T1-001 | DONE | 无 | `chore(project): establish office ai alpha baseline`；验证证据见下文 |
 | T1-002 | DONE | T1-001 | `chore(core): bootstrap frontend backend and database`；Docker runtime 缺口见下文 |
 | T1-003 | DONE | T1-002 | `feat(auth): add invite based phone authentication`；Docker runtime 缺口见下文 |
-| T1-004 | READY | T1-003 | Provider、Credential 与模型后台 |
-| T1-005 | BLOCKED | T1-004 | 项目与资产上传；Week 1 Gate |
+| T1-004 | DONE | T1-003 | `feat(provider): add encrypted multi provider model registry`；验证证据见下文 |
+| T1-005 | READY | T1-004 | 项目与资产上传；Week 1 Gate |
 | T2-001 | BLOCKED | T1-005 | 文件扫描与解析沙箱 |
 | T2-002 | BLOCKED | T2-001 | OCR 与 Evidence Manifest |
 | T2-003 | BLOCKED | T2-002 | 术语库与证据标准化 |
@@ -221,3 +221,57 @@
 - Records：T1-003 task、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/PROGRESS.md`、`pitfalls.md`。
 - `.env` 已在用户明确授权下写入本机 Redis URL，保持 ignored 且未暂存；`design-system/` 和旧版 `docs/ui-mockups/` 继续保留为用户未跟踪文件。
 - T1-004 仍是唯一 `READY` 任务；新会话必须从 `AGENTS.md`、本文件、任务索引、T1-004 任务卡和专题文档重新读取事实，不得仅依赖聊天交接。
+
+## T1-004 执行记录
+
+### 范围
+
+- 建立 `ai_providers`、`provider_credentials`、`ai_models`、`audit_logs` ORM 与 additive migration `20260722_0004`；当前实现 8/21 张 Alpha 表。
+- 实现管理员 Provider/Credential/Model 创建、列表和白名单 PATCH，Credential health test、重新认证 Reveal、成功/失败审计，以及用户 active/visible 模型列表。
+- API Key 使用随机化 Fernet 应用层密文，只持久化密文和 SHA-256 fingerprint；同 Provider fingerprint 唯一，Model 明确绑定 Provider 与 Credential ID。
+- 实现 Agnes Adapter 七项固定合同：`validate_configuration`、`test_authentication`、`test_structured_output`、`test_image_url`、`create_chat_completion`、`classify_error`、`extract_usage`。
+- 固定 Agnes 默认 Base URL、`agnes-2.0-flash`、保守 `256K` Context 和 120 秒 timeout；本地/私网图片 URL 在请求前拒绝，未实现 T1-005 资产能力。
+
+### Changed files
+
+- Models/Migration：`backend/app/models/{ai_providers,provider_credentials,ai_models,audit_logs}.py`、`backend/alembic/versions/20260722_0004_provider_model_registry.py`、model registry。
+- Provider/Services：`backend/app/providers/agnes.py`、`backend/app/services/provider_{security,contracts,admin}.py`、Settings/Application/Error wiring。
+- API/Schemas：`backend/app/api/v1/providers.py`、router、`backend/app/schemas/providers.py`。
+- Tests/Dependency：`backend/tests/providers/**`、`backend/tests/admin/**`、auth migration chain test、`backend/pyproject.toml`；`httpx` 进入 production dependencies，`cryptography` 固定为已修复的 `>=48.0.1,<49`。
+- Records：T1-004/T1-005 task cards、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env` 或真实 Provider Key。
+
+### TDD 与 focused verification
+
+- RED：依次确认 Master Key/cipher、四个 ORM、migration、Credential 密文/重复拦截、Reveal 双向审计、Registry/Model 绑定、Agnes 七项合同、Credential health、Admin HTTP contract、安全列表/PATCH 和 Agnes 配置写入验证在实现前按预期失败。
+- REFACTOR：将 Provider DTO/summary/factory 拆到 `provider_contracts.py`，service 498 行；Provider 测试按 health/registry 边界拆分，全部 Python 文件不超过 500 行。
+- `backend/.venv/Scripts/python.exe -m pytest tests/providers -q`：`33 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest tests/admin -q`：`2 passed`。
+- Mock Contract Test 覆盖 Agnes chat payload、structured output、usage、公开图片 URL gate 与 `400/401/403/429/5xx/timeout` 分类；没有使用或读取真实 Agnes Key，不声称真实 Agnes 兼容已验证。
+
+### Broad、quality 与 dependency gate
+
+- Backend 根目录 `.venv/Scripts/python.exe -m pytest -q`：`84 passed`。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 均通过；全套 pytest 曾暴露 auth/providers 同名 test module collection 冲突，增加 package marker 后闭环。
+- `alembic heads`：`20260722_0004 (head)`；SQLite 空库 upgrade、MySQL dialect offline 中文 COMMENT 与两项关键唯一约束测试通过。
+- `pip check` 通过；首次 `pip-audit` 发现 `cryptography 45.0.7` 已知漏洞，提升到 `48.0.1` 后复跑为 `0 known vulnerabilities`，只按预期跳过本地非 PyPI package。
+
+### 真实 MySQL/Redis Runtime
+
+- 通过用户授权的本机 ignored `.env` 仅向子进程注入 MySQL/Redis 配置，真实 MySQL 从 `20260722_0003` 升级到 `20260722_0004`；`alembic current` 为 Head，`alembic check` 为 `No new upgrade operations detected`。
+- `information_schema` 验证 4/4 新表 table comments、52/52 column comments 非空，两项关键唯一约束存在。
+- 真实 MySQL transaction probe 使用子进程临时 Master Key 写入 Provider/Credential/Model/Audit 后整体 rollback；验证密文不含 probe plaintext、同 Provider fingerprint 重复写入被唯一约束拒绝、Model 绑定正确，未留下 probe 数据。
+- 使用临时进程 Master/Session key 装配真实应用，`GET /health/ready` 返回 `200 ready`，dependencies 为 `mysql=up`、`redis=up`，Provider service 配置成功并通过 lifespan 正常关闭。
+- Docker CLI 仍不在 PATH，`docker compose version` 为 command not found；任务卡三个 Compose 入口未运行，不标记容器验证通过。direct Windows focused/broad 与真实 MySQL/Redis 证据不冒充 Docker runtime。
+
+### 安全与决策
+
+- Master Key 缺失/空值/无效时 Provider service fail closed；Master Key 无源码默认值，不落库。常规 Credential 列表固定掩码且不 decrypt，metadata PATCH 不能替换 Key/Fingerprint；轮换以新 Credential ID 和 `rotation_source` 完成。
+- Provider 非敏感 JSON config 递归拒绝 `api_key`、Token、密码、Secret、Master Key、Authorization 和 Credential 字段；Credential schema/service 双层拒绝空白 Key，防止绕过专用密文边界。
+- Reveal 要求管理员 Session、当前密码和 reason，响应 `Cache-Control: no-store`，成功/失败均只记录脱敏 audit context；Credential test 受 Redis 限速并审计，`401/403` 暂停 Credential，timeout 返回不确定且不自动重试。
+- `400` 不重试，`429/5xx` 标记有限重试类别；用户模型查询同时过滤 Provider、Credential、Model active 与 `user_visible`，不静默切换 Provider。
+
+### 完成结论
+
+- T1-004 严格范围内的实现、TDD、focused/broad、真实 MySQL/Redis runtime、dependency/security gate 和文档记录已完成；单一逻辑 commit 推送后闭环。
+- T1-005 是下一唯一 `READY` 任务；本会话没有实现 Project、Asset、上传、文件存储或任何 T1-005 代码。

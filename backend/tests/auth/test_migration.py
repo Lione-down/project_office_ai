@@ -39,12 +39,14 @@ def test_auth_migration_upgrades_empty_database(monkeypatch, tmp_path) -> None:
     assert {"users", "user_sessions", "invite_codes", "credit_ledger"} <= tables
 
 
-def test_auth_migration_is_the_single_head() -> None:
+def test_auth_migration_remains_in_provider_revision_chain() -> None:
     config = alembic_config()
+    scripts = ScriptDirectory.from_config(config)
 
-    heads = ScriptDirectory.from_config(config).get_heads()
+    provider_revision = scripts.get_revision("20260722_0004")
 
-    assert heads == ["20260722_0003"]
+    assert scripts.get_revision("20260722_0003") is not None
+    assert provider_revision.down_revision == "20260722_0003"
 
 
 def test_auth_comment_migration_emits_mysql_chinese_comments(monkeypatch) -> None:
