@@ -279,6 +279,32 @@
 - 本任务处理：sidecar 原子写入 strict `result.json`，重试先复验 user/asset/source variant/hash/size 的完整 request fingerprint、固定 key 以及 PDF/PNG 实际 hash/size；不一致时 fail closed。
 - 预防/验证：external file worker 的 completion marker 必须最后写、原子写且不可单独信任，manifest 与实际 artifact 始终双向校验。
 
+### 2026-07-23 · T3-004 · 宿主代码不能假设 backend 容器拥有 LibreOffice
+
+- 现象：初版 Excel validator 直接在 Backend 进程执行 `soffice`；但 Compose 只在独立
+  `libreoffice` sidecar 安装 Office runtime，且既有镜像只有 Impress、没有 Calc。
+- 影响：Python/fake runner tests 可通过，但真实 Docker backend 必然
+  `libreoffice_unavailable`，即使 sidecar 健康也无法重算 XLSX。
+- 本任务处理：在既有 private sidecar 增加 strict spreadsheet recalculation HTTP
+  contract，镜像补装 `libreoffice-calc`；sidecar 从固定 owner/asset key 读取原件并写
+  shared-work，Backend client 再复验固定 key/hash/trace/report。
+- 预防/验证：凡外部 binary 只存在专用容器，host service 必须通过最小 internal contract
+  调用；focused test 同时断言镜像 package、Compose command、sidecar route 和 Backend
+  artifact verification，不能用本机 PATH 或进程内 fake 代替容器边界。
+
+### 2026-07-23 · T3-004 · 公式 cache 与 validation artifact 都不能只看一层
+
+- 现象：openpyxl 以 formula 视图读取不到 cache，以 `data_only=True` 又看不到 formula；
+  直接用 openpyxl 重存测试副本还会清空全部公式 cache。另一方面，只读取已有 validation
+  report 会漏掉 copy/report 篡改或半完成目录。
+- 影响：测试可能把库行为误报成 12 个公式差异；任务重放也可能把损坏副本当成已完成，
+  破坏原件不可变和重算证据。
+- 本任务处理：formula/cache 使用两个只读 workbook 视图按 Sheet/cell 合并；测试只改
+  validation ZIP 的单个 formula XML，保留其他 cache。完成 replay 重新复验原件、
+  validation copy、report、trace 和重算 diff，不单独信任 marker。
+- 预防/验证：Office formula 合同必须分别验证 formula、cache 与实际文件 hash；测试工具
+  对 OOXML 的副作用要先确认，文件型 completion marker 始终与 artifact 双向复核。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

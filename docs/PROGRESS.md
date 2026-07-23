@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T3-003 PPT QA`
-- 下一任务：`T3-004 Excel Renderer 与系统模板`
-- 当前状态：`T3-004 READY`
+- 最近完成：`T3-004 Excel Renderer 与系统模板`
+- 下一任务：`T3-005 Excel QA 与组合任务`
+- 当前状态：`T3-005 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -37,8 +37,8 @@
 | T3-001 | DONE | T2-005 | `feat(task): add durable generation orchestration`；验证证据见下文 |
 | T3-002 | DONE | T3-001 | `feat(ppt): add deterministic sales presentation renderer`；验证证据见下文 |
 | T3-003 | DONE | T3-002 | `test(ppt): enforce presentation quality gates`；验证证据见下文 |
-| T3-004 | READY | T3-003 | Excel Renderer 与系统模板 |
-| T3-005 | BLOCKED | T3-004 | Excel QA 与组合任务；Week 3 Gate |
+| T3-004 | DONE | T3-003 | `feat(excel): add deterministic sales analysis workbook renderer`；验证证据见下文 |
+| T3-005 | READY | T3-004 | Excel QA 与组合任务；Week 3 Gate |
 | T4-001 | BLOCKED | T3-005 | 用户流程与管理后台功能壳 |
 | T4-002 | BLOCKED | T4-001 | 管理员最高权限与审计 |
 | T4-003 | BLOCKED | T4-002 | 黄金数据回归 |
@@ -765,3 +765,95 @@
 - OOXML/XML/ZIP、HTTP body/response、PDF/PNG、页数和 geometry 均有上限；未知字段、path escape、hash/size/页数/版本漂移和 artifact tamper 全部 fail closed。
 - 原 PPTX 与历史质量报告不可变；修复最多一次。只有 `passed`/`passed_with_warnings` 且 validated artifact 完整性通过时可下载；blocked 任务失败并由既有 ledger 释放 reserve。
 - T3-003 的实现、TDD、focused/broad/security、主会话顺序 deep review 与状态同步已完成；以单一逻辑 commit 推送后收口。T3-004 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。
+
+## T3-004 执行记录
+
+### 范围
+
+- 新增 strict `workbook-plan.v1` 与 canonical Plan SHA-256；只接受
+  `excel-renderer.v1`、`zh-CN`、两套系统模板、typed data/summary Sheet 和结构化
+  calculation/chart/format/validation/print contract。
+- XlsxWriter 从新工作簿生成数据表、汇总、同比/环比、排名、column/line/pie 基础图表、
+  条件格式、data validation、冻结窗格和打印设置；公式仅由 Renderer 生成英文
+  `SUM/AVERAGE/COUNT/IFERROR/RANK.EQ` 与英文逗号，并写显式确定性 cache。
+- 原始文本关闭 formula/URL 自动解释；WorkbookPlan 最多 20 Sheet、200,000 个实际生成
+  cell，Sheet/column/chart 引用和 Excel anchor/inline validation 上限在创建文件前闭合验证。
+- 两套认证模板为 `excel.analysis-dashboard.v1@1.0.0` 和
+  `excel.operating-review.v1@1.0.0`；样式变化不改变数据、公式和 trace 语义。
+- 原始 XLSX 使用 owner/asset 固定 key 原子保存且不可覆盖；输出结果与 XLSX custom
+  properties 固定关联 original SHA-256/size、Plan SHA-256、Schema/Renderer/template。
+- LibreOffice private sidecar 新增 strict `/v1/spreadsheet/recalculate`；只接受
+  request/user/asset UUID、原件 hash/size 和 Plan/Renderer/template version，从固定
+  `users/{user_id}/outputs/{asset_id}/analysis.xlsx` 只读原件，在 shared-work 生成独立
+  validation copy 与 `workbook-validation-report.v1`。Backend client 复验固定 key、
+  hash/size、formula/cache 差异和完成重放；镜像新增 `libreoffice-calc`。
+- 未实现 T3-005 的公式错误/黄金指标质量 gate、组合任务聚合、下载状态或积分结算。
+
+### Changed files
+
+- Renderer：`backend/app/services/renderers/excel/`。
+- Tests：`backend/tests/renderers/spreadsheet/`。
+- Runtime/dependency：`backend/pyproject.toml`、`backend/libreoffice-service/Dockerfile`、
+  `backend/app/services/quality/presentation/server.py`。
+- Records：T3-004/T3-005 task cards、task index、`docs/{PLAN,API,DATA_MODEL,ENVIRONMENT,SECURITY,PROGRESS}.md`
+  与 `pitfalls.md`。
+- 保留且未暂存：用户未跟踪的 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件
+  或未脱敏材料。
+
+### TDD、focused 与真实 XLSX 证据
+
+- RED 1：spreadsheet tests 因 `app.services.renderers.excel` 不存在 collection fail；
+  Schema/引用/容量 contract 最小实现后转 GREEN。
+- RED 2：真实 XLSX tests 先因 openpyxl/XlsxWriter 与 Renderer/output store 缺失失败；
+  安装并声明 `openpyxl 3.1.5`、`XlsxWriter 3.2.9` 后，实现两套模板和不可变存储转
+  GREEN。
+- RED 3：LibreOffice validation-copy tests 因 module 缺失失败；实现 formula/cache
+  双视图 diff、原件 hash 双检、完成 replay/tamper 和稳定错误后转 GREEN。
+- RED 4：deep review 发现 Backend 容器无 `soffice` 且 sidecar 镜像无 Calc；sidecar/client
+  contract 与镜像 tests 先 RED，再接入现有 private LibreOffice service 转 GREEN。
+- `.venv/Scripts/python.exe -m pytest backend/tests/renderers/spreadsheet -q`：
+  `36 passed`。
+- 固定 synthetic sample 实际生成 2 Sheet、38 个 cell、12 个公式；openpyxl
+  `data_only=False/True` 分别确认英文公式和 cache，图表 range、conditional format、
+  validation、freeze/print contract 均通过；同 Plan 两次 XLSX bytes/SHA-256 一致。
+- 输出 ZIP 无损、无 externalLinks/VBA；`=UNTRUSTED()` 原始文本保持 string。原始 XLSX、
+  validation copy 与 report 使用独立 path，fake sidecar 只证明 contract，不冒充真实
+  LibreOffice。
+
+### Broad、dependency 与安全验证
+
+- `.venv/Scripts/python.exe -m pytest backend/tests/integration -q`：`4 passed`。
+- `.venv/Scripts/python.exe -m pytest backend/tests -q --tb=no`：
+  `513 passed, 2 skipped`；两项 skip 仅为未显式 opt-in 的真实 Agnes Contract，T2-004
+  仍只保持 Mock 证据。
+- `ruff check backend/app backend/tests backend/alembic` 与
+  `ruff format --check backend/app backend/tests backend/alembic`：通过，309 个文件格式
+  已一致；本任务 owned Python source 均不超过 500 行。
+- Backend `pip check`：通过；`pip-audit --local`：0 known vulnerabilities，仅按预期跳过
+  本地非 PyPI package。新增 direct dependency license：openpyxl `MIT`、XlsxWriter
+  `BSD-2-Clause`。
+- Frontend：6 files / 12 tests passed、build 通过、npm audit 0 vulnerabilities。
+- PPT Renderer：4 files / 20 tests passed、build 通过、npm audit 0 vulnerabilities。
+- strict Schema 禁止自由公式、未知字段、客户端路径、外部连接和 unsupported template；
+  原始文本不自动转公式/URL。sidecar request/response body 有上限，固定 key/hash/size/
+  trace 漂移、坏 XLSX、报告/validation copy 篡改与 request ID 冲突全部 fail closed。
+
+### 主会话 deep review 与 runtime 缺口
+
+- 当前主会话按 Schema/容量、公式/cache、真实 OOXML、两套模板、chart/format/validation/
+  print、目的文件覆盖、output store、LibreOffice copy/report/replay、sidecar HTTP/key、
+  dependency/container 和 T3-005 scope 顺序复核。
+- Review 修复 Excel inline validation 255 字符和 XFD/1048576 anchor 边界、sheet-limit
+  稳定错误、Renderer destination TOCTOU 覆盖、全文件内存 hash、LibreOffice profile
+  隔离、报告/副本 replay/tamper、坏 XLSX exception 泄漏，以及错误的 backend-local
+  `soffice` 进程边界；最终无剩余 blocking security/logic finding。
+- PATH 当前无 `docker`、`docker-compose`、`soffice`；常见 64/32-bit LibreOffice
+  `soffice.exe` 路径均不存在。任务卡三条 Docker 命令和 `soffice --version` 已实际尝试，
+  均在容器/进程启动前 `CommandNotFoundException`。
+- 因此没有 Docker build/runtime、真实 LibreOffice 打开/重算、Microsoft Office/WPS
+  接受、真实 MySQL/Redis 或真实 Agnes 新证据；Python sidecar fake、真实 XLSX 和
+  openpyxl contract 不能替代这些 runtime/人工证据。
+- T3-004 代码、TDD、focused/broad/security、当前主会话顺序 deep review 与状态同步已
+  完成；单一逻辑 commit 推送并确认远端 0/0 后收口。T3-005 是下一唯一 `READY` 任务，
+  新 Codex 会话必须重新读取 live 文档、Git 与 origin 状态后再执行。

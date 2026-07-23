@@ -9,6 +9,7 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         fonts-dejavu-core \
         fonts-noto-cjk \
+        libreoffice-calc \
         libreoffice-common \
         libreoffice-impress \
     && rm -rf /var/lib/apt/lists/*

@@ -102,6 +102,25 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - LibreOffice sidecar 只接受固定 asset identity/hash/size/source variant；源文件与输出均使用服务端派生 key。request replay 必须同时复验 manifest、PDF 与逐页 PNG 的实际 hash/size，不能只信 sidecar JSON。
 - 自动修复只允许一次且仅处理确定性 geometry/autofit 规则；repaired PPTX 使用新 key，原始输出永不覆盖。报告、preview 或 validated artifact 任一漂移均 fail closed，`blocked` 禁止下载并触发既有 release 结算。
 
+## Excel Renderer 与验证副本
+
+- `workbook-plan.v1` strict schema 禁止未知字段、自由公式、路径、外部连接、宏、Pivot、
+  Power Query 和客户端输出位置；最多 20 Sheet、200,000 个实际生成 cell，Sheet/column/
+  chart range、Excel anchor 与 inline validation 长度在写文件前校验。
+- Renderer 只生成英文 `SUM/AVERAGE/COUNT/IFERROR/RANK.EQ` 和英文逗号；每个公式同时
+  写确定性 cache。普通文本使用显式 string writer，关闭 strings-to-formulas/URLs，
+  防止 CSV/Excel formula injection 和自动外链。
+- 原始 XLSX 使用 owner/asset 派生 key 原子保存且不可覆盖；Plan SHA-256、
+  Schema/Renderer/template version 同时写入输出 trace 与 custom properties。同 Plan
+  字节确定性、ZIP 完整性、无 externalLinks/VBA 和原件 hash 不变均有回归。
+- LibreOffice sidecar request 只接受 UUID/hash/size/version，不接受路径、正文、Secret
+  或任意 command。sidecar 以固定 key 只读原件，用独立 profile 重算 validation copy；
+  Backend 复验 response 上限、固定 shared-work key、hash/size、完整 trace 和
+  `workbook-validation-report.v1`，完成 replay 不单独信任 report JSON。
+- validation report 不保存公式正文，只记录 Sheet/cell、formula-changed 和 cache 前后值；
+  原件/copy/report 任一缺失、损坏、漂移，坏 XLSX 或 request ID/input fingerprint 冲突
+  均 fail closed。公式错误、黄金指标复算与下载质量状态仍由 T3-005 实现。
+
 ## 日志与审计
 
 - 禁止记录密码、Key、Token、签名 URL、完整文件、完整 Prompt、明文手机号、完整 IP、Fingerprint 或 Trace 上下文中的 Secret。

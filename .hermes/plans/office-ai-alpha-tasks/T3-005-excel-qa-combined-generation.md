@@ -1,6 +1,6 @@
 # T3-005 Excel QA 与组合任务
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T3-004`
 - 来源：总计划第 3、7、9、11、16 节与 Day 15
 - 建议 commit：`feat(generation): complete combined ppt and excel workflow`

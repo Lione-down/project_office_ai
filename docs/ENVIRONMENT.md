@@ -7,7 +7,7 @@
 - Host：Windows 开发机
 - Runtime：Docker Compose；Node.js 和 Python 可用于本地 focused tests
 - Data：MySQL 8.0、Redis
-- Office 工具：LibreOffice Headless；Week 4 人工验收需要 Microsoft Office 与 WPS
+- Office 工具：LibreOffice Headless（Impress + Calc）；Week 4 人工验收需要 Microsoft Office 与 WPS
 - 外部 Provider：Agnes API，通过管理员创建的加密 Credential 使用
 
 ## 环境变量
@@ -78,6 +78,14 @@ T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_S
 T3-002 的 `ppt-renderer` 使用独立 pinned Node image，只在 private network 暴露 internal HTTP，root filesystem read-only，以 non-root 用户写入 `shared-work`。Backend 将同一 volume 只读挂载到 `OFFICE_AI_RENDERED_ROOT`，验证 contract/hash/size 后再复制到受控资产存储；Renderer 不接收 Secret、Provider credential、用户路径或 Host port。
 
 T3-003 将 LibreOffice 改为项目自有 internal sidecar：non-root、read-only rootfs、private network、无 Host port/Secret/Provider credential；只读挂载原始 asset volume，只写 `shared-work`，以 `--headless` 打开并转 PDF，再用 PDFium 生成逐页 PNG。Backend 复验 sidecar schema、固定 key、hash/size 与页数后复制到 asset `quality/` 目录。当前本机未安装 Docker/`soffice`，该描述是静态合同而非本机 runtime 通过证据。
+
+T3-004 在同一 sidecar 镜像安装 `libreoffice-calc` 并增加
+`/v1/spreadsheet/recalculate`。sidecar 只读固定
+`users/{user_id}/outputs/{asset_id}/analysis.xlsx`，使用每 request 独立
+`UserInstallation` profile 和 headless/no-restore 参数，在 `shared-work` 写 validation
+copy 与 report；Backend 通过只读 `/app/rendered` 挂载复验 artifact。当前本机 PATH 无
+Docker/`soffice`，因此只有 Python/fake-sidecar contract 证据，没有真实 Calc runtime
+通过证据。
 
 ### 本机兼容变量
 

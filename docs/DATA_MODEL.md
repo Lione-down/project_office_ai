@@ -130,6 +130,13 @@
 - T3-001 结算事务：全成功写幂等 finalize marker；全失败/可取消任务写 release；partial success 按成功子输出费用结算并 release 余量。所有流水只追加，`provider_uncertain` 保留 reserve。
 - T3-002 PPT 输出边界：`render:pptx` step 先以稳定 idempotency key 创建 `parsing` 资产 checkpoint，Renderer 结果先写 step checkpoint，再以 `users/{user_id}/outputs/{asset_id}/presentation.pptx` 原子持久化并最终置 `ready`。`generated_task_id` 关联生成任务；同 Plan replay 返回同一资产，不覆盖已完成文件，不同 Plan、模板 snapshot 漂移、文件 hash/size 漂移全部 fail closed。
 - T3-003 PPT 质量边界：原始 `presentation.pptx` 保持不可变；质量报告、PDF、逐页 PNG 与可选 repaired PPTX 使用同一 asset 下固定 `quality/` key。`file_assets` 保存 quality status、report schema/engine/hash/key、preview keys、validated artifact hash/size/key、repair count 与 checked time；只有报告与全部 artifact integrity 一致时完成 checkpoint 或 replay。最多一次修复，修复文件不覆盖原输出。
+- T3-004 Excel 输出边界：原始 `analysis.xlsx` 使用
+  `users/{user_id}/outputs/{asset_id}/analysis.xlsx` 固定 key 原子保存且不可覆盖；
+  Plan SHA-256、Schema/Renderer/template version 进入输出 trace 和 XLSX custom
+  properties。LibreOffice 只读取该原件并在 shared-work 写独立 validation copy 与
+  `workbook-validation-report.v1`；完成/replay 同时复验原件、copy、report 和
+  formula/cache diff。T3-004 不新增表或 migration，Excel quality status/组合结算仍由
+  T3-005 落库。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
 - 管理员资产操作：权限判断、业务结果和 audit 写入必须具备可追溯的一致性边界。
 

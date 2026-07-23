@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：已完成 T1、T2、`T3-001`–`T3-003`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox、内部 PPT Renderer 与 PPT QA contract 已实现，其余接口按后续任务实现
+- 状态：已完成 T1、T2、`T3-001`–`T3-004`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox、内部 PPT Renderer/PPT QA 与 Excel Renderer/LibreOffice recalculation contract 已实现，其余接口按后续任务实现
 
 ## 共同行为
 
@@ -177,6 +177,21 @@ T3-002 已实现内部 `POST /v1/render` PPT Renderer contract，不作为浏览
 
 T3-003 已实现内部 `POST /v1/presentation/convert` LibreOffice sidecar contract，仅接受 UUID identity、source variant、SHA-256 与 byte size，不接受客户端路径。返回的 PDF/逐页 PNG key、hash、size、页码和尺寸会被 Backend 重新验证并固化到 `presentation-quality-report.v1`。生成 PPTX 只有 `passed`/`passed_with_warnings` 且 validated artifact 完整性复验通过时可下载；未检查返回 `asset_quality_pending`，阻断返回 `asset_quality_blocked`，artifact 漂移返回 `asset_quality_integrity_failed`。
 
+T3-004 已实现 strict `workbook-plan.v1`，只接受两套系统 Excel 模板、typed
+data/summary Sheet、结构化同比/环比/排名/汇总/chart/format/validation/print contract；
+不接受自由公式、外部连接、客户端输出路径、Pivot、Power Query、DAX 或 VBA。Renderer
+结果固定返回原件 SHA-256/size、Plan SHA-256、Schema/Renderer/template version、
+Sheet 数和实际生成 cell 数。
+
+T3-004 同时在既有 private LibreOffice sidecar 增加内部
+`POST /v1/spreadsheet/recalculate`。请求 `libreoffice-spreadsheet-request.v1` 只包含
+request/user/asset UUID、原件 SHA-256/size 与 Plan/Renderer/template version；sidecar
+从固定 owner/asset key 读取原件，在 shared-work 写独立 validation copy 和
+`workbook-validation-report.v1`。响应 `libreoffice-spreadsheet-response.v1` 只返回固定
+相对 key、hash/size、LibreOffice version 与 formula/difference 数；Backend 再复验实际
+artifact、完整 trace 和 report，不信任 sidecar JSON，也不把该 internal endpoint 暴露给
+Browser。
+
 ## Credits
 
 | Method | Path | 说明 |
@@ -224,5 +239,5 @@ T3-003 已实现内部 `POST /v1/presentation/convert` LibreOffice sidecar contr
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
 - `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight。
-- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；`T3-002` 已交付真实 PPT Renderer 与不可变输出适配层；`T3-003` 已交付 PPT QA、一次确定性修复和下载门禁；`T3-004` 继续交付 Excel Renderer，`T4-002` 完成管理端资产和 audit 闭环。
+- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；`T3-002` 已交付真实 PPT Renderer 与不可变输出适配层；`T3-003` 已交付 PPT QA、一次确定性修复和下载门禁；`T3-004` 已交付确定性 Excel Renderer、两套模板、不可变原件和 LibreOffice validation-copy contract；`T3-005` 继续完成 Excel QA、组合状态与结算，`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。
