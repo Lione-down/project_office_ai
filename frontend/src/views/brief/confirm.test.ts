@@ -15,8 +15,16 @@ const apiMocks = vi.hoisted(() => ({
   confirm: vi.fn(),
 }));
 
+const workspaceMocks = vi.hoisted(() => ({
+  createGeneration: vi.fn(),
+}));
+
 vi.mock("@/modules/briefs/api", () => ({
   briefApi: apiMocks,
+}));
+
+vi.mock("@/modules/workspace/api", () => ({
+  workspaceApi: workspaceMocks,
 }));
 
 const brief = {
@@ -87,6 +95,11 @@ async function mountView(hasBlockers = false) {
         path: "/briefs/:briefId/confirm",
         component: BriefConfirmView,
       },
+      {
+        path: "/generations/:taskId",
+        name: "generation-detail",
+        component: { template: "<p>任务详情</p>" },
+      },
     ],
   });
   apiMocks.getBrief.mockResolvedValue(brief);
@@ -118,6 +131,9 @@ describe("Brief confirmation view", () => {
 
   it("confirms the accepted estimate when preflight is clean", async () => {
     apiMocks.confirm.mockResolvedValue({ ...preflight(), status: "queued" });
+    workspaceMocks.createGeneration.mockResolvedValue({
+      task_id: "generation-id",
+    });
     const wrapper = await mountView(false);
 
     expect(wrapper.text()).toContain("请确认经营建议表述");
@@ -129,7 +145,16 @@ describe("Brief confirmation view", () => {
       800,
       "access-token",
     );
-    expect(wrapper.text()).toContain("Brief 已确认");
+    expect(workspaceMocks.createGeneration).toHaveBeenCalledWith(
+      brief.brief_id,
+      expect.any(String),
+      "access-token",
+    );
+    expect(wrapper.findComponent({ name: "RouterView" }).exists()).toBe(false);
+    expect(wrapper.vm.$router.currentRoute.value.name).toBe("generation-detail");
+    expect(wrapper.vm.$router.currentRoute.value.params.taskId).toBe(
+      "generation-id",
+    );
   });
 
   it("saves a goal edit as the next immutable revision", async () => {

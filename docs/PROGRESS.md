@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T3-005 Excel QA 与组合任务`
-- 下一任务：`T4-001 用户流程与管理后台功能壳`
-- 当前状态：`T4-001 READY`
+- 最近完成：`T4-001 用户流程与管理后台功能壳`
+- 下一任务：`T4-002 管理员最高权限与审计`
+- 当前状态：`T4-002 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -39,8 +39,8 @@
 | T3-003 | DONE | T3-002 | `test(ppt): enforce presentation quality gates`；验证证据见下文 |
 | T3-004 | DONE | T3-003 | `feat(excel): add deterministic sales analysis workbook renderer`；验证证据见下文 |
 | T3-005 | DONE | T3-004 | `feat(generation): complete combined ppt and excel workflow`；Week 3 Gate |
-| T4-001 | READY | T3-005 | 用户流程与管理后台功能壳 |
-| T4-002 | BLOCKED | T4-001 | 管理员最高权限与审计 |
+| T4-001 | DONE | T3-005 | `feat(frontend): expose alpha user and admin workflows`；UI V1 与浏览器证据见下文 |
+| T4-002 | READY | T4-001 | 管理员最高权限与审计 |
 | T4-003 | BLOCKED | T4-002 | 黄金数据回归 |
 | T4-004 | BLOCKED | T4-003 | Office/WPS 与故障演练 |
 | T4-005 | BLOCKED | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
@@ -940,3 +940,72 @@
 - T4-001 是下一唯一 `READY` 任务；新 Codex 任务必须重新读取 live `AGENTS.md`、
   `docs/PROGRESS.md`、任务索引/任务卡、PLAN/专题文档和 Git/origin 状态，不得依赖聊天
   摘要，也不得提前实现 T4-002。
+
+## T4-001 执行记录
+
+### 范围
+
+- 建立 25 个显式 public/user/admin route，以及 anonymous、user、admin、
+  `must_change_password`、no-permission 和 404 权限边界。
+- Access Token 只保存在内存；Refresh Token 只保存在 `sessionStorage`。应用启动先 rotation
+  再读取 `/auth/me`，失败时 fail closed 清空状态；logout 同时调用服务端 revoke。
+- 用户端接入现有 project/asset、Skill/model、term library、Brief/Preflight、
+  Generation/output/download 和 credit API，完成从注册到双输出下载的 Alpha 流程。
+- 管理端接入现有 invite、Provider、Credential、model 与概览数据；T4-002 才交付的用户、
+  任务、资产、积分和 audit 管理 HTTP 闭环只呈现 truthful disabled/empty shell。
+- UI 沿用批准的暖瓷白、墨色、钢蓝 token 与既有 Vue 分层；没有紫色、渐变、glow、
+  第二套设计系统、Credential Reveal 或提前实现的敏感操作。
+
+### Changed files
+
+- Frontend shell/auth：`frontend/src/{router,store,layouts,components/common,modules/auth}/`、
+  `frontend/src/views/auth/` 与入口/全局样式。
+- 用户流程：`frontend/src/modules/{workflow,projects,assets,skills,terms,generations,credits}/`
+  和 `frontend/src/views/user/`。
+- 管理后台：`frontend/src/modules/admin/` 和 `frontend/src/views/admin/`。
+- Records：T4-001/T4-002 task cards、task index、`docs/PROGRESS.md`、
+  `docs/ui-v1/IMPLEMENTATION.md` 与 `pitfalls.md`。
+- 保留且未暂存：用户未跟踪的 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件
+  或未脱敏材料。
+
+### TDD、focused 与实际浏览器证据
+
+- RED contract 先覆盖全部 route/metadata、Session bootstrap/rotation、登录/注册/强制改密、
+  用户选择和阻断、Brief/Preflight、Generation/双输出 download gate、管理六项导航、
+  Credential 掩码及 T4-002 disabled boundary，再按最小页面/API/store 实现转 GREEN。
+- Frontend 最终 `22 files / 58 tests passed`；Production Build
+  `94 modules transformed`，无 TypeScript 错误。
+- 实际 headed Chrome 在 Production Build 上逐步完成：登录、reload 后 refresh bootstrap、
+  首页选择、workflow、Brief/Preflight、确认后创建 Generation、成功结果、PPTX/XLSX
+  下载、注册、强制改密、logout escape 与普通用户 admin 拒绝。
+- 实际访问并检查 11 个管理 UI V1 route；Credential 精确显示
+  `sk-••••••••9F3A` 且 Reveal button 为 `0`。桌面核心与最终 clean session console 均为
+  `0 errors / 0 warnings`。
+- `1440px` 桌面和 `375px` 窄屏关键截图人工核对；页面无横向溢出，移动端 admin
+  navigation/table 仅在自己的受控 scroller 内滚动。浏览器使用受控 Mock API，因此只
+  证明前端视觉、交互和 contract，不冒充真实后端 runtime。
+
+### Broad、security、deep review 与 runtime 缺口
+
+- Backend focused integration：`5 passed`；backend full：
+  `545 passed, 2 skipped in 49.20s`。两项 skip 仅为未显式 opt-in 的真实 Agnes
+  Contract，T2-004 仍只有 Mock 通过。
+- Ruff check 通过，Ruff format check 为 `313 files already formatted`。
+- Frontend 与 PPT Renderer `npm audit --audit-level=high` 均为
+  `0 vulnerabilities`；PPT Renderer `4 files / 20 tests passed` 且 build 通过。
+- 当前主会话顺序 deep review 修复 Session bootstrap、server logout、term library
+  version 选择、Brief 确认后 Generation 创建、管理导航 active group、注册部分成功残留、
+  非 JSON 5xx 脱敏、硬编码环境标签、改密 accessibility 和窄屏 metadata 碰撞；最终无
+  剩余 blocking security/logic finding。
+- 任务卡三条 Docker 命令已实际尝试，但 PATH 无 `docker`，均在服务启动前
+  `CommandNotFoundException`。本任务没有 Docker、真实 MySQL/Redis/Agnes/LibreOffice、
+  Microsoft Office/WPS 新证据；历史直接 runtime 结果不作为本任务新证据。
+
+### 完成结论
+
+- T4-001 严格范围内的计划、RED/GREEN、实现、focused/broad/security、实际浏览器视觉与
+  交互、主会话顺序 deep review 和状态文档同步已完成；单一逻辑 commit 推送并确认远端
+  `0 0` 后收口。
+- T4-002 是下一唯一 `READY` 任务；新 Codex 任务必须重新读取 live 项目文档与 Git/origin
+  状态，不得依赖聊天摘要，也不得提前实现 T4-003。

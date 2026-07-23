@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import { ApiError } from "@/api/request";
 import { briefApi } from "@/modules/briefs/api";
@@ -8,10 +8,12 @@ import type {
   BriefRevision,
   PreflightResult,
 } from "@/modules/briefs/types";
+import { workspaceApi } from "@/modules/workspace/api";
 import { useSessionStore } from "@/store/session";
 
 
 const route = useRoute();
+const router = useRouter();
 const session = useSessionStore();
 const brief = ref<BriefRevision | null>(null);
 const preflight = ref<PreflightResult | null>(null);
@@ -22,6 +24,7 @@ const isSaving = ref(false);
 const isConfirming = ref(false);
 const errorMessage = ref("");
 const isConfirmed = ref(false);
+const generationIdempotencyKey = crypto.randomUUID();
 
 const briefId = computed(() => String(route.params.briefId ?? ""));
 const activeBriefId = computed(() => brief.value?.brief_id ?? briefId.value);
@@ -133,7 +136,16 @@ async function confirmBrief() {
       preflight.value.estimated_credits,
       requireAccessToken(),
     );
-    isConfirmed.value = preflight.value.status === "queued";
+    const generation = await workspaceApi.createGeneration(
+      activeBriefId.value,
+      generationIdempotencyKey,
+      requireAccessToken(),
+    );
+    isConfirmed.value = true;
+    await router.push({
+      name: "generation-detail",
+      params: { taskId: generation.task_id },
+    });
   } catch (error) {
     errorMessage.value = readableError(error);
   } finally {
@@ -270,14 +282,14 @@ onMounted(loadBrief);
           >
             {{
               isConfirmed
-                ? "Brief 已确认"
+                ? "任务已创建"
                 : isConfirming
-                  ? "确认中…"
-                  : "确认 Brief"
+                  ? "正在创建任务…"
+                  : "确认并开始生成"
             }}
           </button>
           <p class="boundary-note">
-            本步骤不扣积分。任务与积分预留将在下一阶段创建。
+            确认后将创建真实任务，并按已接受的估算预留积分。
           </p>
         </aside>
       </div>
@@ -456,137 +468,5 @@ a:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.conflict-panel {
-  margin: 20px 0;
-  border-radius: 10px;
-  padding: 16px;
-  color: var(--warning-ink);
-  background: var(--warning-bg);
-}
-
-.conflict-panel ul,
-.review-panel ul {
-  margin: 10px 0 0;
-  padding-left: 20px;
-  line-height: 1.65;
-}
-
-.review-panel {
-  margin: 20px 0;
-  border-radius: 10px;
-  padding: 16px;
-  color: var(--steel-dark);
-  background: oklch(0.95 0.025 247);
-}
-
-.credit-summary {
-  margin: 24px 0 14px;
-  color: var(--muted);
-}
-
-.credit-summary strong {
-  color: var(--ink);
-  font-size: 28px;
-}
-
-button {
-  min-height: 44px;
-  border-radius: 10px;
-  padding: 0 18px;
-  font: inherit;
-  font-weight: 750;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    transform 120ms ease,
-    background-color 120ms ease,
-    box-shadow 120ms ease;
-}
-
-button:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.secondary-button {
-  border: 1px solid var(--line);
-  color: var(--ink);
-  background: transparent;
-}
-
-.primary-button {
-  width: 100%;
-  border: 0;
-  color: oklch(0.99 0.004 247);
-  background: var(--steel);
-  box-shadow: 0 8px 18px oklch(0.48 0.13 247 / 20%);
-}
-
-.primary-button:not(:disabled):hover {
-  background: var(--steel-dark);
-}
-
-.inline-error {
-  color: oklch(0.46 0.15 28);
-  line-height: 1.6;
-}
-
-.boundary-note {
-  margin: 12px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.65;
-  text-align: center;
-}
-
-.state-panel {
-  max-width: 720px;
-  margin: 80px auto;
-  padding: 28px;
-  line-height: 1.7;
-}
-
-.state-panel--error {
-  color: oklch(0.46 0.15 28);
-}
-
-@media (max-width: 820px) {
-  .brief-page {
-    padding: 20px 16px 44px;
-  }
-
-  .page-heading {
-    margin-top: 24px;
-    text-align: left;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .brief-editor,
-  .confirmation-panel {
-    padding: 22px;
-  }
-
-  .editor-footer,
-  .output-list li {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .secondary-button {
-    width: auto;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  button {
-    transition: none;
-  }
-}
 </style>
+<style scoped src="./confirm-actions.css"></style>

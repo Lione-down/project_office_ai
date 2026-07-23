@@ -1,6 +1,6 @@
 # T4-002 管理员最高权限与审计
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T4-001`
 - 来源：总计划第 2、3、6、12、13 节与 Day 17
 - 建议 commit：`feat(admin): add audited global asset access`

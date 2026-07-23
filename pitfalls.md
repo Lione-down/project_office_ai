@@ -345,6 +345,31 @@
 - 预防/验证：派生报告的摘要必须指向 durable artifact；每种 artifact 独立声明容量上限，
   并测试 crash residue、并发完成、篡改和合法上界，而不是复用一个模糊常量。
 
+### 2026-07-23 · T4-001 · 前端重载不能把内存 Access Token 当作持久 Session
+
+- 现象：若只在登录成功时设置内存 Access Token，页面重载会丢失身份；若直接把 Access
+  Token 持久化，又扩大 token 被脚本读取的暴露面。注册后部分 bootstrap 失败还可能留下
+  半认证状态。
+- 影响：用户刷新 Brief 或 Generation 页面会被误送回登录，或客户端保留不完整身份；
+  强制改密和 role guard 也可能在启动瞬间被绕过。
+- 本任务处理：应用启动只从 `sessionStorage` 取 Refresh Token，先调用 rotation，再用新
+  Access Token 请求 `/auth/me`；Access Token 始终只在内存，任一步失败都 fail closed
+  清空状态。logout 先请求服务端 revoke，再清理客户端状态。
+- 预防/验证：所有 Session UI 必须测试 reload bootstrap、refresh rotation、部分失败清理、
+  强制改密和 server logout；不能用 localStorage 持久化 Access Token 作为简化方案。
+
+### 2026-07-23 · T4-001 · 管理后台功能壳不能伪造尚未交付的管理 API
+
+- 现象：UI V1 已包含用户、任务、资产、积分和 audit 页面，但对应敏感 HTTP 闭环属于
+  T4-002；用静态成功数据或前端假操作补齐截图会让页面看似可用。
+- 影响：验收会把 visual shell 误认为权限、重新认证、审计和资产操作已经实现，后续接入
+  时还可能保留不安全入口。
+- 本任务处理：只接入已经交付的 invite、Provider、Credential、model 等 API；其余页面
+  显式显示 disabled/empty boundary，Credential 始终掩码且没有 Reveal。环境标识从
+  `VITE_APP_ENV_LABEL` 读取，未配置时显示本地环境，不硬编码生产状态。
+- 预防/验证：UI 计划早于 API 时，逐页标注 authoritative endpoint 和 dependency task；
+  没有后端 contract 的操作只能是明确 disabled shell，不能 mock 成产品成功路径。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

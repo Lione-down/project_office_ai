@@ -7,6 +7,7 @@ export interface ApiClientOptions {
 
 export interface ApiRequestOptions {
   accessToken?: string;
+  headers?: HeadersInit;
 }
 
 interface ErrorEnvelope {
@@ -15,6 +16,14 @@ interface ErrorEnvelope {
     message?: string;
     trace_id?: string;
   };
+}
+
+async function readErrorEnvelope(response: Response): Promise<ErrorEnvelope> {
+  try {
+    return (await response.json()) as ErrorEnvelope;
+  } catch {
+    return {};
+  }
 }
 
 export class ApiError extends Error {
@@ -37,7 +46,8 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
     init: RequestInit,
     options: ApiRequestOptions = {},
   ): Promise<T> {
-    const headers = new Headers(init.headers);
+    const headers = new Headers(options.headers);
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     headers.set("Accept", "application/json");
     if (options.accessToken) {
       headers.set("Authorization", `Bearer ${options.accessToken}`);
@@ -49,8 +59,11 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
         headers,
       },
     );
-    const payload = (await response.json()) as T & ErrorEnvelope;
+    if (response.status === 204) {
+      return undefined as T;
+    }
     if (!response.ok) {
+      const payload = await readErrorEnvelope(response);
       throw new ApiError(
         payload.error?.error_code ?? "request_failed",
         payload.error?.message ?? "请求失败",
@@ -58,7 +71,7 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
         response.status,
       );
     }
-    return payload;
+    return (await response.json()) as T;
   }
 
   return {
@@ -94,6 +107,45 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
         },
         options,
       );
+    },
+    delete(path: string, options?: ApiRequestOptions): Promise<void> {
+      return request<void>(path, { method: "DELETE" }, options);
+    },
+    postForm<T>(
+      path: string,
+      body: FormData,
+      headers: HeadersInit,
+      options?: ApiRequestOptions,
+    ): Promise<T> {
+      return request<T>(
+        path,
+        {
+          method: "POST",
+          headers,
+          body,
+        },
+        options,
+      );
+    },
+    async download(path: string, options: ApiRequestOptions = {}): Promise<Blob> {
+      const headers = new Headers(options.headers);
+      if (options.accessToken) {
+        headers.set("Authorization", `Bearer ${options.accessToken}`);
+      }
+      const response = await fetchImpl(
+        `${normalizedBaseUrl}/${path.replace(/^\//, "")}`,
+        { method: "GET", headers },
+      );
+      if (!response.ok) {
+        const payload = await readErrorEnvelope(response);
+        throw new ApiError(
+          payload.error?.error_code ?? "request_failed",
+          payload.error?.message ?? "请求失败",
+          payload.error?.trace_id ?? response.headers.get("X-Trace-ID"),
+          response.status,
+        );
+      }
+      return response.blob();
     },
   };
 }

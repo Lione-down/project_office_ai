@@ -6,6 +6,7 @@ import {
 } from "vue-router";
 
 import { useSessionStore } from "@/store/session";
+import { bootstrapSession } from "@/modules/auth/session-bootstrap";
 
 import { resolveRouteAccess } from "./permission-guard";
 import { routes } from "./routes";
@@ -19,8 +20,9 @@ export function createOfficeAiRouter(options: RouterOptions) {
     history: options.history ?? createWebHistory(),
     routes,
   });
-  router.beforeEach((to) => {
+  router.beforeEach(async (to) => {
     const session = useSessionStore(options.pinia);
+    await bootstrapSession(session);
     return resolveRouteAccess(session, to.meta);
   });
   return router;

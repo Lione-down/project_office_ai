@@ -7,10 +7,17 @@ export function resolveRouteAccess(
   meta: RouteMeta,
 ): true | RouteLocationRaw {
   if (meta.requiresAuth && !access.isAuthenticated) {
-    return { name: "login" };
+    return { name: meta.loginRoute ?? "login" };
+  }
+  if (
+    access.isAuthenticated &&
+    access.mustChangePassword &&
+    !meta.allowDuringPasswordChange
+  ) {
+    return { name: "password-change" };
   }
   if (meta.roles?.length && (!access.role || !meta.roles.includes(access.role))) {
-    return { name: "home" };
+    return { name: "no-permission" };
   }
   return true;
 }

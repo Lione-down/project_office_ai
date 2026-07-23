@@ -1,0 +1,56 @@
+.workflow-section .oa-field + .oa-field {
+  margin-top: 18px;
+}
+
+.term-library-list {
+  display: flex;
+  margin: 18px 0 0;
+  border: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.term-library-list legend {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 650;
+}
+
+.term-library-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+.term-library-list input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--oa-accent);
+}
+
+.primary-action {
+  width: min(100%, 420px);
+  justify-self: center;
+}
+
+.state-panel {
+  line-height: 1.7;
+}
+
+.state-panel--error {
+  color: var(--oa-danger);
+}
+
+@media (max-width: 680px) {
+  .skill-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .primary-action {
+    width: auto;
+    justify-self: start;
+  }
+}
