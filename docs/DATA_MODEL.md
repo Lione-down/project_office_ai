@@ -135,8 +135,12 @@
   Plan SHA-256、Schema/Renderer/template version 进入输出 trace 和 XLSX custom
   properties。LibreOffice 只读取该原件并在 shared-work 写独立 validation copy 与
   `workbook-validation-report.v1`；完成/replay 同时复验原件、copy、report 和
-  formula/cache diff。T3-004 不新增表或 migration，Excel quality status/组合结算仍由
-  T3-005 落库。
+  formula/cache diff。
+- T3-005 Excel QA/组合边界：不新增表或 migration；复用 `file_assets` 的通用 quality
+  metadata 保存 `workbook-quality-report.v1`、validated artifact 和 status，复用
+  `generation_task_steps.checkpoint` 保存 output asset/version、quality/download 状态与
+  estimated credits。`generation_tasks` 聚合两个 step，`credit_ledger` 仅追加幂等
+  finalize/release；Redis 不承载唯一输出或结算状态。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
 - 管理员资产操作：权限判断、业务结果和 audit 写入必须具备可追溯的一致性边界。
 

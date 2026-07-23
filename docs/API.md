@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：已完成 T1、T2、`T3-001`–`T3-004`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox、内部 PPT Renderer/PPT QA 与 Excel Renderer/LibreOffice recalculation contract 已实现，其余接口按后续任务实现
+- 状态：已完成 T1、T2、`T3-001`–`T3-005`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox、PPT/Excel Renderer、双输出 QA 与组合结算 contract 已实现，其余接口按后续任务实现
 
 ## 共同行为
 
@@ -192,6 +192,19 @@ request/user/asset UUID、原件 SHA-256/size 与 Plan/Renderer/template version
 artifact、完整 trace 和 report，不信任 sidecar JSON，也不把该 internal endpoint 暴露给
 Browser。
 
+T3-005 为 XLSX 固化 `workbook-quality-report.v1`：报告关联原始 asset/hash、
+Workbook Plan、Renderer/template、LibreOffice validation copy/report，扫描实际公式错误
+类型并精确比较原始数据、确定性公式 cache、summary 与 chart category/value range；未解决
+的 Sheet/字段/单位冲突一律阻断。报告和 finding 不保存公式正文、storage key、本地路径或
+用户材料。`passed`/`passed_with_warnings` 只有在 validated artifact hash/size 重验通过后
+可下载，`blocked` 返回稳定质量状态且不暴露下载 key。
+
+组合任务的 PPTX/XLSX step 分别保存 output asset、asset version、quality status、
+download boundary 和 estimated credits。`GET /generations/{task_id}/outputs` 逐项复验
+owner、generated task、file category、asset version 与质量 artifact；两成聚合为
+`succeeded`，一成一败为 `partial_success`，只 finalize 成功额度并 release 失败额度。
+checkpoint/ledger 唯一约束保证重复 quality 或 settlement event 不会重复改变余额。
+
 ## Credits
 
 | Method | Path | 说明 |
@@ -239,5 +252,5 @@ Browser。
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
 - `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight。
-- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；`T3-002` 已交付真实 PPT Renderer 与不可变输出适配层；`T3-003` 已交付 PPT QA、一次确定性修复和下载门禁；`T3-004` 已交付确定性 Excel Renderer、两套模板、不可变原件和 LibreOffice validation-copy contract；`T3-005` 继续完成 Excel QA、组合状态与结算，`T4-002` 完成管理端资产和 audit 闭环。
+- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；`T3-002` 已交付真实 PPT Renderer 与不可变输出适配层；`T3-003` 已交付 PPT QA、一次确定性修复和下载门禁；`T3-004` 已交付确定性 Excel Renderer、两套模板、不可变原件和 LibreOffice validation-copy contract；`T3-005` 已完成 Excel QA、双输出状态、下载完整性与部分成功结算，`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

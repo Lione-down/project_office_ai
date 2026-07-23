@@ -92,7 +92,8 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - Excel Renderer 使用 strict `workbook-plan.v1`、两套认证模板和英文公式白名单生成确定性
   XLSX；原始输出不可覆盖，validation copy 通过 private LibreOffice sidecar 独立重算，
   `workbook-validation-report.v1` 关联原件、Plan、Renderer、template 与 formula/cache
-  差异。Excel 阻断质量判定、组合状态和结算仍由 T3-005 完成。
+  差异。`workbook-quality-report.v1` 进一步校验公式错误、确定性复算、chart range 与
+  Sheet/字段/单位冲突；PPTX/XLSX 独立质量结果汇总为组合状态，并按成功输出幂等结算。
 - 密码使用 Argon2id，Refresh Token 只保存 Hash，API Key 使用应用层加密，Master Key 只存在环境变量。
 - 日志不得包含密码、Key、签名 URL、完整文件、完整 Prompt 或未清理的用户输入。
 

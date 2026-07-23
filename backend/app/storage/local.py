@@ -70,12 +70,16 @@ class LocalStorageAdapter:
             is_generated_output = (
                 len(parts) == 5
                 and parts[2] == "outputs"
-                and parts[4] == "presentation.pptx"
+                and parts[4] in {"presentation.pptx", "analysis.xlsx"}
             )
             is_quality_repaired_output = (
                 len(parts) == 6
                 and parts[2] == "outputs"
-                and parts[4:] == ("quality", "repaired.pptx")
+                and parts[4:]
+                in {
+                    ("quality", "repaired.pptx"),
+                    ("quality", "validated.xlsx"),
+                }
             )
             is_valid = (
                 not key.is_absolute()

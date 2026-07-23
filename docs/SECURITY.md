@@ -119,7 +119,14 @@ upload -> quarantine -> MIME/extension -> size/archive limits
   `workbook-validation-report.v1`，完成 replay 不单独信任 report JSON。
 - validation report 不保存公式正文，只记录 Sheet/cell、formula-changed 和 cache 前后值；
   原件/copy/report 任一缺失、损坏、漂移，坏 XLSX 或 request ID/input fingerprint 冲突
-  均 fail closed。公式错误、黄金指标复算与下载质量状态仍由 T3-005 实现。
+  均 fail closed。
+- `workbook-quality-report.v1` 只保存稳定 finding code、severity 和受限定位，不保存公式
+  正文、storage key、本地路径或用户材料。公式错误类型、原始值/公式 cache/summary
+  确定性复算、精确 chart range 与未解决 Sheet/字段/单位冲突均 fail closed。
+- LibreOffice 原始 validation report、validation copy、最终 validated XLSX 和 quality
+  report 使用独立固定 key 与 bounded streaming hash；重放和下载前复验 owner/task/
+  category/version/hash/size，阻断输出不暴露 validated key。两个子输出独立结算，重复
+  event 只能命中既有 checkpoint/ledger marker。
 
 ## 日志与审计
 

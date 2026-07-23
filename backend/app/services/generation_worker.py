@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -15,9 +16,9 @@ from app.services.credit_transactions import (
 )
 from app.services.generation_contracts import (
     GenerationSnapshot,
-    GenerationStepSnapshot,
     TERMINAL_TASK_STATUSES,
 )
+from app.services.generation_outputs import generation_step_snapshot
 from app.services.outbox_events import build_generation_outbox_event
 
 
@@ -36,18 +37,83 @@ class StepExecutionResult:
     status: str
     error_category: str | None = None
     provider_request_id: str | None = None
+    output_asset_id: UUID | None = None
+    asset_version: str | None = None
+    quality_status: str | None = None
+    download_allowed: bool = False
+    quality_report_schema_version: str | None = None
+
+    def __post_init__(self) -> None:
+        is_quality_success = self.quality_status in {
+            "passed",
+            "passed_with_warnings",
+        }
+        if (
+            self.asset_version is not None
+            and (
+                self.output_asset_id is None
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", self.asset_version) is None
+            )
+            or self.download_allowed
+            and (
+                self.status != "succeeded"
+                or not is_quality_success
+                or self.output_asset_id is None
+                or self.asset_version is None
+                or self.quality_report_schema_version is None
+            )
+            or self.status == "succeeded"
+            and self.quality_status == "blocked"
+            or self.status != "succeeded"
+            and is_quality_success
+        ):
+            raise ValueError("quality outcome is inconsistent")
 
     @classmethod
-    def succeeded(cls, provider_request_id: str | None = None):
-        return cls("succeeded", provider_request_id=provider_request_id)
+    def succeeded(
+        cls,
+        provider_request_id: str | None = None,
+        *,
+        output_asset_id: UUID | None = None,
+        asset_version: str | None = None,
+        quality_status: str | None = None,
+        download_allowed: bool = False,
+        quality_report_schema_version: str | None = None,
+    ):
+        return cls(
+            "succeeded",
+            provider_request_id=provider_request_id,
+            output_asset_id=output_asset_id,
+            asset_version=asset_version,
+            quality_status=quality_status,
+            download_allowed=download_allowed,
+            quality_report_schema_version=quality_report_schema_version,
+        )
 
     @classmethod
     def retryable_failure(cls, error_category: str):
         return cls("retryable_failure", error_category=error_category)
 
     @classmethod
-    def permanent_failure(cls, error_category: str):
-        return cls("permanent_failure", error_category=error_category)
+    def permanent_failure(
+        cls,
+        error_category: str,
+        *,
+        output_asset_id: UUID | None = None,
+        asset_version: str | None = None,
+        quality_status: str | None = None,
+        download_allowed: bool = False,
+        quality_report_schema_version: str | None = None,
+    ):
+        return cls(
+            "permanent_failure",
+            error_category=error_category,
+            output_asset_id=output_asset_id,
+            asset_version=asset_version,
+            quality_status=quality_status,
+            download_allowed=download_allowed,
+            quality_report_schema_version=quality_report_schema_version,
+        )
 
     @classmethod
     def provider_uncertain(cls, error_category: str):
@@ -199,6 +265,7 @@ class GenerationWorkerService:
             step.status = "running"
             step.started_at = utc_now()
             step.checkpoint = {
+                **dict(step.checkpoint or {}),
                 "provider_call_started": True,
                 "attempt": step.attempt,
             }
@@ -230,6 +297,7 @@ class GenerationWorkerService:
                 **dict(step.checkpoint or {}),
                 "provider_call_completed": result.status == "succeeded",
                 "result": result.status,
+                **self._output_checkpoint(result),
             }
             if result.status == "succeeded":
                 step.status = "succeeded"
@@ -332,15 +400,22 @@ class GenerationWorkerService:
             settled_credits=task.settled_credits,
             error_category=task.error_category,
             cancel_requested=task.cancel_requested_at is not None,
-            steps=tuple(
-                GenerationStepSnapshot(
-                    step_key=step.step_key,
-                    output_kind=step.output_kind,
-                    status=step.status,
-                    attempt=step.attempt,
-                    estimated_credits=step.estimated_credits,
-                    error_category=step.error_category,
-                )
-                for step in steps
-            ),
+            steps=tuple(generation_step_snapshot(step) for step in steps),
         )
+
+    @staticmethod
+    def _output_checkpoint(result: StepExecutionResult) -> dict:
+        values = {
+            "output_asset_id": (
+                str(result.output_asset_id)
+                if result.output_asset_id is not None
+                else None
+            ),
+            "asset_version": result.asset_version,
+            "quality_status": result.quality_status,
+            "quality_report_schema_version": result.quality_report_schema_version,
+        }
+        checkpoint = {key: value for key, value in values.items() if value is not None}
+        if checkpoint:
+            checkpoint["quality_download_allowed"] = result.download_allowed
+        return checkpoint

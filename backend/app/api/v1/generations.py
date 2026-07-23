@@ -7,6 +7,8 @@ from app.schemas.generation import (
     CreditEntryResponse,
     CreditLedgerResponse,
     GenerationCreateRequest,
+    GenerationOutputResponse,
+    GenerationOutputsResponse,
     GenerationTaskResponse,
 )
 from app.services.generation_contracts import GenerationOperationError
@@ -65,6 +67,23 @@ async def get_generation(
     snapshot = await _service(request).get(_bearer_token(authorization), task_id)
     response.headers["Cache-Control"] = "private, no-store"
     return GenerationTaskResponse.from_snapshot(snapshot)
+
+
+@task_router.get("/{task_id}/outputs", response_model=GenerationOutputsResponse)
+async def get_generation_outputs(
+    task_id: UUID,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> GenerationOutputsResponse:
+    outputs = await _service(request).outputs(
+        _bearer_token(authorization),
+        task_id,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return GenerationOutputsResponse(
+        outputs=tuple(GenerationOutputResponse.from_snapshot(item) for item in outputs)
+    )
 
 
 @task_router.post("/{task_id}/cancel", response_model=GenerationTaskResponse)

@@ -1,6 +1,6 @@
 # T4-001 用户流程与管理后台功能壳
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T3-005`
 - 来源：总计划第 2、12 节与 Day 16
 - 建议 commit：`feat(frontend): expose alpha user and admin workflows`

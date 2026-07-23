@@ -84,12 +84,13 @@ async def test_blocked_quality_fails_task_and_releases_full_reserve(
     created = await _generation_harness.service.create(
         "access-token", BRIEF_ID, "quality-blocked"
     )
+    outcome = blocked_outcome()
     processed = await GenerationWorkerService(
         _generation_harness.session_factory,
         AllowAllCredentialLimiter(),
     ).process(
         created.task_id,
-        ControlledStepExecutor([blocked_outcome().step_result()]),
+        ControlledStepExecutor([outcome.step_result()]),
     )
 
     async with _generation_harness.session_factory() as session:
@@ -102,6 +103,10 @@ async def test_blocked_quality_fails_task_and_releases_full_reserve(
 
     assert processed.status == "failed"
     assert processed.error_category == "presentation_quality_blocked"
+    assert processed.steps[0].output_asset_id == outcome.report.source.asset_id
+    assert processed.steps[0].asset_version == f"sha256:{outcome.report.source.sha256}"
+    assert processed.steps[0].quality_status == "blocked"
+    assert processed.steps[0].download_allowed is False
     assert user.credit_balance == 5_000
     assert [(entry.entry_type, entry.amount) for entry in entries] == [
         ("generation_reserve", -800),

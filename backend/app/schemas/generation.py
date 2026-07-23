@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.services.generation_contracts import (
     CreditEntrySnapshot,
+    GenerationOutputSnapshot,
     GenerationSnapshot,
     GenerationStepSnapshot,
 )
@@ -26,6 +27,11 @@ class GenerationStepResponse(StrictModel):
     attempt: int
     estimated_credits: int
     error_category: str | None
+    output_asset_id: UUID | None
+    asset_version: str | None
+    quality_status: str | None
+    download_allowed: bool
+    quality_report_schema_version: str | None
 
     @classmethod
     def from_snapshot(cls, item: GenerationStepSnapshot):
@@ -54,6 +60,26 @@ class GenerationTaskResponse(StrictModel):
                 ),
             }
         )
+
+
+class GenerationOutputResponse(StrictModel):
+    output_kind: Literal["pptx", "xlsx"]
+    status: str
+    estimated_credits: int
+    error_category: str | None
+    asset_id: UUID | None
+    asset_version: str | None
+    quality_status: str | None
+    download_allowed: bool
+    quality_report_schema_version: str | None
+
+    @classmethod
+    def from_snapshot(cls, item: GenerationOutputSnapshot):
+        return cls(**item.__dict__)
+
+
+class GenerationOutputsResponse(StrictModel):
+    outputs: tuple[GenerationOutputResponse, ...]
 
 
 class CreditBalanceResponse(StrictModel):

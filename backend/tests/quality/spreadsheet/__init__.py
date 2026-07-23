@@ -1,0 +1,1 @@
+"""Spreadsheet quality-gate tests."""

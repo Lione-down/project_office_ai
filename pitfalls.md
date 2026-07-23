@@ -305,6 +305,46 @@
 - 预防/验证：Office formula 合同必须分别验证 formula、cache 与实际文件 hash；测试工具
   对 OOXML 的副作用要先确认，文件型 completion marker 始终与 artifact 双向复核。
 
+### 2026-07-23 · T3-005 · 质量报告通过不等于输出可以下载
+
+- 现象：只信 step checkpoint 中的 `download_allowed=true`，会在资产被跨任务替换、
+  category/version 漂移或 validated file 被篡改后继续返回下载入口；质量尚 pending 的
+  generation output 又不能被同一完整性函数误判为永久损坏。
+- 影响：前者越过 owner/task/quality 边界暴露错误文件，后者让正常的 renderer→QA 两阶段
+  流程在质量执行前失败。
+- 本任务处理：outputs API 先复验 owner、generated task、file category、asset version；
+  pending 只允许返回不可下载状态，quality 完成后再要求 report/validated key/hash/size
+  全部一致。实际下载仍复用同一 artifact integrity gate。
+- 预防/验证：文件输出的“已生成”“已质检”“可下载”必须是三个显式阶段；任何可下载
+  snapshot 都要从数据库事实和实际 artifact 重新推导，不能只信布尔 checkpoint。
+
+### 2026-07-23 · T3-005 · 组合结算必须携带每个子输出的完整事实
+
+- 现象：执行结果只有 success/failure 时，worker 无法可靠保存 output asset、版本、质量和
+  下载边界；若一个成功结果遗漏 metadata 仍写入默认 false，还会覆盖质量服务已完成的
+  checkpoint。
+- 影响：任务状态可能正确但 outputs API 无法解释哪个版本成功，或重放时错误释放/重复
+  finalize 积分。
+- 本任务处理：`StepExecutionResult` 对成功/失败与 output metadata 建立互斥校验；worker
+  只写显式提供的字段，PPT/Excel quality outcome 都返回完整 asset/version/quality/
+  download snapshot。结算只读取持久 step 状态和 estimated credits，以 ledger 唯一键
+  幂等 finalize/release。
+- 预防/验证：组合任务的 executor contract 必须一次返回可审计的子输出事实；聚合层不能
+  根据默认值猜测质量或下载状态，并要覆盖一成一败、重复 delivery 和 checkpoint replay。
+
+### 2026-07-23 · T3-005 · LibreOffice 原始报告也是质量证据
+
+- 现象：只把 validation report 内容折叠进最终 quality report，而不保存 sidecar 原始
+  report，会让 `report_sha256` 指向临时文件；固定 `.tmp` 名称在 crash 后还会阻断恢复，
+  且把质量报告 1 MiB 上限误用于 sidecar 允许的 10 MiB report 会拒绝合法结果。
+- 影响：重放无法证明当时的重算证据，残留 temp 造成永久失败，边界上合法 artifact 在
+  本地测试未覆盖时被生产误拒。
+- 本任务处理：使用 UUID temp + hard-link 的不可覆盖写入，分别持久化
+  `libreoffice-report.json`、validation copy 与最终 report；重放逐项 hash/size，质量报告
+  与 sidecar report 使用各自 1 MiB/10 MiB 上限。
+- 预防/验证：派生报告的摘要必须指向 durable artifact；每种 artifact 独立声明容量上限，
+  并测试 crash residue、并发完成、篡改和合法上界，而不是复用一个模糊常量。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

@@ -44,8 +44,8 @@
 | `T3-002` | PPT Renderer 与系统模板 | `T3-001` | `DONE` | |
 | `T3-003` | PPT QA | `T3-002` | `DONE` | |
 | `T3-004` | Excel Renderer 与系统模板 | `T3-003` | `DONE` | |
-| `T3-005` | Excel QA 与组合任务 | `T3-004` | `READY` | Week 3 |
-| `T4-001` | 用户流程与管理后台功能壳 | `T3-005` | `BLOCKED` | |
+| `T3-005` | Excel QA 与组合任务 | `T3-004` | `DONE` | Week 3 |
+| `T4-001` | 用户流程与管理后台功能壳 | `T3-005` | `READY` | |
 | `T4-002` | 管理员最高权限与审计 | `T4-001` | `BLOCKED` | |
 | `T4-003` | 黄金数据回归 | `T4-002` | `BLOCKED` | |
 | `T4-004` | Office/WPS 与故障演练 | `T4-003` | `BLOCKED` | |

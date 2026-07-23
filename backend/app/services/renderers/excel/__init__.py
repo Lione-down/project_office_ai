@@ -7,9 +7,11 @@ from app.services.renderers.excel.libreoffice import LibreOfficeWorkbookValidato
 from app.services.renderers.excel.output_store import ExcelOutputStore
 from app.services.renderers.excel.renderer import ExcelRenderer
 from app.services.renderers.excel.sidecar import SpreadsheetLibreOfficeClient
+from app.services.renderers.excel.service import ExcelOutputService
 
 __all__ = [
     "ExcelOutputStore",
+    "ExcelOutputService",
     "ExcelRenderer",
     "LibreOfficeWorkbookValidator",
     "SpreadsheetLibreOfficeClient",

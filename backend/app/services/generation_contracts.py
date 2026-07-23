@@ -33,6 +33,24 @@ class GenerationStepSnapshot:
     attempt: int
     estimated_credits: int
     error_category: str | None
+    output_asset_id: UUID | None = None
+    asset_version: str | None = None
+    quality_status: str | None = None
+    download_allowed: bool = False
+    quality_report_schema_version: str | None = None
+
+
+@dataclass(frozen=True)
+class GenerationOutputSnapshot:
+    output_kind: str
+    status: str
+    estimated_credits: int
+    error_category: str | None
+    asset_id: UUID | None
+    asset_version: str | None
+    quality_status: str | None
+    download_allowed: bool
+    quality_report_schema_version: str | None
 
 
 @dataclass(frozen=True)

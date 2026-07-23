@@ -300,18 +300,18 @@ class AssetManagementService:
 
     def _asset_content(self, asset: FileAsset) -> AssetContent:
         storage_key = asset.storage_key
-        is_generated_presentation = (
+        is_generated_output = (
             asset.generated_task_id is not None
-            and asset.file_category == "presentation"
+            and asset.file_category in {"presentation", "spreadsheet"}
         )
-        if is_generated_presentation:
+        if is_generated_output:
             if asset.quality_status is None:
                 raise AssetOperationError(
-                    "asset_quality_pending", "演示文稿仍在质量检查中", 409
+                    "asset_quality_pending", "生成文件仍在质量检查中", 409
                 )
             if asset.quality_status == "blocked":
                 raise AssetOperationError(
-                    "asset_quality_blocked", "演示文稿未通过质量门禁", 409
+                    "asset_quality_blocked", "生成文件未通过质量门禁", 409
                 )
             if (
                 asset.quality_status not in {"passed", "passed_with_warnings"}
@@ -329,7 +329,7 @@ class AssetManagementService:
             raise self._translate_storage_error(exception) from exception
         if not path.is_file():
             raise AssetOperationError("asset_content_missing", "资产文件不存在", 404)
-        if is_generated_presentation:
+        if is_generated_output:
             digest = sha256()
             byte_size = 0
             with path.open("rb") as handle:

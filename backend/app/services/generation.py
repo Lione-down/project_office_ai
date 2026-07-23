@@ -24,14 +24,19 @@ from app.services.credit_transactions import (
 from app.services.generation_contracts import (
     CreditEntrySnapshot,
     GenerationOperationError,
+    GenerationOutputSnapshot,
     GenerationSnapshot,
-    GenerationStepSnapshot,
     TERMINAL_TASK_STATUSES,
 )
 from app.services.generation_snapshots import (
     build_model_snapshot,
     build_skill_snapshot,
     validate_runtime_snapshot,
+)
+from app.services.generation_outputs import (
+    generation_output_snapshot,
+    generation_step_snapshot,
+    verify_generation_output,
 )
 from app.services.outbox_events import build_generation_outbox_event
 from app.services.preflight.contracts import PreflightSnapshot
@@ -146,7 +151,23 @@ class GenerationService:
         current_user = await self._sessions.authenticate_access(access_token)
         async with self._session_factory() as session:
             task = await self._owned_task(session, current_user, task_id)
-            return await self._snapshot(session, task)
+            snapshot = await self._snapshot(session, task)
+            for step in snapshot.steps:
+                await verify_generation_output(session, task, step)
+            return snapshot
+
+    async def outputs(
+        self, access_token: str, task_id: UUID
+    ) -> tuple[GenerationOutputSnapshot, ...]:
+        current_user = await self._sessions.authenticate_access(access_token)
+        async with self._session_factory() as session:
+            task = await self._owned_task(session, current_user, task_id)
+            snapshot = await self._snapshot(session, task)
+            outputs = []
+            for step in snapshot.steps:
+                await verify_generation_output(session, task, step)
+                outputs.append(generation_output_snapshot(step))
+            return tuple(outputs)
 
     async def cancel(self, access_token: str, task_id: UUID) -> GenerationSnapshot:
         current_user = await self._sessions.authenticate_access(access_token)
@@ -452,16 +473,6 @@ class GenerationService:
             settled_credits=task.settled_credits,
             error_category=task.error_category,
             cancel_requested=task.cancel_requested_at is not None,
-            steps=tuple(
-                GenerationStepSnapshot(
-                    step_key=step.step_key,
-                    output_kind=step.output_kind,
-                    status=step.status,
-                    attempt=step.attempt,
-                    estimated_credits=step.estimated_credits,
-                    error_category=step.error_category,
-                )
-                for step in steps
-            ),
+            steps=tuple(generation_step_snapshot(step) for step in steps),
             replayed=replayed,
         )

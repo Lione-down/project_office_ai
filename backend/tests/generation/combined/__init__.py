@@ -1,0 +1,1 @@
+"""Combined generation contract tests."""

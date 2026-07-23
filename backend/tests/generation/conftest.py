@@ -61,7 +61,7 @@ def confirmed_preflight(*, combined: bool = False) -> dict:
                 "skill_code": "excel.sales-analysis-dashboard.v1",
                 "kind": "xlsx",
                 "title": "销售分析看板",
-                "template_code": "excel.executive-dashboard.v1",
+                "template_code": "excel.analysis-dashboard.v1",
                 "template_version": "1.0.0",
                 "estimated_credits": 800,
             }

@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T3-004 Excel Renderer 与系统模板`
-- 下一任务：`T3-005 Excel QA 与组合任务`
-- 当前状态：`T3-005 READY`
+- 最近完成：`T3-005 Excel QA 与组合任务`
+- 下一任务：`T4-001 用户流程与管理后台功能壳`
+- 当前状态：`T4-001 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -38,8 +38,8 @@
 | T3-002 | DONE | T3-001 | `feat(ppt): add deterministic sales presentation renderer`；验证证据见下文 |
 | T3-003 | DONE | T3-002 | `test(ppt): enforce presentation quality gates`；验证证据见下文 |
 | T3-004 | DONE | T3-003 | `feat(excel): add deterministic sales analysis workbook renderer`；验证证据见下文 |
-| T3-005 | READY | T3-004 | Excel QA 与组合任务；Week 3 Gate |
-| T4-001 | BLOCKED | T3-005 | 用户流程与管理后台功能壳 |
+| T3-005 | DONE | T3-004 | `feat(generation): complete combined ppt and excel workflow`；Week 3 Gate |
+| T4-001 | READY | T3-005 | 用户流程与管理后台功能壳 |
 | T4-002 | BLOCKED | T4-001 | 管理员最高权限与审计 |
 | T4-003 | BLOCKED | T4-002 | 黄金数据回归 |
 | T4-004 | BLOCKED | T4-003 | Office/WPS 与故障演练 |
@@ -857,3 +857,86 @@
 - T3-004 代码、TDD、focused/broad/security、当前主会话顺序 deep review 与状态同步已
   完成；单一逻辑 commit 推送并确认远端 0/0 后收口。T3-005 是下一唯一 `READY` 任务，
   新 Codex 会话必须重新读取 live 文档、Git 与 origin 状态后再执行。
+
+## T3-005 执行记录
+
+### 范围
+
+- 新增 strict `workbook-quality-report.v1`，检查实际 formula error、原始值与公式 cache
+  确定性复算、summary、精确 chart category/value range，以及未解决的 Sheet/字段/单位
+  冲突；finding 不保存公式正文、storage key、本地路径或用户材料。
+- 新增 generation-owned Excel output service：从冻结 Workbook Plan 生成不可变
+  `analysis.xlsx`，先写 step checkpoint，再保存 owner/task scoped `file_assets`，同 Plan
+  安全重放，不同 Plan 或 artifact 漂移 fail closed。
+- Excel QA 调用既有 private LibreOffice sidecar，持久化原始 validation report、独立
+  validation copy、质量报告和 validated XLSX；完成/replay/download 均复验实际
+  hash/size。
+- PPTX/XLSX 子步骤分别保存 output asset/version、quality/download 状态与 estimated
+  credits；组合 worker 将两成聚合为 `succeeded`，一成一败聚合为 `partial_success`，
+  只 finalize 成功额度并 release 失败额度，重放不重复写 ledger。
+- 新增 owner-scoped outputs API contract 与 output-kind executor router；本任务未实现
+  T4-001 UI、管理员功能壳或任何后续任务。
+
+### Changed files
+
+- Excel QA：`backend/app/services/quality/spreadsheet/`。
+- Generation/输出：`backend/app/services/generation_combined.py`、
+  `generation_outputs.py`、`generation.py`、`generation_worker.py`、
+  `generation_contracts.py`、API/schema 与 asset download gate。
+- Excel output：`backend/app/services/renderers/excel/service.py` 及 package export。
+- Tests：`backend/tests/quality/spreadsheet/`、`backend/tests/generation/combined/`、
+  `backend/tests/integration/test_combined_generation_week3.py` 与 PPT 结算回归。
+- Records：T3-005/T4-001 task cards、task index、
+  `docs/{PLAN,API,DATA_MODEL,ENVIRONMENT,SECURITY,PROGRESS}.md` 与 `pitfalls.md`。
+- 保留且未暂存：用户未跟踪的 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件
+  或未脱敏材料。
+
+### TDD、focused 与组合证据
+
+- RED 1：spreadsheet quality tests 因 package 缺失 collection fail；formula error、
+  formula/cache、raw value、summary、chart range、Sheet/字段/单位 conflict contract
+  分批实现后转 GREEN。
+- RED 2：combined tests 先暴露 `StepExecutionResult` 缺少质量/output metadata、互斥状态
+  可同时成立，以及一成一败结算/重放合同缺失；补齐 step checkpoint、聚合与幂等 ledger
+  后转 GREEN。
+- RED 3：integration/outputs tests 先因 endpoint 与真实 asset integrity gate 缺失失败；
+  新增 owner/task/category/version/quality artifact 校验后转 GREEN。
+- RED 4：deep review 为错误 chart field、plain-text `#REF!` 误报、原始数值漂移、
+  LibreOffice report 未持久化、固定 temp crash、pending output integrity、PPT checkpoint
+  clobber、retry checkpoint 丢失、Excel generation asset 和 output-kind router 分别补
+  RED，再最小修复。
+- Focused：
+  `.venv/Scripts/python.exe -m pytest tests/quality/spreadsheet tests/generation/combined tests/integration/test_combined_generation_week3.py tests/quality/presentation/test_billing_integration.py -q`
+  为 `33 passed`。
+- 任务卡目录逐项：spreadsheet QA `22 passed`、combined `9 passed`、integration
+  `5 passed`；PPT Renderer `4 files / 20 tests passed`。
+- Week 3 integration 覆盖 confirmed combined Brief 创建同一 task 的 PPTX/XLSX steps、
+  独立质量/下载结果、全部成功和一成一败，以及重复 settlement 不改变余额；不调用真实
+  Agnes，不读取 `.env` 或用户材料。
+
+### Broad、quality、security 与 runtime
+
+- Backend `.venv/Scripts/python.exe -m pytest -q`：`545 passed, 2 skipped`；两项 skip
+  仅为未显式 opt-in 的真实 Agnes Contract，T2-004 仍只保持 Mock 证据。
+- `ruff check app tests` 与 `ruff format --check app tests`：通过，313 个文件格式一致；
+  本任务主要 Python source 均不超过 500 行。
+- Backend `pip check` 通过；`pip-audit` 0 known vulnerabilities，仅按预期跳过本地非
+  PyPI package；Alembic 保持单一 `20260723_0013 (head)`，本任务无 migration。
+- Frontend：6 files / 12 tests passed、build 通过、npm audit 0 vulnerabilities。
+- PPT Renderer：4 files / 20 tests passed、build 通过、npm audit 0 vulnerabilities。
+- 当前主会话按 formula/value/cache、chart/冲突、artifact replay、owner/download、
+  worker checkpoint、组合 settlement、PPT regression、文件体积和 T4-001 scope 顺序
+  deep review；修复上述缺陷后无剩余 blocking security/logic finding。
+- 任务卡四条 Docker 命令与 `soffice --version` 已实际尝试；PATH 无 Docker/`soffice`，
+  均在容器或进程启动前 `CommandNotFoundException`。没有 Docker、真实 LibreOffice
+  Calc、MySQL/Redis、Microsoft Office/WPS 或真实 Agnes 新证据，不把 fake/Mock contract
+  冒充 runtime 通过。
+
+### 完成结论
+
+- T3-005 严格范围内实现、TDD、focused/broad/security、主会话顺序 deep review 与状态
+  文档同步已完成；单一逻辑 commit 推送并确认远端 0/0 后收口。
+- T4-001 是下一唯一 `READY` 任务；新 Codex 任务必须重新读取 live `AGENTS.md`、
+  `docs/PROGRESS.md`、任务索引/任务卡、PLAN/专题文档和 Git/origin 状态，不得依赖聊天
+  摘要，也不得提前实现 T4-002。

@@ -54,9 +54,19 @@ class PresentationQualityOutcome:
     replayed: bool
 
     def step_result(self) -> StepExecutionResult:
+        common = {
+            "output_asset_id": self.report.source.asset_id,
+            "asset_version": f"sha256:{self.report.source.sha256}",
+            "quality_status": self.report.status,
+            "download_allowed": self.report.download_allowed,
+            "quality_report_schema_version": self.report.schema_version,
+        }
         if self.report.download_allowed:
-            return StepExecutionResult.succeeded()
-        return StepExecutionResult.permanent_failure("presentation_quality_blocked")
+            return StepExecutionResult.succeeded(**common)
+        return StepExecutionResult.permanent_failure(
+            "presentation_quality_blocked",
+            **common,
+        )
 
 
 @dataclass(frozen=True)
@@ -437,6 +447,7 @@ class PresentationQualityService:
                     "quality_engine_version": report.quality_engine_version,
                     "quality_repair_attempt_count": report.repair_attempt_count,
                     "quality_download_allowed": report.download_allowed,
+                    "asset_version": f"sha256:{asset.sha256}",
                 }
             )
             step.checkpoint = checkpoint
