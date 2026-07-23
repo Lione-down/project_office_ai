@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T2-001 文件扫描与解析沙箱`
-- 下一任务：`T2-002 OCR 与 Evidence Manifest`
-- 当前状态：`T2-002 READY`
+- 最近完成：`T2-002 OCR 与 Evidence Manifest`
+- 下一任务：`T2-003 术语库与证据标准化`
+- 当前状态：`T2-003 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -30,8 +30,8 @@
 | T1-004 | DONE | T1-003 | `feat(provider): add encrypted multi provider model registry`；验证证据见下文 |
 | T1-005 | DONE | T1-004 | `feat(asset): add isolated local asset management`；验证证据见下文 |
 | T2-001 | DONE | T1-005 | `feat(parser): add sandboxed office file ingestion`；验证证据见下文 |
-| T2-002 | READY | T2-001 | OCR 与 Evidence Manifest |
-| T2-003 | BLOCKED | T2-002 | 术语库与证据标准化 |
+| T2-002 | DONE | T2-001 | `feat(evidence): add traceable ocr and evidence manifests`；验证证据见下文 |
+| T2-003 | READY | T2-002 | 术语库与证据标准化 |
 | T2-004 | BLOCKED | T2-003 | Skills 与 Agnes Structured Brief |
 | T2-005 | BLOCKED | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
 | T3-001 | BLOCKED | T2-005 | 任务、Outbox 与积分事务 |
@@ -389,3 +389,58 @@
 
 - T2-001 严格范围内的实现、TDD、两轮独立 review remediation、focused/broad/quality/migration/dependency 与敏感信息门禁已完成；Docker 和真实 MySQL runtime 缺口已如实记录。
 - T2-001 以单一逻辑 commit 推送后收口为 `DONE`；T2-002 是下一唯一 `READY` 任务，本会话未实现任何 OCR 或 Evidence Manifest 代码。
+
+## T2-002 执行记录
+
+### 范围
+
+- 建立 internal PaddleOCR HTTP service/client，将图片 OCR 与 T2-001 解析结果统一转换为版本化 `evidence-manifest.v1`；本任务只生成 `source_fact`，不生成 Agnes 推断、`calculated_fact` 或 `ai_inference`。
+- 证据位置覆盖 Excel cell、PDF page/BBox、Word paragraph、CSV cell、text line 与 image OCR BBox；每条证据绑定资产 UUID、`sha256:` 版本、原始/标准化值、单位/币种、置信度及 parser/OCR engine 版本。
+- 叙述 OCR `<0.75` 产生 warning；数字 OCR `<0.90` 或数字单位未知产生 calculation blocker；冲突币种/单位不做猜测。
+- Manifest 写入前持久化 deterministic intended key 与 `building`，严格 Pydantic/JSON Schema 校验后原子落盘，再条件更新为 `valid/ready`；暂时性 OCR 错误按 30/60 秒 backoff 最多 3 次，清理失败或非法 Manifest 均 fail closed。
+- 未实现 T2-003 术语库、来源冲突裁决、T2-004 Agnes/Structured Brief、用户证据读取 API 或后续任务能力。
+
+### Changed files
+
+- OCR：`backend/app/services/ocr/`、`backend/ocr-service/Dockerfile`、Compose `paddleocr` service 与 worker OCR 配置。
+- Evidence：`backend/app/services/evidence/`、`backend/scripts/export-evidence-schema.py`、`backend/tests/evidence/`。
+- State/Model：`backend/app/workers/asset_processing/`、`backend/app/models/file_assets.py`、`backend/alembic/versions/20260723_0007_evidence_manifest_metadata.py`、asset safe-response contracts。
+- Parser fidelity：Excel 原 cell、PDF combined transform BBox、Word 原 paragraph index、`backend/app/services/file_safety/pdf_geometry.py` 及对应 tests。
+- Deletion lifecycle：owner-scoped 删除同时覆盖原文件、parsed output 与 Manifest；active `scanning/parsing` writer 返回 `409 asset_processing_in_progress`，派生清理失败保留可重试 `deleting`。
+- Runtime/Records：`backend/app/settings/config.py`、`backend/app/core/application.py`、`docker-compose.yml`、任务卡/索引、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏黄金材料。
+
+### TDD、review 与 focused verification
+
+- RED：OCR/evidence tests 首次 collection 因目标 modules 不存在而失败；随后按 client/server、Manifest schema/location/confidence/store、worker retry/recovery、migration 与 Compose contract 分组转 GREEN。
+- 深度 pre-commit review 发现并修复：Manifest source expansion 内存放大、冲突币种误归一、Word 空段落位置漂移、PDF matrix 未组合、OCR health 早于模型 readiness、历史 migration test 固定最新 head、资产删除遗漏派生输出，以及 active worker/delete race。
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests/ocr -q`：`10 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests/evidence -q`：`11 passed`。
+- OCR/evidence/parsing/assets 邻接回归在删除生命周期修复前为 `142 passed`；最终 broad 覆盖全部新增 fault-injection 与 race tests。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend 根目录 `.venv/Scripts/python.exe -m pytest backend/tests -q`：最终 `265 passed`。
+- `ruff check backend/app backend/tests backend/alembic` 与 `ruff format --check backend/app backend/tests backend/alembic` 均通过；项目 Python 文件不超过 500 行。
+- `alembic heads`：`20260723_0007 (head)`；Evidence migration SQLite 空库 upgrade 定向 `2 passed`；MySQL dialect offline `upgrade head --sql` 退出码 `0` 并生成 Evidence fields/`DATETIME(6)`。
+- `pip check` 通过；Backend `pip-audit` 为 `0 known vulnerabilities`，仅按预期跳过本地非 PyPI package。独立 pinned requirements 对 `paddleocr==3.7.0` 与 `paddlepaddle==3.1.1` 的 audit 均为 `0 known vulnerabilities`。
+- JSON Schema export 与 checked-in schema byte-for-byte 一致；Compose/settings contract 证明 OCR 仅在 internal network、non-root/read-only/resource-limited，worker 输入只读、parsed/evidence 输出独立且 bounded，backend 仅为鉴权删除挂载派生 volume。
+
+### Runtime 缺口与证据边界
+
+- 任务卡四条 Docker 命令均已实际尝试；`docker` 与 `docker-compose` 均为 `NOT_FOUND`，在容器创建前失败，因此不标记 PaddleOCR build/model warmup/首图 inference、private network、non-root volume 或 Compose broad runtime 通过。
+- Direct Windows focused/broad、SQLite migration、MySQL offline DDL 与 `tmp_path` 原子文件 I/O 通过；未读取 ignored `.env`，未使用本机 Secret，因此没有运行真实 MySQL `0007` upgrade。这些替代证据不冒充 Docker 或真实 MySQL runtime。
+- PaddleOCR image 固定 PaddlePaddle `3.1.1`、PaddleOCR `3.7.0` 与 PP-OCRv5 mobile det/rec；模型在 build 阶段预热到 non-root cache，runtime readiness 先构造 engine，再开放 HTTP。Docker 可用后必须补跑任务卡命令和真实首图 inference。
+
+### 安全与决策
+
+- OCR client 只调用 `http://paddleocr:8080`，请求/响应/item 均有预算；网络、timeout、HTTP、JSON/schema、response/item 超限返回稳定错误且不生成证据。
+- Manifest 每资产最多 10000 条 evidence，并在 Pydantic object expansion 前执行预算；存储 key 只允许 exact owner/asset UUID path，MySQL 不保存内容、物理路径或用户可见 hash。
+- worker 在 Manifest 文件写前提交 intended key；成功条件是 parser、Schema、atomic write 与最终 DB conditional update 全部通过。cleanup 失败保留 exact recovery key；stale processing 标记 `invalid/rejected`。
+- 用户删除只按数据库 exact keys 清理原文件、解析结果与 Manifest，不扫描 broad root；`scanning/parsing` 期间拒绝删除，消除 worker 在 `deleted` 后重新写出 orphan 的 race。任一物理清理失败都保留 `deleting`，fault-injection 证明后续重试可完成。
+- 历史 migration tests 只验证自身 revision 位于唯一连续链路；只有 T2-002 当前 migration test 固定 `0007` head，避免正常后续 additive migration 制造伪回归。
+
+### 完成结论
+
+- T2-002 严格范围内的实现、TDD、深度 security/architecture/adversarial review remediation、focused/broad/quality/migration/dependency 与文档同步已完成；Docker 与真实 MySQL runtime 缺口已如实记录。
+- T2-002 以单一逻辑 commit 推送后收口为 `DONE`；T2-003 是下一唯一 `READY` 任务，新会话必须重新按“新会话必读”顺序读取 live Git 与文档，不得依赖聊天摘要。

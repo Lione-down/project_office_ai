@@ -3,10 +3,13 @@ import logging
 
 from app.core.database import DatabaseManager
 from app.core.logging import configure_logging
+from app.services.evidence.builder import EvidenceManifestBuilder
+from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.clamav import ClamAVScanner
 from app.services.file_safety.contracts import ProcessingLimits
 from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.file_safety.parsers import SafeDocumentParser
+from app.services.ocr.client import PaddleOcrClient
 from app.settings.config import get_settings
 from app.storage.local import LocalStorageAdapter
 from app.workers.asset_processing.service import AssetProcessingService
@@ -55,6 +58,21 @@ async def run() -> None:
         ),
         SafeDocumentParser(limits),
         limits,
+        evidence_builder=EvidenceManifestBuilder(
+            PaddleOcrClient(
+                settings.paddleocr_url,
+                timeout_seconds=settings.ocr_timeout_seconds,
+                max_response_bytes=settings.max_ocr_response_bytes,
+                max_items=settings.max_ocr_items,
+            ),
+            max_evidence_items=settings.max_evidence_items,
+        ),
+        manifest_store=EvidenceManifestStore(
+            settings.evidence_root,
+            max_output_bytes=settings.max_evidence_manifest_bytes,
+        ),
+        ocr_retry_limit=settings.ocr_retry_limit,
+        ocr_retry_backoff_seconds=settings.ocr_retry_backoff_seconds,
     )
     try:
         while True:

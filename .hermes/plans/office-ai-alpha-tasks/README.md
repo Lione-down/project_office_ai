@@ -36,8 +36,8 @@
 | `T1-004` | Provider、Credential 与模型后台 | `T1-003` | `BLOCKED` | |
 | `T1-005` | 项目与资产上传 | `T1-004` | `DONE` | Week 1 |
 | `T2-001` | 文件扫描与解析沙箱 | `T1-005` | `DONE` | |
-| `T2-002` | OCR 与 Evidence Manifest | `T2-001` | `READY` | |
-| `T2-003` | 术语库与证据标准化 | `T2-002` | `BLOCKED` | |
+| `T2-002` | OCR 与 Evidence Manifest | `T2-001` | `DONE` | |
+| `T2-003` | 术语库与证据标准化 | `T2-002` | `READY` | |
 | `T2-004` | Skills 与 Agnes Structured Brief | `T2-003` | `BLOCKED` | |
 | `T2-005` | Brief 确认与 Preflight | `T2-004` | `BLOCKED` | Week 2 |
 | `T3-001` | 任务、Outbox 与积分事务 | `T2-005` | `BLOCKED` | |

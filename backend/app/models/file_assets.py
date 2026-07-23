@@ -68,6 +68,33 @@ class FileAsset(Base):
     manifest_key: Mapped[str | None] = mapped_column(
         String(768), nullable=True, comment="Evidence Manifest存储键"
     )
+    manifest_status: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="Evidence Manifest状态"
+    )
+    manifest_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="Evidence Manifest SHA-256摘要"
+    )
+    manifest_schema_version: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="Evidence Manifest Schema版本"
+    )
+    evidence_engine_version: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="证据生成引擎版本"
+    )
+    evidence_warning_count: Mapped[int | None] = mapped_column(
+        nullable=True, comment="Evidence Manifest告警数量"
+    )
+    evidence_blocker_count: Mapped[int | None] = mapped_column(
+        nullable=True, comment="Evidence Manifest阻断数量"
+    )
+    evidence_generated_at: Mapped[datetime | None] = mapped_column(
+        utc_datetime_type(), nullable=True, comment="证据生成完成时间（UTC）"
+    )
+    processing_retry_count: Mapped[int] = mapped_column(
+        default=0, comment="处理重试次数"
+    )
+    processing_retry_after: Mapped[datetime | None] = mapped_column(
+        utc_datetime_type(), nullable=True, comment="下次允许重试时间（UTC）"
+    )
     parsed_storage_key: Mapped[str | None] = mapped_column(
         String(768), nullable=True, comment="解析结果存储键"
     )

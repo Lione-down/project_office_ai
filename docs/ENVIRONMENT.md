@@ -49,11 +49,19 @@
 | `OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES` | 单个 Office XML member 上限，默认 16 MB | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS` | 单资产 parser 总结构项预算，默认 1500000 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_PARSER_TIMEOUT_SECONDS` | 隔离 parser timeout，默认 30 秒 | 否 | T2-001 | Compose 普通变量 |
-| `OFFICE_AI_PROCESSING_LEASE_SECONDS` | scanning/parsing stale lease，默认且最少 300 秒，并覆盖 scan/parser timeout 与 I/O 余量 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_PROCESSING_LEASE_SECONDS` | scanning/parsing/evidence stale lease，默认且最少 300 秒，并覆盖 scan/parser/OCR timeout 与 I/O 余量 | 否 | T2-001/T2-002 | Compose 普通变量 |
 | `OFFICE_AI_CLAMAV_HOST` | ClamAV internal hostname | 否 | T2-001 | Compose DNS 名 |
 | `OFFICE_AI_CLAMAV_PORT` | ClamAV port | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_CLAMAV_TIMEOUT_SECONDS` | ClamAV 单文件 timeout，默认 30 秒 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_PADDLEOCR_URL` | OCR internal service URL | 否 | T2-002 | Compose internal URL |
+| `OFFICE_AI_OCR_TIMEOUT_SECONDS` | 单图片 internal OCR timeout，默认 60 秒 | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_OCR_RESPONSE_BYTES` | 单图片 OCR JSON 响应上限，默认 10 MB | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_OCR_ITEMS` | 单图片 OCR 识别项上限，默认 5000 | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_EVIDENCE_ROOT` | Evidence Manifest 根目录，默认 `/app/evidence` | 否 | T2-002 | 独立受控 volume/path |
+| `OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES` | 单资产 Manifest 上限，默认 10 MB | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_EVIDENCE_ITEMS` | 单资产 Evidence item 上限，默认 10000，在对象构建前执行 | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_OCR_RETRY_LIMIT` | 暂时性 OCR 失败最大总尝试次数，默认 3 | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS` | OCR exponential backoff 基数，默认 30 秒 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
@@ -89,12 +97,17 @@
 - Local Storage key 固定为 `users/{user_id}/quarantine/{asset_id}/original.{ext}`；原始文件名、手机号和客户端路径不参与磁盘定位。
 - T1-005 API 每次只流式接收一个文件；T2-001 worker service 的 batch contract 在 claim/scan 前一次性校验最多 20 个文件和 200 MB 总量，当前不新增用户 batch HTTP API。
 - T2-001 worker 将 `app-files` 只读挂载到 `/app/files`，将独立 `parsed-files` 可写挂载到 `/app/parsed`；结构化结果固定为 `users/{user_id}/parsed/{asset_id}/content.json`，单结果默认不超过 10 MB。
-- 解析 worker 使用 backend 镜像与真实 polling entrypoint，只连接 internal `private` network，不挂载 Master/Provider Key；root filesystem 只读，`/tmp` 使用 tmpfs，并限制为 `768m` memory、`1.0` CPU 和 `128` PIDs。Office XML member、parser 总结构项和结构化输出分别有独立预算；parser 在可终止子进程中执行并受 timeout 约束。
+- T2-002 worker 将独立 `evidence-files` 可写挂载到 `/app/evidence`；Manifest key 固定为 `users/{user_id}/assets/{asset_id}/extracted/evidence-manifest.json`，单结果默认不超过 10 MB。`app-files` 仍只读，Evidence 输出不能改写原始 quarantine。
+- 解析 worker 使用 backend 镜像与真实 polling entrypoint，只连接 internal `private` network，不挂载 Master/Provider Key；root filesystem 只读，`/tmp` 使用 tmpfs，并限制为 `768m` memory、`1.0` CPU 和 `128` PIDs。Office XML member、parser 总结构项、OCR response 和两类结构化输出分别有独立预算；parser 在可终止子进程中执行并受 timeout 约束。
+- PaddleOCR 使用独立 `office-ai-paddleocr:local` image、PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`，构建阶段固定下载 `PP-OCRv5_mobile_det/rec` 到 non-root 可读的 `/opt/paddle-home`。runtime 只连 internal `private` network、无 Host port、无 Provider credential、root filesystem 只读，使用 `/tmp` tmpfs，并限制为 `2g` memory、`2.0` CPU 和 `128` PIDs。
 
 | 路径/卷 | 内容 | Git |
 |---|---|---|
 | `backend/files/` / `app-files` | quarantine、原文件、extracted、preview、output | 必须忽略 |
 | `parsed-files` | T2-001 结构化中间结果；不含 Evidence Manifest | Docker volume，不进入 Git |
+| `evidence-files` | T2-002 版本化 Evidence Manifest | Docker volume，不进入 Git |
+
+`backend` 只为鉴权后的资产删除流程以读写方式挂载 `parsed-files` 与 `evidence-files`；常规解析和 Manifest 写入仍由隔离 worker 负责。删除流程只使用数据库中已持久化的 owner/asset deterministic key，不扫描 broad root。
 | `mysql-data` | MySQL 数据 | 必须忽略 |
 | `redis-data` | 可丢失 Redis 状态 | 必须忽略 |
 | `shared-work` | renderer/QA 临时交换 | 必须忽略或仅 Docker volume |

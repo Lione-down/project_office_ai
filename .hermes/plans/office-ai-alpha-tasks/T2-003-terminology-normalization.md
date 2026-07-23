@@ -1,6 +1,6 @@
 # T2-003 术语库与证据标准化
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T2-002`
 - 来源：总计划第 6、8、9、12 节与 Day 8
 - 建议 commit：`feat(terms): add reusable terminology normalization`

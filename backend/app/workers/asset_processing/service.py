@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.base import utc_now
 from app.models.file_assets import FileAsset
+from app.services.evidence.contracts import EvidenceProcessingError
+from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.contracts import (
     FileDescriptor,
     FileSafetyError,
@@ -19,47 +21,15 @@ from app.services.file_safety.contracts import (
 from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.file_safety.parser_runtime import parse_in_subprocess
 from app.services.file_safety.parsers import SafeDocumentParser
+from app.services.ocr.contracts import OcrServiceError
 from app.storage.local import LocalStorageAdapter, StorageOperationError
+from app.workers.asset_processing.evidence_state import (
+    AssetEvidenceState,
+    cleanup_warnings,
+)
 
 
 logger = logging.getLogger(__name__)
-
-PERSISTED_PROCESSING_ERROR_CODES = frozenset(
-    {
-        "archive_bomb_detected",
-        "archive_member_invalid",
-        "excel_cell_limit_exceeded",
-        "excel_sheet_limit_exceeded",
-        "file_corrupt",
-        "file_encoding_unsupported",
-        "file_encrypted",
-        "file_integrity_mismatch",
-        "file_mime_mismatch",
-        "file_parse_failed",
-        "file_too_large",
-        "file_type_unsupported",
-        "file_unavailable",
-        "image_corrupt",
-        "image_decoded_too_large",
-        "image_too_large",
-        "malware_scan_failed",
-        "malware_scan_unavailable",
-        "office_xml_member_too_large",
-        "parsed_output_too_large",
-        "parsed_output_write_failed",
-        "parser_process_failed",
-        "parser_structure_limit_exceeded",
-        "parser_timeout",
-        "pdf_page_limit_exceeded",
-        "processing_cancelled",
-        "processing_failed",
-        "processing_lease_expired",
-        "processing_state_conflict",
-        "storage_provider_unsupported",
-        "unsafe_xml_detected",
-        "virus_detected",
-    }
-)
 
 
 class AssetProcessingService:
@@ -71,6 +41,11 @@ class AssetProcessingService:
         scanner,
         parser: SafeDocumentParser,
         limits: ProcessingLimits,
+        *,
+        evidence_builder,
+        manifest_store: EvidenceManifestStore,
+        ocr_retry_limit: int,
+        ocr_retry_backoff_seconds: int,
     ) -> None:
         self._session_factory = session_factory
         self._storage = storage
@@ -78,12 +53,21 @@ class AssetProcessingService:
         self._scanner = scanner
         self._parser = parser
         self._limits = limits
+        self._evidence_builder = evidence_builder
+        self._manifest_store = manifest_store
+        self._evidence_state = AssetEvidenceState(
+            session_factory,
+            manifest_store,
+            ocr_retry_limit=ocr_retry_limit,
+            ocr_retry_backoff_seconds=ocr_retry_backoff_seconds,
+        )
 
     async def process(self, asset_id: UUID) -> bool:
         asset = await self._claim(asset_id)
         if asset is None:
             return False
         output_key: str | None = None
+        manifest_key: str | None = None
         try:
             descriptor = self._descriptor(asset)
             self._verify_integrity(asset, descriptor.path)
@@ -103,29 +87,110 @@ class AssetProcessingService:
                 raise FileSafetyError(
                     "processing_state_conflict", "解析结果存储状态发生冲突"
                 )
-            await self._complete(asset.id, output_key, document)
-        except FileSafetyError as exception:
-            cleanup_failed = await self._cleanup_output(asset, output_key)
+            manifest_key = self._manifest_store.build_key(asset.user_id, asset.id)
+            await self._transition_to_evidence(asset.id, output_key, manifest_key)
+            manifest = await self._evidence_builder.build(
+                asset_id=asset.id,
+                asset_version=f"sha256:{asset.sha256}",
+                document=document,
+                source_path=descriptor.path,
+                mime_type=asset.mime_type,
+                content_sha256=asset.sha256,
+            )
+            stored_manifest = await asyncio.to_thread(
+                self._manifest_store.write,
+                asset.user_id,
+                asset.id,
+                manifest,
+            )
+            if stored_manifest.storage_key != manifest_key:
+                raise EvidenceProcessingError(
+                    "evidence_manifest_state_conflict",
+                    "Evidence Manifest 存储状态发生冲突",
+                )
+            await self._complete(
+                asset.id,
+                output_key,
+                document,
+                manifest=manifest,
+                stored_manifest=stored_manifest,
+            )
+        except OcrServiceError as exception:
+            (
+                output_cleanup_failed,
+                manifest_cleanup_failed,
+            ) = await self._cleanup_outputs(asset, output_key, manifest_key)
+            if (
+                exception.retryable
+                and not output_cleanup_failed
+                and not manifest_cleanup_failed
+            ):
+                await self._retry_ocr(
+                    asset.id, exception.error_code, exception.safe_message
+                )
+            else:
+                await self._reject(
+                    asset.id,
+                    exception.error_code,
+                    exception.safe_message,
+                    recovery_output_key=output_key if output_cleanup_failed else None,
+                    recovery_manifest_key=(
+                        manifest_key if manifest_cleanup_failed else None
+                    ),
+                    warnings=self._cleanup_warnings(
+                        output_cleanup_failed, manifest_cleanup_failed
+                    ),
+                )
+        except EvidenceProcessingError as exception:
+            (
+                output_cleanup_failed,
+                manifest_cleanup_failed,
+            ) = await self._cleanup_outputs(asset, output_key, manifest_key)
             await self._reject(
                 asset.id,
                 exception.error_code,
                 exception.safe_message,
-                recovery_output_key=output_key if cleanup_failed else None,
-                warnings=("parsed_output_cleanup_failed",) if cleanup_failed else (),
+                recovery_output_key=output_key if output_cleanup_failed else None,
+                recovery_manifest_key=(
+                    manifest_key if manifest_cleanup_failed else None
+                ),
+                warnings=self._cleanup_warnings(
+                    output_cleanup_failed, manifest_cleanup_failed
+                ),
+            )
+        except FileSafetyError as exception:
+            (
+                output_cleanup_failed,
+                manifest_cleanup_failed,
+            ) = await self._cleanup_outputs(asset, output_key, manifest_key)
+            await self._reject(
+                asset.id,
+                exception.error_code,
+                exception.safe_message,
+                recovery_output_key=output_key if output_cleanup_failed else None,
+                recovery_manifest_key=(
+                    manifest_key if manifest_cleanup_failed else None
+                ),
+                warnings=self._cleanup_warnings(
+                    output_cleanup_failed, manifest_cleanup_failed
+                ),
             )
         except asyncio.CancelledError:
-            cleanup_failed = await asyncio.shield(
-                self._cleanup_output(asset, output_key)
+            output_cleanup_failed, manifest_cleanup_failed = await asyncio.shield(
+                self._cleanup_outputs(asset, output_key, manifest_key)
             )
             await asyncio.shield(
                 self._reject(
                     asset.id,
                     "processing_cancelled",
                     "文件处理已中止",
-                    recovery_output_key=output_key if cleanup_failed else None,
-                    warnings=("parsed_output_cleanup_failed",)
-                    if cleanup_failed
-                    else (),
+                    recovery_output_key=(output_key if output_cleanup_failed else None),
+                    recovery_manifest_key=(
+                        manifest_key if manifest_cleanup_failed else None
+                    ),
+                    warnings=self._cleanup_warnings(
+                        output_cleanup_failed, manifest_cleanup_failed
+                    ),
                 )
             )
             raise
@@ -137,13 +202,21 @@ class AssetProcessingService:
                     "error_type": type(exception).__name__,
                 },
             )
-            cleanup_failed = await self._cleanup_output(asset, output_key)
+            (
+                output_cleanup_failed,
+                manifest_cleanup_failed,
+            ) = await self._cleanup_outputs(asset, output_key, manifest_key)
             await self._reject(
                 asset.id,
                 "processing_failed",
                 "文件处理失败",
-                recovery_output_key=output_key if cleanup_failed else None,
-                warnings=("parsed_output_cleanup_failed",) if cleanup_failed else (),
+                recovery_output_key=output_key if output_cleanup_failed else None,
+                recovery_manifest_key=(
+                    manifest_key if manifest_cleanup_failed else None
+                ),
+                warnings=self._cleanup_warnings(
+                    output_cleanup_failed, manifest_cleanup_failed
+                ),
             )
         return True
 
@@ -155,6 +228,10 @@ class AssetProcessingService:
                 .where(
                     FileAsset.processing_status == "quarantined",
                     FileAsset.deleted_at.is_(None),
+                    or_(
+                        FileAsset.processing_retry_after.is_(None),
+                        FileAsset.processing_retry_after <= utc_now(),
+                    ),
                 )
                 .order_by(FileAsset.created_at, FileAsset.id)
                 .limit(1)
@@ -206,6 +283,7 @@ class AssetProcessingService:
                 )
                 .values(
                     processing_status="rejected",
+                    manifest_status="invalid",
                     processing_error_code="processing_lease_expired",
                     processing_error_message="文件处理租约已过期",
                     processed_at=utc_now(),
@@ -228,6 +306,15 @@ class AssetProcessingService:
                     processing_started_at=utc_now(),
                     processed_at=None,
                     parsed_storage_key=None,
+                    manifest_key=None,
+                    manifest_status=None,
+                    manifest_sha256=None,
+                    manifest_schema_version=None,
+                    evidence_engine_version=None,
+                    evidence_warning_count=None,
+                    evidence_blocker_count=None,
+                    evidence_generated_at=None,
+                    processing_retry_after=None,
                     parser_name=None,
                     parser_version=None,
                     processing_warnings=None,
@@ -292,31 +379,30 @@ class AssetProcessingService:
                     "processing_state_conflict", "资产处理状态发生冲突"
                 )
 
-    async def _complete(self, asset_id: UUID, output_key: str, document) -> None:
-        async with self._session_factory() as session:
-            result = await session.execute(
-                update(FileAsset)
-                .where(
-                    FileAsset.id == asset_id,
-                    FileAsset.processing_status == "parsing",
-                    FileAsset.parsed_storage_key == output_key,
-                )
-                .values(
-                    processing_status="ready",
-                    parsed_storage_key=output_key,
-                    parser_name=document.parser_name,
-                    parser_version=document.parser_version,
-                    processing_warnings=list(document.warnings),
-                    processing_error_code=None,
-                    processing_error_message=None,
-                    processed_at=utc_now(),
-                )
-            )
-            await session.commit()
-            if result.rowcount != 1:
-                raise FileSafetyError(
-                    "processing_state_conflict", "资产处理状态发生冲突"
-                )
+    async def _transition_to_evidence(
+        self, asset_id: UUID, output_key: str, manifest_key: str
+    ) -> None:
+        await self._evidence_state.transition(asset_id, output_key, manifest_key)
+
+    async def _complete(
+        self,
+        asset_id: UUID,
+        output_key: str,
+        document,
+        *,
+        manifest,
+        stored_manifest,
+    ) -> None:
+        await self._evidence_state.complete(
+            asset_id,
+            output_key,
+            document,
+            manifest=manifest,
+            stored_manifest=stored_manifest,
+        )
+
+    async def _retry_ocr(self, asset_id: UUID, error_code: str, message: str) -> None:
+        await self._evidence_state.retry_ocr(asset_id, error_code, message)
 
     async def _reject(
         self,
@@ -325,32 +411,28 @@ class AssetProcessingService:
         message: str,
         *,
         recovery_output_key: str | None = None,
+        recovery_manifest_key: str | None = None,
         warnings: tuple[str, ...] = (),
     ) -> None:
-        if error_code not in PERSISTED_PROCESSING_ERROR_CODES:
-            logger.error(
-                "unknown_processing_error_code",
-                extra={"error_code": error_code[:64]},
-            )
-            error_code = "processing_failed"
-            message = "文件处理失败"
-        async with self._session_factory() as session:
-            await session.execute(
-                update(FileAsset)
-                .where(
-                    FileAsset.id == asset_id,
-                    FileAsset.processing_status.in_(("scanning", "parsing")),
-                )
-                .values(
-                    processing_status="rejected",
-                    parsed_storage_key=recovery_output_key,
-                    processing_warnings=list(warnings),
-                    processing_error_code=error_code[:64],
-                    processing_error_message=message[:255],
-                    processed_at=utc_now(),
-                )
-            )
-            await session.commit()
+        await self._evidence_state.reject(
+            asset_id,
+            error_code,
+            message,
+            recovery_output_key=recovery_output_key,
+            recovery_manifest_key=recovery_manifest_key,
+            warnings=warnings,
+        )
+
+    async def _cleanup_outputs(
+        self,
+        asset: FileAsset,
+        output_key: str | None,
+        manifest_key: str | None,
+    ) -> tuple[bool, bool]:
+        return (
+            await self._cleanup_output(asset, output_key),
+            await self._cleanup_manifest(asset, manifest_key),
+        )
 
     async def _cleanup_output(self, asset: FileAsset, output_key: str | None) -> bool:
         if output_key is None:
@@ -366,3 +448,14 @@ class AssetProcessingService:
             )
             return True
         return False
+
+    async def _cleanup_manifest(
+        self, asset: FileAsset, manifest_key: str | None
+    ) -> bool:
+        return await self._evidence_state.cleanup_manifest(asset, manifest_key)
+
+    @staticmethod
+    def _cleanup_warnings(
+        output_cleanup_failed: bool, manifest_cleanup_failed: bool
+    ) -> tuple[str, ...]:
+        return cleanup_warnings(output_cleanup_failed, manifest_cleanup_failed)

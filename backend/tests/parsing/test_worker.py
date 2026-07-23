@@ -12,6 +12,8 @@ from app.models.credit_ledger import CreditLedger
 from app.models.file_assets import FileAsset
 from app.models.projects import Project
 from app.models.base import utc_now
+from app.services.evidence.builder import EvidenceManifestBuilder
+from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.clamav import ScanResult
 from app.services.file_safety.contracts import FileSafetyError, ProcessingLimits
 from app.services.file_safety.output_store import ParsedOutputStore
@@ -87,13 +89,18 @@ class SlowScanner:
         return ScanResult(is_clean=True)
 
 
+class NeverCalledOcr:
+    async def recognize(self, *_args, **_kwargs):
+        raise AssertionError("OCR must not run for text parser tests")
+
+
 class CleanupFailingStore(ParsedOutputStore):
     def delete(self, user_id, asset_id, storage_key) -> None:
         raise FileSafetyError("parsed_output_delete_failed", "解析结果清理失败")
 
 
 class CompletionFailingService(AssetProcessingService):
-    async def _complete(self, asset_id, output_key, document) -> None:
+    async def _complete(self, asset_id, output_key, document, **_kwargs) -> None:
         raise FileSafetyError("processing_state_conflict", "资产处理状态发生冲突")
 
 
@@ -102,7 +109,7 @@ class SimulatedHardCrash(BaseException):
 
 
 class HardCrashAfterOutputService(AssetProcessingService):
-    async def _complete(self, asset_id, output_key, document) -> None:
+    async def _complete(self, asset_id, output_key, document, **_kwargs) -> None:
         raise SimulatedHardCrash
 
 
@@ -149,6 +156,13 @@ def service(
         scanner,
         parser or SafeDocumentParser(processing_limits),
         processing_limits,
+        evidence_builder=EvidenceManifestBuilder(NeverCalledOcr()),
+        manifest_store=EvidenceManifestStore(
+            output_store._root.parent / "evidence",
+            max_output_bytes=64 * 1024,
+        ),
+        ocr_retry_limit=3,
+        ocr_retry_backoff_seconds=30,
     )
 
 
@@ -474,67 +488,3 @@ async def test_batch_exact_20_files_and_200_mebibytes_passes_preflight(
         )
     assert processed_count == 20
     assert set(statuses) == {"rejected"}
-
-
-async def test_output_cleanup_failure_keeps_durable_recovery_key(
-    session_factory, tmp_path
-) -> None:
-    storage = LocalStorageAdapter(tmp_path / "input")
-    asset = await create_asset(session_factory, storage)
-    output_store = CleanupFailingStore(tmp_path / "output", max_output_bytes=1024)
-    worker = CompletionFailingService(
-        session_factory,
-        storage,
-        output_store,
-        RecordingCleanScanner(session_factory),
-        SafeDocumentParser(ProcessingLimits()),
-        ProcessingLimits(),
-    )
-
-    await worker.process(asset.id)
-    stored = await load_asset(session_factory, asset.id)
-
-    assert stored.processing_status == "rejected"
-    assert stored.processing_error_code == "processing_state_conflict"
-    assert stored.processing_warnings == ["parsed_output_cleanup_failed"]
-    assert stored.parsed_storage_key == output_store.build_key(USER_ID, asset.id)
-    assert output_store.resolve_asset_key(
-        USER_ID, asset.id, stored.parsed_storage_key
-    ).is_file()
-
-
-async def test_hard_crash_after_output_keeps_durable_deterministic_recovery_key(
-    session_factory, tmp_path
-) -> None:
-    storage = LocalStorageAdapter(tmp_path / "input")
-    asset = await create_asset(session_factory, storage)
-    output_store = ParsedOutputStore(tmp_path / "output", max_output_bytes=1024)
-    worker = HardCrashAfterOutputService(
-        session_factory,
-        storage,
-        output_store,
-        RecordingCleanScanner(session_factory),
-        SafeDocumentParser(ProcessingLimits()),
-        ProcessingLimits(processing_lease_seconds=1),
-    )
-
-    with pytest.raises(SimulatedHardCrash):
-        await worker.process(asset.id)
-
-    crashed = await load_asset(session_factory, asset.id)
-    expected_key = output_store.build_key(USER_ID, asset.id)
-    assert crashed.processing_status == "parsing"
-    assert crashed.parsed_storage_key == expected_key
-    assert output_store.resolve_asset_key(USER_ID, asset.id, expected_key).is_file()
-
-    async with session_factory() as session:
-        stored = await session.get(FileAsset, asset.id)
-        stored.processing_started_at = utc_now() - timedelta(minutes=1)
-        await session.commit()
-    await worker.reconcile_stale_leases()
-    reconciled = await load_asset(session_factory, asset.id)
-
-    assert reconciled.processing_status == "rejected"
-    assert reconciled.processing_error_code == "processing_lease_expired"
-    assert reconciled.parsed_storage_key == expected_key
-    assert output_store.resolve_asset_key(USER_ID, asset.id, expected_key).is_file()

@@ -47,5 +47,10 @@ class AssetResponse(StrictModel):
     processing_warnings: list[str]
     processing_error_code: str | None
     processing_error_message: str | None
+    manifest_status: str | None
+    manifest_schema_version: str | None
+    evidence_engine_version: str | None
+    evidence_warning_count: int | None
+    evidence_blocker_count: int | None
     created_at: datetime
     updated_at: datetime

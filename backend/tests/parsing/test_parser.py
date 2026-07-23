@@ -167,6 +167,30 @@ def test_docx_does_not_follow_urls_or_open_embedded_objects(
     }
 
 
+def test_docx_preserves_original_paragraph_index_with_empty_prefix(tmp_path) -> None:
+    path = write_docx(
+        tmp_path / "report.docx",
+        "第二段",
+        empty_paragraph_prefix=True,
+    )
+
+    result = parse(path)
+
+    assert result.content["paragraphs"] == ["第二段"]
+    assert result.content["paragraph_items"] == [{"paragraph": 2, "text": "第二段"}]
+
+
+def test_pdf_bbox_combines_text_and_current_transforms() -> None:
+    bbox = parsers.pdf_text_bbox(
+        "AB",
+        current_matrix=[1, 0, 0, 1, 5, 7],
+        text_matrix=[1, 0, 0, 1, 10, 20],
+        font_size=10,
+    )
+
+    assert bbox == (15.0, 27.0, 25.0, 37.0)
+
+
 def test_xlsx_reads_cached_data_without_executing_formulas(tmp_path) -> None:
     path = write_xlsx(
         tmp_path / "book.xlsx",
@@ -178,6 +202,9 @@ def test_xlsx_reads_cached_data_without_executing_formulas(tmp_path) -> None:
 
     assert result.kind == "workbook"
     assert result.content["sheets"][0]["rows"] == [["safe cached value"]]
+    assert result.content["sheets"][0]["cells"] == [
+        {"cell": "A1", "value": "safe cached value"}
+    ]
     assert set(result.warnings) == {
         "embedded_objects_ignored",
         "external_links_ignored",

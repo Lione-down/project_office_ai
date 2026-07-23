@@ -17,6 +17,8 @@ from app.services.asset_management import (
     AssetOperationError,
 )
 from app.services.auth_sessions import CurrentUser
+from app.services.evidence.store import EvidenceManifestStore
+from app.services.file_safety.output_store import ParsedOutputStore
 from app.storage.local import LocalStorageAdapter, StorageOperationError
 
 
@@ -63,6 +65,12 @@ def service(session_factory, tmp_path) -> AssetManagementService:
         LocalStorageAdapter(tmp_path),
         max_file_bytes=1024,
         max_image_bytes=512,
+        parsed_outputs=ParsedOutputStore(
+            tmp_path / "parsed", max_output_bytes=1024 * 1024
+        ),
+        evidence_manifests=EvidenceManifestStore(
+            tmp_path / "evidence", max_output_bytes=1024 * 1024
+        ),
     )
 
 

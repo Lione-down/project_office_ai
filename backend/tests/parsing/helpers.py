@@ -9,10 +9,17 @@ XLSM_TYPE = "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
 XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
 
 
-def write_docx(path: Path, text: str, *, unsafe_relationships: bool = False) -> Path:
+def write_docx(
+    path: Path,
+    text: str,
+    *,
+    unsafe_relationships: bool = False,
+    empty_paragraph_prefix: bool = False,
+) -> Path:
+    empty_paragraph = "<w:p/>" if empty_paragraph_prefix else ""
     document_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body>
+  <w:body>{empty_paragraph}<w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body>
 </w:document>
 """
     content_types = f"""<Types>

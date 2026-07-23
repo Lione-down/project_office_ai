@@ -16,6 +16,7 @@ from app.services.file_safety.contracts import (
     StructuralBudget,
     validate_excel_shape,
 )
+from app.services.file_safety.pdf_geometry import pdf_text_bbox
 from app.services.file_safety.validation import validate_file_for_processing
 
 
@@ -127,8 +128,11 @@ class SafeDocumentParser:
         except (BadZipFile, KeyError, OSError) as exception:
             raise FileSafetyError("file_parse_failed", "DOCX 解析失败") from exception
         paragraphs = []
+        paragraph_items = []
         content_bytes = 0
-        for paragraph in _elements_named(root, "p"):
+        for paragraph_number, paragraph in enumerate(
+            _elements_named(root, "p"), start=1
+        ):
             text = "".join(
                 node.text or ""
                 for node in paragraph.iter()
@@ -138,10 +142,15 @@ class SafeDocumentParser:
                 content_bytes += len(text.encode("utf-8"))
                 _ensure_content_budget(content_bytes, self._limits)
                 paragraphs.append(text)
+                paragraph_items.append({"paragraph": paragraph_number, "text": text})
         return self._result(
             parser_name="safe-docx",
             kind="document",
-            content={"paragraphs": paragraphs, "trust": "untrusted"},
+            content={
+                "paragraphs": paragraphs,
+                "paragraph_items": paragraph_items,
+                "trust": "untrusted",
+            },
             warnings=warnings,
         )
 
@@ -184,7 +193,7 @@ class SafeDocumentParser:
                     worksheet = _read_office_xml(
                         archive, worksheet_path, self._limits, structure_budget
                     )
-                    rows, count, has_formula, extracted_bytes = _worksheet_rows(
+                    rows, cells, count, has_formula, extracted_bytes = _worksheet_rows(
                         worksheet,
                         shared_strings,
                         self._limits.max_output_bytes - content_bytes,
@@ -196,7 +205,13 @@ class SafeDocumentParser:
                     )
                     if has_formula:
                         warnings.add("formulas_not_executed")
-                    sheets.append({"name": sheet.attrib.get("name", ""), "rows": rows})
+                    sheets.append(
+                        {
+                            "name": sheet.attrib.get("name", ""),
+                            "rows": rows,
+                            "cells": cells,
+                        }
+                    )
         except FileSafetyError:
             raise
         except (BadZipFile, KeyError, OSError, ValueError) as exception:
@@ -220,12 +235,35 @@ class SafeDocumentParser:
             if len(reader.pages) > self._limits.max_pdf_pages:
                 raise FileSafetyError("pdf_page_limit_exceeded", "PDF 页数超过允许上限")
             pages = []
+            page_blocks = []
             content_bytes = 0
-            for page in reader.pages:
-                text = page.extract_text() or ""
+            for page_number, page in enumerate(reader.pages, start=1):
+                blocks = []
+
+                def capture_text(text, current_matrix, text_matrix, _font, font_size):
+                    normalized = text.strip()
+                    if not normalized:
+                        return
+                    blocks.append(
+                        {
+                            "page": page_number,
+                            "text": normalized,
+                            "bbox": list(
+                                pdf_text_bbox(
+                                    normalized,
+                                    current_matrix,
+                                    text_matrix,
+                                    font_size,
+                                )
+                            ),
+                        }
+                    )
+
+                text = page.extract_text(visitor_text=capture_text) or ""
                 content_bytes += len(text.encode("utf-8"))
                 _ensure_content_budget(content_bytes, self._limits)
                 pages.append(text)
+                page_blocks.extend(blocks)
         except FileSafetyError:
             raise
         except (PdfReadError, OSError, ValueError) as exception:
@@ -233,7 +271,11 @@ class SafeDocumentParser:
         return self._result(
             parser_name="safe-pypdf",
             kind="document",
-            content={"pages": pages, "trust": "untrusted"},
+            content={
+                "pages": pages,
+                "page_blocks": page_blocks,
+                "trust": "untrusted",
+            },
         )
 
     @staticmethod
@@ -382,14 +424,18 @@ def _worksheet_rows(
     worksheet: ElementTree.Element,
     shared_strings: list[str],
     remaining_output_bytes: int,
-) -> tuple[list[list[str]], int, bool, int]:
+) -> tuple[list[list[str]], list[dict[str, str]], int, bool, int]:
     rows = []
+    cells = []
     non_empty_cells = 0
     has_formula = False
     extracted_bytes = 0
     for row in _elements_named(worksheet, "row"):
         values = []
         for cell in (element for element in row if _local_name(element.tag) == "c"):
+            coordinate = cell.attrib.get("r")
+            if not coordinate:
+                raise FileSafetyError("file_corrupt", "Excel 文件损坏")
             formula = next(_elements_named(cell, "f"), None)
             has_formula = has_formula or formula is not None
             cell_type = cell.attrib.get("t")
@@ -405,6 +451,7 @@ def _worksheet_rows(
                 if cell_type == "s" and value:
                     value = shared_strings[int(value)]
             values.append(value or "")
+            cells.append({"cell": coordinate, "value": value or ""})
             if value not in {None, ""}:
                 non_empty_cells += 1
                 extracted_bytes += len(value.encode("utf-8"))
@@ -413,7 +460,7 @@ def _worksheet_rows(
                         "parsed_output_too_large", "解析结果超过允许上限"
                     )
         rows.append(values)
-    return rows, non_empty_cells, has_formula, extracted_bytes
+    return rows, cells, non_empty_cells, has_formula, extracted_bytes
 
 
 def _ensure_content_budget(content_bytes: int, limits: ProcessingLimits) -> None:

@@ -55,7 +55,8 @@ def test_provider_migration_remains_in_the_single_head_chain() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
     heads = scripts.get_heads()
 
-    assert heads == ["20260723_0006"]
+    assert len(heads) == 1
+    assert scripts.get_revision("20260722_0004").down_revision == "20260722_0003"
     assert scripts.get_revision("20260722_0005").down_revision == "20260722_0004"
 
 

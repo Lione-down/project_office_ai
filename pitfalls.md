@@ -167,6 +167,27 @@
 - 本任务处理：在进入 `pending_ocr` 前以 bounded streaming 校验 PNG chunk/CRC/zlib/IHDR、JPEG marker/segment/frame/scan/EOI 和 WEBP RIFF/chunk/frame header，再通过 decoded-size gate 与 Pillow full decode；解码运行在受 timeout 的 parser 子进程中。
 - 预防/验证：每种图片格式都保留真实最小结构样本和截断/损坏 adversarial fixture；新增格式不得只补 magic bytes。
 
+### 2026-07-23 · T2-002 · PaddleOCR 模型不能留到隔离 runtime 下载
+
+- 现象：PaddleOCR 3.x 的 pipeline 会把 official model 放入用户 HOME 下的 PaddleX cache；只在 Dockerfile 设置旧版 `PADDLE_OCR_BASE_DIR` 或只安装 Python package，non-root/read-only/internal-network runtime 仍可能找不到模型并尝试联网。
+- 影响：静态 import/health 可通过，但第一张图片才因权限或网络失败；internal network 设计会把该缺陷稳定暴露为 OCR unavailable。
+- 本任务处理：固定 PaddlePaddle `3.1.1`、PaddleOCR `3.7.0` 与 PP-OCRv5 mobile det/rec；build 阶段在 `/opt/paddle-home` 初始化下载，设置 HOME/PaddleX/PaddleOCR cache 并改为 non-root 可读，runtime 禁用 model source connectivity check 且只连 private network。
+- 预防/验证：OCR image 必须同时验证 pinned dependency、build-time model warmup、non-root cache path、read-only root、无 external network 和真实首图 inference；仅 `import paddle` 不能作为 OCR readiness 证据。
+
+### 2026-07-23 · T2-002 · Manifest 写入也需要 durable intended key
+
+- 现象：解析 JSON 已有 deterministic recovery key，但若 Evidence Manifest 先落盘、再写 MySQL key，hard crash 会形成第二类不可追踪 orphan；反过来只写 DB 状态也可能把非法/半写 Manifest 当成 ready。
+- 影响：Brief 可能读取不存在或无 Schema 保证的证据，cleanup 无法精确定位，重试还可能覆盖审计链。
+- 本任务处理：解析完成后先把 deterministic Manifest key 与 `building` 提交到资产行，再进行严格 Schema 构建和原子 replace；最终条件更新一次性写 `valid`、摘要、engine/warning/blocker metadata 与 `ready`。cleanup 失败保留精确 key，stale lease 标为 `invalid`。
+- 预防/验证：所有新文件型 checkpoint 都要覆盖“intended key commit”“atomic write”“final DB commit”“主失败 + cleanup 失败”“hard crash + stale reconciliation”五个点；没有有效 Manifest 的资产绝不能进入 Brief-ready 状态。
+
+### 2026-07-23 · T2-002 · 用户删除必须覆盖全部派生输出
+
+- 现象：原有资产删除路径只清理 quarantine 原文件；T2-001 的解析 JSON 与 T2-002 的 Evidence Manifest 位于独立 volume，即使数据库已标记 `deleted` 仍会留下敏感 orphan。
+- 影响：用户看到删除成功，但结构化内容与可追溯事实仍保留在磁盘，违反删除语义并扩大隐私暴露窗口。
+- 本任务处理：backend 仅为 owner-scoped 删除挂载 parsed/evidence volume；`scanning/parsing` 期间返回 `409 asset_processing_in_progress`，防止 worker 在删除后重新落盘。其余状态先持久化 `deleting`，再按数据库 exact keys 幂等清理原文件、解析结果和 Manifest，全部成功后才标记 `deleted`。任一派生清理失败返回 `asset_delete_failed` 并保留 checkpoint，重试可继续清理。
+- 预防/验证：每增加一种资产派生存储，都必须把删除生命周期、active writer race 与 fault-injection 测试作为同一任务的验收项；禁止只软删数据库行或递归扫描 broad root。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

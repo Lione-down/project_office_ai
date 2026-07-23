@@ -24,6 +24,8 @@ from app.services.auth_security import (
 )
 from app.services.auth_sessions import AuthSessionService
 from app.services.asset_management import AssetManagementService
+from app.services.evidence.store import EvidenceManifestStore
+from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
@@ -124,6 +126,14 @@ def create_app(
             LocalStorageAdapter(application_settings.files_root),
             max_file_bytes=application_settings.max_file_bytes,
             max_image_bytes=application_settings.max_image_bytes,
+            parsed_outputs=ParsedOutputStore(
+                application_settings.parsed_root,
+                max_output_bytes=application_settings.max_parsed_output_bytes,
+            ),
+            evidence_manifests=EvidenceManifestStore(
+                application_settings.evidence_root,
+                max_output_bytes=application_settings.max_evidence_manifest_bytes,
+            ),
         )
 
     @asynccontextmanager

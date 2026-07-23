@@ -1,6 +1,6 @@
 # T2-002 OCR 与 Evidence Manifest
 
-- 状态：`BLOCKED`
+- 状态：`DONE`
 - Depends on：`T2-001`
 - 来源：总计划第 8 节与 Day 7
 - 建议 commit：`feat(evidence): add traceable ocr and evidence manifests`
@@ -31,12 +31,21 @@
 - Manifest Schema 不合法时资产不会进入可供 Brief 使用的状态。
 - OCR 服务不可用时可重试但不得生成伪造证据。
 
+## 可执行成功标准
+
+- OCR client 只调用 internal PaddleOCR HTTP endpoint，使用 timeout、响应大小和识别项数量预算；连接、timeout、HTTP、非法 JSON/Schema 与超限响应均返回稳定可重试错误，不产生证据。
+- `source_fact` 可从 Excel 单元格、PDF 页码/BBox、Word 段落、文本行和图片 OCR BBox 生成；每条证据关联不可变 `asset_id`、`asset_version`、原始/标准化值、单位/币种、OCR 置信度以及 parser/OCR engine 名称与版本。
+- 叙述 OCR `<0.75` 生成 warning；数字 OCR `<0.90` 或数字单位未知时设置 calculation blocker，不把未知单位推断为零或任意单位。
+- Manifest 通过版本化 JSON Schema 和 Pydantic 校验后才原子写入 `users/{user_id}/assets/{asset_id}/extracted/evidence-manifest.json`；MySQL 只保存 deterministic key、摘要、engine version、warning/blocker 数量和完成时间。
+- 处理状态在 manifest 写前持久化 deterministic key；OCR 暂时不可用时资产回到可重试状态并记录稳定错误，非法 Manifest 或持久化失败时 fail closed，不进入 Brief-ready 状态。
+- focused `backend/tests/ocr` 与 `backend/tests/evidence`、Backend broad、Ruff、Alembic、dependency/security/diff 检查通过；Docker 或真实 MySQL 不可用时记录原始缺口，不冒充 runtime evidence。
+
 ## 验证
 
 ```powershell
 docker compose up -d paddleocr
-docker compose run --rm backend pytest backend/tests/ocr -q
-docker compose run --rm backend pytest backend/tests/evidence -q
+docker compose run --rm backend pytest tests/ocr -q
+docker compose run --rm backend pytest tests/evidence -q
 docker compose run --rm backend pytest -q
 ```
 

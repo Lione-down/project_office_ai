@@ -143,6 +143,43 @@ class Settings(BaseSettings):
     clamav_timeout_seconds: float = Field(
         30.0, validation_alias="OFFICE_AI_CLAMAV_TIMEOUT_SECONDS", gt=0
     )
+    paddleocr_url: str = Field(
+        "http://paddleocr:8080", validation_alias="OFFICE_AI_PADDLEOCR_URL"
+    )
+    ocr_timeout_seconds: float = Field(
+        60.0, validation_alias="OFFICE_AI_OCR_TIMEOUT_SECONDS", gt=0
+    )
+    max_ocr_response_bytes: int = Field(
+        10 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_OCR_RESPONSE_BYTES",
+        ge=1,
+    )
+    max_ocr_items: int = Field(
+        5000, validation_alias="OFFICE_AI_MAX_OCR_ITEMS", ge=1, le=100_000
+    )
+    evidence_root: Path = Field(
+        Path("/app/evidence"), validation_alias="OFFICE_AI_EVIDENCE_ROOT"
+    )
+    max_evidence_manifest_bytes: int = Field(
+        10 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES",
+        ge=1,
+    )
+    max_evidence_items: int = Field(
+        10_000,
+        validation_alias="OFFICE_AI_MAX_EVIDENCE_ITEMS",
+        ge=1,
+        le=100_000,
+    )
+    ocr_retry_limit: int = Field(
+        3, validation_alias="OFFICE_AI_OCR_RETRY_LIMIT", ge=1, le=10
+    )
+    ocr_retry_backoff_seconds: int = Field(
+        30,
+        validation_alias="OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS",
+        ge=1,
+        le=3600,
+    )
 
     @property
     def max_upload_body_bytes(self) -> int:
@@ -183,7 +220,12 @@ class Settings(BaseSettings):
     def validate_processing_lease_covers_timeouts(self):
         minimum_lease = max(
             300,
-            int(self.clamav_timeout_seconds + self.parser_timeout_seconds) + 60,
+            int(
+                self.clamav_timeout_seconds
+                + self.parser_timeout_seconds
+                + self.ocr_timeout_seconds
+            )
+            + 60,
         )
         if self.processing_lease_seconds < minimum_lease:
             raise ValueError(

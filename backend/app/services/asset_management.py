@@ -19,6 +19,10 @@ from app.services.asset_contracts import (
 )
 from app.services.asset_uploads import AssetUploadService
 from app.services.auth_sessions import AuthSessionService, CurrentUser
+from app.services.evidence.contracts import EvidenceProcessingError
+from app.services.evidence.store import EvidenceManifestStore
+from app.services.file_safety.contracts import FileSafetyError
+from app.services.file_safety.output_store import ParsedOutputStore
 from app.storage.local import LocalStorageAdapter, StorageOperationError
 
 
@@ -31,12 +35,16 @@ class AssetManagementService:
         *,
         max_file_bytes: int,
         max_image_bytes: int,
+        parsed_outputs: ParsedOutputStore | None = None,
+        evidence_manifests: EvidenceManifestStore | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._sessions = sessions
         self._storage = storage
         self._max_file_bytes = max_file_bytes
         self._max_image_bytes = max_image_bytes
+        self._parsed_outputs = parsed_outputs
+        self._evidence_manifests = evidence_manifests
         self._uploads = AssetUploadService(
             session_factory,
             storage,
@@ -213,13 +221,37 @@ class AssetManagementService:
             )
             if reference_id is not None:
                 raise AssetOperationError("asset_in_use", "资产仍被其他版本引用", 409)
+            if asset.processing_status in {"scanning", "parsing"}:
+                raise AssetOperationError(
+                    "asset_processing_in_progress", "资产仍在处理中", 409
+                )
             asset.processing_status = "deleting"
             storage_key = asset.storage_key
+            parsed_storage_key = asset.parsed_storage_key
+            manifest_key = asset.manifest_key
 
         try:
             self._storage.delete_asset(user.user_id, asset_id, storage_key)
+            if parsed_storage_key is not None:
+                if self._parsed_outputs is None:
+                    raise FileSafetyError(
+                        "parsed_output_store_unavailable",
+                        "解析结果存储不可用",
+                    )
+                self._parsed_outputs.delete(user.user_id, asset_id, parsed_storage_key)
+            if manifest_key is not None:
+                if self._evidence_manifests is None:
+                    raise EvidenceProcessingError(
+                        "evidence_manifest_store_unavailable",
+                        "Evidence Manifest 存储不可用",
+                    )
+                self._evidence_manifests.delete(user.user_id, asset_id, manifest_key)
         except StorageOperationError as exception:
             raise self._translate_storage_error(exception) from exception
+        except (FileSafetyError, EvidenceProcessingError) as exception:
+            raise AssetOperationError(
+                "asset_delete_failed", "资产派生文件删除失败", 500
+            ) from exception
 
         async with self._session_factory() as session, session.begin():
             asset = await session.get(FileAsset, asset_id, with_for_update=True)

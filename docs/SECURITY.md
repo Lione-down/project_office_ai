@@ -37,7 +37,7 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 
 - 上传最多 20 个文件；单文件 50 MB、单任务 200 MB、图片 20 MB、PDF 200 页。
 - Excel 最多 30 Sheet/30 万非空单元格；加密、密码保护、损坏文件在积分预留前拒绝。
-- 解析 worker 只连 internal network，不挂载 Provider credential；输入只读，输出限额。
+- 解析 worker 和 PaddleOCR 只连 internal network，不挂载 Provider credential；输入只读，解析/Manifest 输出使用独立限额 volume。
 - XLSM 只提取安全数据且不执行宏；拒绝 XLS；不跟随文档 URL或外部连接。
 - 文档文本始终是 untrusted data，不拼入 System Prompt，不改变工具权限。
 - 活动文件按不可变 `user_id/asset_id` 存储，不使用手机号或原始文件名作为路径。
@@ -46,14 +46,17 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - upload 专用 ASGI middleware 在读取 body 前先验证 Bearer Session 和 owner/idempotency replay policy，再要求唯一合法且与实际 bytes 一致的 `Content-Length`、拒绝 `Transfer-Encoding`。新请求先进入 1 MiB memory-threshold 的受控 preflight spool，完整限额验证后才 replay 给 Starlette parser；低报/超限拒绝路径不会创建 parser spool，preflight spool 在 `finally` 关闭。未认证、completed replay 或 incomplete replay conflict 均零 body receive。
 - 相同用户的 `Idempotency-Key` 由数据库唯一约束兜底；`quarantined` 及后续已持久化状态在 middleware preflight spool 与 endpoint `request.form()` 前返回既有资产，`uploaded`/`deleting` 在相同位置稳定返回 `409 asset_upload_in_progress`。数据库 unique race fallback 使用相同分类，测试证明两条路径的 body receive、multipart parser/spool 与 service upload 均为零；signature/stream cleanup 成功删除 checkpoint 后 later retry 可重新成功。新请求只允许一个 `file` 与至多一个 `project_id`，拒绝额外文件/未知字段。preview/download 只返回 owner-scoped FileResponse 和安全 Header，不返回存储定位。
 - 默认项目通过 generated owner key 保证每个用户最多一个活动默认项目；上传在文件 I/O 前提交 owner-scoped `uploaded` checkpoint，最终状态事务再次锁定并重验项目。signature/project cleanup 成功后移除 checkpoint，cleanup 失败保留 `deleting`；最终 transaction failure/cancellation 保留 `uploaded` 定位已写文件，归档/删除不能与上传交错放行，也不产生无数据库记录的 orphan file。cleanup/reconciliation failure 只作为安全 exception note/marker 与脱敏 `asset_recovery_failed` 日志记录，不覆盖 signature、size、stream 或 cancellation 主因。
-- 资产物理删除错误不得忽略；只有具体资产目录清理成功或本就不存在时才进入 `deleted`。首次 checkpoint commit 发生在文件 I/O 前，失败时没有 quarantine 文件；finalization metadata commit 异常保留 `uploaded` checkpoint 与已写文件供恢复，不做破坏 durable tracking 的删除。signature/stream 等写入失败才清理本次 quarantine 目录与 checkpoint；partial write 的清理失败显式记录并保留 `deleting`，不能被二次 cleanup 覆盖或静默留下 orphan file。
+- 资产物理删除错误不得忽略；只有原始文件、结构化解析结果与 Evidence Manifest 三类具体资产输出均清理成功或本就不存在时才进入 `deleted`。`scanning/parsing` 期间拒绝删除并返回 `409 asset_processing_in_progress`，避免 worker 在删除完成后重新写出派生 orphan；处理完成或 stale lease 收口后可重试。清理中断保留 `deleting` 和 deterministic keys，重试时对已删除输出保持幂等。首次 checkpoint commit 发生在文件 I/O 前，失败时没有 quarantine 文件；finalization metadata commit 异常保留 `uploaded` checkpoint 与已写文件供恢复，不做破坏 durable tracking 的删除。signature/stream 等写入失败才清理本次 quarantine 目录与 checkpoint；partial write 的清理失败显式记录并保留 `deleting`，不能被二次 cleanup 覆盖或静默留下 orphan file。
 - T1-005 只做扩展名/MIME/minimal signature 初检；ClamAV、Zip Bomb、加密/损坏 Office、页数/Sheet/单元格与 20 文件/200 MB 组合门禁属于 T2-001，未扫描资产保持 `quarantined`，不得标记 `ready`。
 - T2-001 在 ClamAV 前重新计算 quarantine 文件 byte size 与 SHA-256，防止上传后到扫描前的磁盘替换；ClamAV 使用 `INSTREAM`，感染、协议错误、timeout 或连接失败全部 fail closed。Worker service 的 batch contract 在任何 claim/scan 前一次性校验最多 20 文件和 200 MB 总量。
 - Office 深度门禁只遍历 ZIP metadata/受限 XML，不展开到磁盘；拒绝路径穿越 member、加密 flag、OLE encrypted package、损坏 archive、伪装 OOXML content type、DTD/entity、member 数量/总解压量/压缩率、单 XML member 或 parser 总结构项超限。DOCX 只读取段落文本，XLSX/XLSM 只读取 cell data；公式、VBA、external relationship、embedded object 和文档 URL 均不执行或抓取。
-- PDF 使用 `pypdf` 严格读取并拒绝加密/密码保护与超过 200 页；Excel 拒绝超过 30 Sheet/30 万非空单元格。CSV/TXT/MD 只接受 UTF-8；PNG/JPEG/WEBP 必须通过 bounded streaming 结构检查、decoded-size gate 与 Pillow full decode 后才形成 `pending_ocr` 中间记录，OCR 留给 T2-002。
+- PDF 使用 `pypdf` 严格读取并拒绝加密/密码保护与超过 200 页，同时保留页码和 text-matrix 推导的 BBox；Excel 拒绝超过 30 Sheet/30 万非空单元格并保留原始 cell reference。CSV/TXT/MD 只接受 UTF-8；PNG/JPEG/WEBP 必须通过 bounded streaming 结构检查、decoded-size gate 与 Pillow full decode 后才形成 `pending_ocr` 中间记录。
 - Parser 只在可终止子进程中运行并受 wall-clock timeout 约束；worker 每轮 polling 先把超出 stale lease 的 `scanning/parsing` 资产稳定拒绝为 `processing_lease_expired`，避免 crash、OOM、SIGTERM 或暂时 DB outage 后永久滞留。
-- worker 以原子条件更新 claim 单个 `quarantined` 资产，持久化 `scanning -> parsing -> ready/rejected`；进入 `parsing` 时先提交 deterministic intended output key，再写结构化输出。parser 名称/版本、告警代码和脱敏错误写入 MySQL；若 output write 后 hard crash，stale reconciliation 仍保留精确 recovery key；若 DB finalization 与输出清理同时失败，rejected 记录保留该 key 和 `parsed_output_cleanup_failed` 告警，不留下不可追踪 orphan。
-- Asset API 只返回 parser 名称/版本、告警代码、稳定错误码与脱敏错误；不返回原始/解析 storage key、绝对路径或文档内容。
+- worker 以原子条件更新 claim 单个 `quarantined` 资产，持久化 `scanning -> parsing/evidence -> ready/rejected`；进入 `parsing` 时先提交 deterministic parsed key，Evidence 文件写前再提交 deterministic Manifest key 和 `building`。只有版本化 Pydantic/JSON Schema 校验、原子文件写入与最终 DB 条件更新全部成功才进入 `ready`；hard crash/stale reconciliation 保留精确 recovery keys 并把 Manifest 标为 `invalid`。
+- OCR client 只向 `http://paddleocr:8080/v1/ocr` 发送已完成安全解码的原始图片 bytes、MIME 和 SHA-256；timeout、network、429/502/503/504、响应大小/项数超限、非法 JSON/Schema、非有限 confidence/coordinates 全部 fail closed。暂时性不可用先清理本轮输出并按 30/60 秒 backoff 重试，最多 3 次；其他错误或重试耗尽稳定拒绝，不生成空白或猜测证据。
+- Evidence Manifest 只允许三类显式 provenance：本任务生成 `source_fact`，`calculated_fact` 必须带 calculation expression，`ai_inference` 必须带 model identity；T2-002 不生成后两类。每条 source fact 关联资产 UUID、`sha256:` 资产版本、parser/OCR engine 版本和 Excel cell、PDF page/BBox、Word paragraph、CSV cell、text line 或 image OCR BBox。单资产最多构建 10000 条 evidence，在 Pydantic object expansion 前执行，避免小值/高结构输入放大 worker memory。
+- 叙述 OCR confidence `<0.75` 只告警；数字 `<0.90` 或单位未知设置 calculation blocker。未知单位保持 `null`，不得默认零、币种或任意单位；来源冲突裁决和术语标准化仍属于 T2-003。
+- Asset API 只返回 parser/Manifest Schema/engine 版本、warning/blocker 数量、稳定错误码与脱敏错误；不返回原始/解析/Manifest storage key、Manifest SHA-256、绝对路径、OCR 原文、BBox 或证据内容。
 
 ## Provider 与 Prompt 安全
 

@@ -91,6 +91,11 @@ class AssetSummary:
     processing_warnings: list[str] = field(default_factory=list)
     processing_error_code: str | None = None
     processing_error_message: str | None = None
+    manifest_status: str | None = None
+    manifest_schema_version: str | None = None
+    evidence_engine_version: str | None = None
+    evidence_warning_count: int | None = None
+    evidence_blocker_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -173,6 +178,11 @@ def asset_summary(asset: FileAsset) -> AssetSummary:
         processing_warnings=list(asset.processing_warnings or []),
         processing_error_code=asset.processing_error_code,
         processing_error_message=asset.processing_error_message,
+        manifest_status=asset.manifest_status,
+        manifest_schema_version=asset.manifest_schema_version,
+        evidence_engine_version=asset.evidence_engine_version,
+        evidence_warning_count=asset.evidence_warning_count,
+        evidence_blocker_count=asset.evidence_blocker_count,
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )

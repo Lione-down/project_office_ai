@@ -65,6 +65,8 @@ services:
       OFFICE_AI_BOOTSTRAP_ADMIN_PHONE: ${OFFICE_AI_BOOTSTRAP_ADMIN_PHONE:-}
       OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD: ${OFFICE_AI_BOOTSTRAP_ADMIN_PASSWORD:-}
       OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_PARSED_ROOT: /app/parsed
+      OFFICE_AI_EVIDENCE_ROOT: /app/evidence
       OFFICE_AI_MAX_FILE_BYTES: ${OFFICE_AI_MAX_FILE_BYTES:-52428800}
       OFFICE_AI_MAX_IMAGE_BYTES: ${OFFICE_AI_MAX_IMAGE_BYTES:-20971520}
       OFFICE_AI_MAX_IMAGE_DECODED_BYTES: ${OFFICE_AI_MAX_IMAGE_DECODED_BYTES:-134217728}
@@ -75,6 +77,8 @@ services:
       - "${OFFICE_AI_BACKEND_PORT:-8000}:8000"
     volumes:
       - app-files:/app/files
+      - parsed-files:/app/parsed
+      - evidence-files:/app/evidence
     tmpfs:
       - /tmp
     networks:
@@ -130,6 +134,15 @@ services:
       OFFICE_AI_CLAMAV_HOST: clamav
       OFFICE_AI_CLAMAV_PORT: "3310"
       OFFICE_AI_CLAMAV_TIMEOUT_SECONDS: ${OFFICE_AI_CLAMAV_TIMEOUT_SECONDS:-30}
+      OFFICE_AI_PADDLEOCR_URL: http://paddleocr:8080
+      OFFICE_AI_OCR_TIMEOUT_SECONDS: ${OFFICE_AI_OCR_TIMEOUT_SECONDS:-60}
+      OFFICE_AI_MAX_OCR_RESPONSE_BYTES: ${OFFICE_AI_MAX_OCR_RESPONSE_BYTES:-10485760}
+      OFFICE_AI_MAX_OCR_ITEMS: ${OFFICE_AI_MAX_OCR_ITEMS:-5000}
+      OFFICE_AI_EVIDENCE_ROOT: /app/evidence
+      OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES: ${OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES:-10485760}
+      OFFICE_AI_MAX_EVIDENCE_ITEMS: ${OFFICE_AI_MAX_EVIDENCE_ITEMS:-10000}
+      OFFICE_AI_OCR_RETRY_LIMIT: ${OFFICE_AI_OCR_RETRY_LIMIT:-3}
+      OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS: ${OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS:-30}
     volumes:
       - type: volume
         source: app-files
@@ -138,6 +151,10 @@ services:
       - type: volume
         source: parsed-files
         target: /app/parsed
+        read_only: false
+      - type: volume
+        source: evidence-files
+        target: /app/evidence
         read_only: false
     tmpfs:
       - /tmp
@@ -149,6 +166,8 @@ services:
       redis:
         condition: service_healthy
       clamav:
+        condition: service_healthy
+      paddleocr:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
@@ -220,15 +239,30 @@ services:
 
   paddleocr:
     <<: *app-service
-    image: paddlepaddle/paddle:3.0.0
+    build:
+      context: ./backend
+      dockerfile: ocr-service/Dockerfile
+    image: office-ai-paddleocr:local
     user: "10001:10001"
-    command: ["python", "-c", "import time; time.sleep(10**9)"]
+    command: ["python", "-m", "app.services.ocr.server"]
     read_only: true
+    mem_limit: 2g
+    cpus: 2.0
+    pids_limit: 128
+    environment:
+      HOME: /opt/paddle-home
+      PADDLE_OCR_BASE_DIR: /opt/paddle-home/.paddleocr
+      PADDLE_PDX_CACHE_HOME: /opt/paddle-home/.paddlex
+      PADDLE_PDX_MODEL_SOURCE: BOS
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      OFFICE_AI_MAX_IMAGE_BYTES: ${OFFICE_AI_MAX_IMAGE_BYTES:-20971520}
+      OFFICE_AI_MAX_OCR_ITEMS: ${OFFICE_AI_MAX_OCR_ITEMS:-5000}
     tmpfs:
       - /tmp
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "python", "-c", "import paddle"]
+      start_period: 60s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
 
   libreoffice:
     <<: *app-service
@@ -258,6 +292,7 @@ networks:
 volumes:
   app-files:
   parsed-files:
+  evidence-files:
   shared-work:
   mysql-data:
   redis-data:

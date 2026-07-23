@@ -47,9 +47,10 @@ def test_asset_migration_upgrades_empty_database(monkeypatch, tmp_path) -> None:
 
 
 def test_asset_migration_is_the_single_head() -> None:
-    heads = ScriptDirectory.from_config(alembic_config()).get_heads()
+    scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert heads == ["20260723_0006"]
+    assert len(scripts.get_heads()) == 1
+    assert scripts.get_revision("20260722_0005").down_revision == "20260722_0004"
 
 
 def test_asset_migration_emits_mysql_chinese_comments(monkeypatch) -> None:

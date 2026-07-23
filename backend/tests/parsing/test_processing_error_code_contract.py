@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from app.workers.asset_processing import service as processing_service
+from app.workers.asset_processing import processing_contracts
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-SECTION_HEADING = "### T2-001 可持久化处理错误码"
+SECTION_HEADING = "### T2-001/T2-002 可持久化处理错误码"
 
 
 def test_api_processing_error_codes_match_persisted_worker_contract() -> None:
@@ -23,4 +23,4 @@ def test_api_processing_error_codes_match_persisted_worker_contract() -> None:
         and columns[1].strip().startswith("`")
     }
 
-    assert documented_codes == processing_service.PERSISTED_PROCESSING_ERROR_CODES
+    assert documented_codes == processing_contracts.PERSISTED_PROCESSING_ERROR_CODES

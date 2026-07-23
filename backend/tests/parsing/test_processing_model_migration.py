@@ -68,9 +68,9 @@ def test_processing_migration_upgrades_empty_database(monkeypatch, tmp_path) -> 
 def test_processing_migration_is_single_head_and_emits_mysql_comments(
     monkeypatch,
 ) -> None:
-    assert ScriptDirectory.from_config(alembic_config()).get_heads() == [
-        "20260723_0006"
-    ]
+    scripts = ScriptDirectory.from_config(alembic_config())
+    assert len(scripts.get_heads()) == 1
+    assert scripts.get_revision("20260723_0006").down_revision == "20260722_0005"
     monkeypatch.delenv("OFFICE_AI_DATABASE_URL", raising=False)
     get_settings.cache_clear()
     output = StringIO()
