@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.v1.assets import asset_router, project_router
+from app.api.v1.admin import router as admin_operations_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.briefs import brief_router, generation_router, skill_router
 from app.api.v1.health import router as health_router
@@ -16,6 +17,7 @@ def include_routers(app: FastAPI) -> None:
     app.include_router(auth_router)
     app.include_router(invite_codes_router)
     app.include_router(provider_admin_router)
+    app.include_router(admin_operations_router)
     app.include_router(model_router)
     app.include_router(project_router)
     app.include_router(asset_router)

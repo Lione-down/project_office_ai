@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.services.auth_registration import AuthOperationError
+from app.services.admin_contracts import AdminOperationError
 from app.services.asset_contracts import AssetOperationError
 from app.services.briefs.service import BriefOperationError
 from app.services.generation_contracts import GenerationOperationError
@@ -83,6 +84,14 @@ async def handle_auth_operation_error(
     )
 
 
+async def handle_admin_operation_error(
+    request: Request, exception: AdminOperationError
+) -> JSONResponse:
+    return _error_response(
+        request, exception.status_code, exception.error_code, exception.message
+    )
+
+
 async def handle_provider_operation_error(
     request: Request, exception: ProviderOperationError
 ) -> JSONResponse:
@@ -134,6 +143,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_exception_handler(AuthOperationError, handle_auth_operation_error)
+    app.add_exception_handler(AdminOperationError, handle_admin_operation_error)
     app.add_exception_handler(RateLimitExceeded, handle_auth_operation_error)
     app.add_exception_handler(ProviderOperationError, handle_provider_operation_error)
     app.add_exception_handler(AssetOperationError, handle_asset_operation_error)

@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：已完成 T1、T2、`T3-001`–`T3-005`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox、PPT/Excel Renderer、双输出 QA 与组合结算 contract 已实现，其余接口按后续任务实现
+- 状态：已完成 T1、T2、`T3-001`–`T3-005`、`T4-001`–`T4-002`；管理员最高权限、统一重新认证与 audit HTTP 闭环已实现
 
 ## 共同行为
 
@@ -220,7 +220,7 @@ checkpoint/ledger 唯一约束保证重复 quality 或 settlement event 不会�
 |---|---|---|
 | GET | `/admin/users` | 用户查询与状态查看 |
 | POST | `/admin/users/{user_id}/reset-password` | 重新认证、记录原因、强制用户改密 |
-| POST | `/admin/users/{user_id}/status` | 启停用户，写 audit log |
+| POST | `/admin/users/{user_id}/status` | 重新认证、记录原因后启停用户并撤销受影响 Session |
 | POST | `/admin/invite-codes` | 创建邀请码与赠送规则 |
 | GET | `/admin/invite-codes` | 查询邀请码状态和使用情况 |
 | POST | `/admin/providers` | 创建 Provider 配置 |
@@ -236,8 +236,9 @@ checkpoint/ledger 唯一约束保证重复 quality 或 settlement event 不会�
 | PATCH | `/admin/models/{model_id}` | 能力、可见性、倍率和状态 |
 | GET | `/admin/tasks` | 查看持久任务和异常状态 |
 | POST | `/admin/tasks/{task_id}/retry` | 对可安全重试任务执行受审计重试 |
-| GET | `/admin/assets/{asset_id}/preview` | 重新认证并记录原因后预览任意资产 |
-| GET | `/admin/assets/{asset_id}/download` | 重新认证并记录原因后下载任意资产 |
+| GET | `/admin/assets` | 查询全部用户资产的安全摘要，不返回 storage key 或路径 |
+| POST | `/admin/assets/{asset_id}/preview` | JSON body 重新认证并记录原因后预览任意资产 |
+| POST | `/admin/assets/{asset_id}/download` | JSON body 重新认证并记录原因后下载任意资产 |
 | DELETE | `/admin/assets/{asset_id}` | 重新认证并记录原因后删除任意资产 |
 | POST | `/admin/credits/adjustments` | 只追加管理员积分调整流水 |
 | GET | `/admin/audit-logs` | 只读查询 audit log，无编辑或删除接口 |
@@ -246,7 +247,15 @@ checkpoint/ledger 唯一约束保证重复 quality 或 settlement event 不会�
 
 `T1-004` 已实现 Provider/Credential/Model Registry。Agnes 配置在写入前验证 HTTPS、保守 `256K` Context 和正 timeout；Credential 创建响应只返回掩码并使用 `Cache-Control: no-store`。Reveal 要求管理员 Session、当前密码和 reason，成功/失败均审计，响应禁止缓存。Credential test 要求 reason、受 Redis 限速，`401/403` 会暂停 Credential，timeout 返回不确定状态而不自动重试。用户 `/models` 只返回 Provider、Credential、Model 都为 active 且 `user_visible=true` 的记录。
 
-`T1-005` 已实现用户 Projects/Assets HTTP contract。管理员全局资产读取当前只在 service-level 提供独立 admin role + reason + audit 边界并覆盖成功/失败审计；不暴露缺少近期重新认证的半成品 Admin HTTP 端点，完整 preview/download/delete re-auth 闭环仍由 `T4-002` 交付。
+`T1-005` 已实现用户 Projects/Assets HTTP contract，并为后续管理员全局资产读取保留独立
+admin role + reason + audit service 边界；该历史阶段没有暴露缺少重新认证的半成品端点。
+
+`T4-002` 已完成上述用户、资产、积分与 audit HTTP 闭环。敏感 JSON body 统一使用
+`current_password + reason`；原因缺失和重新认证失败进入 audit 后才返回稳定错误。
+preview/download 使用 `POST`，避免密码和原因进入 URL/query；响应为
+`private, no-store`。资产只接受 UUID，服务端从 `file_assets` 解析 owner 和既有
+deterministic key。积分调整要求 `Idempotency-Key`，重放返回同一 ledger，不重复改变余额。
+Audit 查询只读且返回脱敏 IP/User-Agent 摘要与白名单 context；没有编辑或删除端点。
 
 ## 后续 contract gate
 

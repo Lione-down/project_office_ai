@@ -92,6 +92,11 @@ root 和 MySQL checkpoint/ledger。当前任务已再次实际尝试任务卡 Do
 `soffice --version`，均在进程启动前 `CommandNotFoundException`；因此没有新增 Docker、
 真实 LibreOffice Calc、MySQL/Redis、Microsoft Office/WPS 或真实 Agnes runtime 证据。
 
+T4-002 不新增环境变量、网络服务或 Secret 文件。管理员重新认证复用既有
+`OFFICE_AI_SESSION_SECRET`/Argon2id 身份边界，资产操作复用既有受控 volumes；
+Credential Reveal 仍要求 `OFFICE_AI_MASTER_KEY`。本地浏览器验证只使用受控 Mock API，
+不代表 Docker、MySQL/Redis、Agnes、LibreOffice 或 Office/WPS runtime 通过。
+
 ### 本机兼容变量
 
 - Settings 同时接受现有本地 `.env` 的 `OFFICE_AI_DB_HOST`、`OFFICE_AI_DB_PORT`、`OFFICE_AI_DB_NAME`、`OFFICE_AI_DB_USER`、`OFFICE_AI_DB_PASSWORD`，分别对应上表的 canonical MySQL变量。

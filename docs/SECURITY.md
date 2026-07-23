@@ -16,6 +16,8 @@
 - 注册密码长度为 12–128；管理员 Bootstrap 不提供默认凭据，且只读取 runtime environment。
 - 用户只能访问自己的项目、资产、Brief、任务、输出和积分流水。
 - 管理员敏感操作要求近期重新认证与非空原因；失败尝试同样写 audit log。
+- T4-002 的敏感 HTTP body 使用当前管理员密码完成逐次 Argon2id re-auth；preview/download
+  使用 POST JSON，禁止把密码或原因放入 query。前端取消不发请求，提交期间禁用重复触发。
 - 登录、注册、邀请码、密码重置和 Credential 测试使用 Redis 限速，并保留 CAPTCHA gate。
 - 登录失败才消耗失败限速预算；注册与邀请码校验分别按脱敏 key 限速，Redis key 不包含明文手机号、IP 或邀请码。
 
@@ -134,6 +136,12 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 文件名和用户输入需限制长度、清理控制字符；错误详情使用分类与脱敏摘要。
 - 管理资产预览/下载/删除、Credential Reveal/测试、密码重置、用户状态、任务重试、积分调整全部审计。
 - Audit 至少包含 actor、action、target、reason、result、IP/User-Agent 摘要、trace ID 和 UTC 时间。
+- IP 只保留 IPv4 `/24` 或 IPv6 `/64`，User-Agent 只保留首行 bounded 摘要；audit context
+  只接受固定安全字段。空原因、错误密码、目标不存在、业务冲突和文件操作失败均记录
+  `failed`，但普通用户权限拒绝不伪造 admin actor。
+- 管理员资产 API 只接受资产 UUID，服务端解析 owner 与 deterministic key；不存在和已删除
+  资产统一返回安全错误，不返回绝对路径、storage key、签名 URL 或文件正文。活动文件
+  删除后 audit 明确记录 30 天备份残留策略，而不是把软删除冒充备份已经物理擦除。
 
 ## Web 与容器
 

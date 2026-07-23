@@ -15,6 +15,7 @@ from app.models.base import utc_now
 from app.services.auth_registration import RateLimiter
 from app.services.auth_security import PasswordService
 from app.services.auth_sessions import AuthSessionService, CurrentUser
+from app.services.audit import redact_audit_context, summarize_ip, summarize_user_agent
 from app.services.provider_contracts import (
     AuditContext,
     CreatedCredential,
@@ -448,11 +449,11 @@ class ProviderAdminService:
             action="credential.revealed",
             target_type="provider_credential",
             target_id=credential.id,
-            ip_address=audit.ip_address,
-            user_agent=audit.user_agent[:255] if audit.user_agent else None,
+            ip_address=summarize_ip(audit.ip_address),
+            user_agent=summarize_user_agent(audit.user_agent),
             reason=reason.strip()[:500],
             result=result,
-            context={"credential_name": credential.name},
+            context=redact_audit_context({"credential_name": credential.name}),
             trace_id=audit.trace_id,
         )
         async with self._session_factory() as session, session.begin():
@@ -487,11 +488,11 @@ class ProviderAdminService:
                     action="credential.tested",
                     target_type="provider_credential",
                     target_id=credential.id,
-                    ip_address=audit.ip_address,
-                    user_agent=(audit.user_agent[:255] if audit.user_agent else None),
+                    ip_address=summarize_ip(audit.ip_address),
+                    user_agent=summarize_user_agent(audit.user_agent),
                     reason=reason.strip()[:500],
                     result=result,
-                    context={"test_status": status},
+                    context=redact_audit_context({"test_status": status}),
                     trace_id=audit.trace_id,
                 )
             )

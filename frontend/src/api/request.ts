@@ -111,6 +111,21 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
     delete(path: string, options?: ApiRequestOptions): Promise<void> {
       return request<void>(path, { method: "DELETE" }, options);
     },
+    deleteJson(
+      path: string,
+      body: unknown,
+      options?: ApiRequestOptions,
+    ): Promise<void> {
+      return request<void>(
+        path,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        options,
+      );
+    },
     postForm<T>(
       path: string,
       body: FormData,
@@ -135,6 +150,31 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
       const response = await fetchImpl(
         `${normalizedBaseUrl}/${path.replace(/^\//, "")}`,
         { method: "GET", headers },
+      );
+      if (!response.ok) {
+        const payload = await readErrorEnvelope(response);
+        throw new ApiError(
+          payload.error?.error_code ?? "request_failed",
+          payload.error?.message ?? "请求失败",
+          payload.error?.trace_id ?? response.headers.get("X-Trace-ID"),
+          response.status,
+        );
+      }
+      return response.blob();
+    },
+    async postDownload(
+      path: string,
+      body: unknown,
+      options: ApiRequestOptions = {},
+    ): Promise<Blob> {
+      const headers = new Headers(options.headers);
+      headers.set("Content-Type", "application/json");
+      if (options.accessToken) {
+        headers.set("Authorization", `Bearer ${options.accessToken}`);
+      }
+      const response = await fetchImpl(
+        `${normalizedBaseUrl}/${path.replace(/^\//, "")}`,
+        { method: "POST", headers, body: JSON.stringify(body) },
       );
       if (!response.ok) {
         const payload = await readErrorEnvelope(response);

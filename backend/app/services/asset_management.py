@@ -19,6 +19,7 @@ from app.services.asset_contracts import (
     project_summary,
 )
 from app.services.asset_uploads import AssetUploadService
+from app.services.audit import redact_audit_context, summarize_ip, summarize_user_agent
 from app.services.auth_sessions import AuthSessionService, CurrentUser
 from app.services.evidence.contracts import EvidenceProcessingError
 from app.services.evidence.store import EvidenceManifestStore
@@ -180,6 +181,7 @@ class AssetManagementService:
         asset_id: UUID,
         reason: str,
         audit: AssetAuditContext,
+        action: str = "read",
     ) -> AssetContent:
         admin = await self._sessions.authenticate_access(access_token)
         if admin.role != "admin":
@@ -195,25 +197,85 @@ class AssetManagementService:
             )
         if asset is None:
             await self._write_admin_audit(
-                admin, asset_id, normalized_reason, "failed", audit, None
+                admin, asset_id, normalized_reason, "failed", audit, None, action
             )
             raise AssetOperationError("asset_not_found", "资产不存在", 404)
         try:
             content = self._asset_content(asset)
         except AssetOperationError:
             await self._write_admin_audit(
-                admin, asset_id, normalized_reason, "failed", audit, asset.user_id
+                admin,
+                asset_id,
+                normalized_reason,
+                "failed",
+                audit,
+                asset.user_id,
+                action,
             )
             raise
         await self._write_admin_audit(
-            admin, asset_id, normalized_reason, "success", audit, asset.user_id
+            admin, asset_id, normalized_reason, "success", audit, asset.user_id, action
         )
         return content
 
     async def delete_asset(self, access_token: str, asset_id: UUID) -> None:
         user = await self._sessions.authenticate_access(access_token)
+        await self._delete_asset_for_owner(user.user_id, asset_id)
+
+    async def admin_delete_asset(
+        self,
+        *,
+        access_token: str,
+        asset_id: UUID,
+        reason: str,
+        audit: AssetAuditContext,
+    ) -> None:
+        admin = await self._sessions.authenticate_access(access_token)
+        if admin.role != "admin":
+            raise AssetOperationError("admin_required", "需要管理员权限", 403)
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise AssetOperationError("reason_required", "敏感操作必须填写原因", 422)
+        async with self._session_factory() as session:
+            asset = await session.scalar(
+                select(FileAsset).where(
+                    FileAsset.id == asset_id, FileAsset.deleted_at.is_(None)
+                )
+            )
+        if asset is None:
+            await self._write_admin_audit(
+                admin, asset_id, normalized_reason, "failed", audit, None, "deleted"
+            )
+            raise AssetOperationError("asset_not_found", "资产不存在", 404)
+        try:
+            await self._delete_asset_for_owner(asset.user_id, asset.id)
+        except AssetOperationError:
+            await self._write_admin_audit(
+                admin,
+                asset_id,
+                normalized_reason,
+                "failed",
+                audit,
+                asset.user_id,
+                "deleted",
+            )
+            raise
+        await self._write_admin_audit(
+            admin,
+            asset_id,
+            normalized_reason,
+            "success",
+            audit,
+            asset.user_id,
+            "deleted",
+            {"processing_status": asset.processing_status, "backup_retention_days": 30},
+        )
+
+    async def _delete_asset_for_owner(
+        self, owner_user_id: UUID, asset_id: UUID
+    ) -> None:
         async with self._session_factory() as session, session.begin():
-            asset = await self._owned_asset(session, user.user_id, asset_id, True)
+            asset = await self._owned_asset(session, owner_user_id, asset_id, True)
             reference_id = await session.scalar(
                 select(FileAsset.id).where(
                     FileAsset.parent_asset_id == asset.id,
@@ -232,21 +294,21 @@ class AssetManagementService:
             manifest_key = asset.manifest_key
 
         try:
-            self._storage.delete_asset(user.user_id, asset_id, storage_key)
+            self._storage.delete_asset(owner_user_id, asset_id, storage_key)
             if parsed_storage_key is not None:
                 if self._parsed_outputs is None:
                     raise FileSafetyError(
                         "parsed_output_store_unavailable",
                         "解析结果存储不可用",
                     )
-                self._parsed_outputs.delete(user.user_id, asset_id, parsed_storage_key)
+                self._parsed_outputs.delete(owner_user_id, asset_id, parsed_storage_key)
             if manifest_key is not None:
                 if self._evidence_manifests is None:
                     raise EvidenceProcessingError(
                         "evidence_manifest_store_unavailable",
                         "Evidence Manifest 存储不可用",
                     )
-                self._evidence_manifests.delete(user.user_id, asset_id, manifest_key)
+                self._evidence_manifests.delete(owner_user_id, asset_id, manifest_key)
         except StorageOperationError as exception:
             raise self._translate_storage_error(exception) from exception
         except (FileSafetyError, EvidenceProcessingError) as exception:
@@ -256,7 +318,7 @@ class AssetManagementService:
 
         async with self._session_factory() as session, session.begin():
             asset = await session.get(FileAsset, asset_id, with_for_update=True)
-            if asset is not None and asset.user_id == user.user_id:
+            if asset is not None and asset.user_id == owner_user_id:
                 asset.processing_status = "deleted"
                 asset.deleted_at = utc_now()
 
@@ -361,17 +423,25 @@ class AssetManagementService:
         result: str,
         audit: AssetAuditContext,
         owner_user_id: UUID | None,
+        action: str,
+        extra_context: dict | None = None,
     ) -> None:
+        audit_action = "asset.admin_read" if action == "read" else f"asset.{action}"
         entry = AuditLog(
             actor_user_id=admin.user_id,
-            action="asset.admin_read",
+            action=audit_action,
             target_type="file_asset",
             target_id=asset_id,
-            ip_address=audit.ip_address,
-            user_agent=audit.user_agent[:255] if audit.user_agent else None,
+            ip_address=summarize_ip(audit.ip_address),
+            user_agent=summarize_user_agent(audit.user_agent),
             reason=reason,
             result=result,
-            context={"owner_user_id": str(owner_user_id) if owner_user_id else None},
+            context=redact_audit_context(
+                {
+                    "owner_user_id": str(owner_user_id) if owner_user_id else None,
+                    **(extra_context or {}),
+                }
+            ),
             trace_id=audit.trace_id,
         )
         async with self._session_factory() as session, session.begin():

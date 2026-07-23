@@ -370,6 +370,28 @@
 - 预防/验证：UI 计划早于 API 时，逐页标注 authoritative endpoint 和 dependency task；
   没有后端 contract 的操作只能是明确 disabled shell，不能 mock 成产品成功路径。
 
+### 2026-07-24 · T4-002 · 失败审计不能跟随失败事务一起回滚
+
+- 现象：在用户不存在或积分不足的事务中先插入 `audit_logs` 再抛异常，transaction context
+  会把业务修改和失败 audit 一起回滚；HTTP 仍返回失败，但调查链为空。
+- 影响：敏感失败尝试不可追溯，管理员最高权限边界只在成功路径成立。
+- 本任务处理：成功 audit 与用户/Session/ledger 在同一事务提交；业务失败先安全退出失败
+  事务，再用独立只追加事务写 `failed` audit，写入失败时 fail closed。资产文件失败沿用
+  exact-key 操作后的独立审计，并且 context 只保留白名单状态。
+- 预防/验证：任何“失败也审计”的 contract 必须测试异常返回后重新开 Session 查询记录，
+  不能只在抛异常前断言 `session.add()` 被调用。
+
+### 2026-07-24 · T4-002 · 重新认证原因不能进入 URL 或被 schema 提前吞掉
+
+- 现象：GET preview/download 无法安全携带当前密码和原因；若 Pydantic 在 service 前拒绝
+  空原因，service 也无法记录 `reason_required` 失败审计。
+- 影响：密码/原因可能进入 URL、代理日志或浏览历史，原因缺失尝试又绕过 audit。
+- 本任务处理：管理员 preview/download 改为 POST JSON；reason schema 只做长度上限，
+  非空与 trim 在已识别管理员 actor 的 service 内校验并记录失败。所有 audit IP/User-Agent
+  统一压缩为网络/首行摘要。
+- 预防/验证：敏感 re-auth 字段只放 body；需要审计的业务校验不能在建立 actor/trace 前被
+  transport schema 截断。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

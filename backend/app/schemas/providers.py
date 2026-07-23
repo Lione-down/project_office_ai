@@ -79,7 +79,7 @@ class CredentialUpdateRequest(StrictModel):
 
 
 class SensitiveOperationRequest(StrictModel):
-    reason: str = Field(min_length=1, max_length=500)
+    reason: str = Field(max_length=500)
 
 
 class CredentialRevealRequest(SensitiveOperationRequest):

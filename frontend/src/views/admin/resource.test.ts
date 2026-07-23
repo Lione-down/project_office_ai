@@ -11,6 +11,11 @@ const adminMocks = vi.hoisted(() => ({
   listProviders: vi.fn(),
   listCredentials: vi.fn(),
   listModels: vi.fn(),
+  listUsers: vi.fn(),
+  listAssets: vi.fn(),
+  listCredits: vi.fn(),
+  listAuditLogs: vi.fn(),
+  revealCredential: vi.fn(),
 }));
 
 vi.mock("@/modules/admin/api", () => ({
@@ -51,9 +56,17 @@ describe("Admin resource view", () => {
     adminMocks.listProviders.mockResolvedValue([]);
     adminMocks.listCredentials.mockResolvedValue([]);
     adminMocks.listModels.mockResolvedValue([]);
+    adminMocks.listUsers.mockResolvedValue([]);
+    adminMocks.listAssets.mockResolvedValue([]);
+    adminMocks.listCredits.mockResolvedValue([]);
+    adminMocks.listAuditLogs.mockResolvedValue([]);
+    adminMocks.revealCredential.mockResolvedValue({
+      credential_id: "credential-id",
+      api_key: "one-time-secret",
+    });
   });
 
-  it("keeps Credential values masked and Reveal unavailable in T4-001", async () => {
+  it("keeps Credential masked until the unified sensitive dialog succeeds", async () => {
     adminMocks.listCredentials.mockResolvedValue([
       {
         credential_id: "credential-id",
@@ -71,17 +84,57 @@ describe("Admin resource view", () => {
     const wrapper = await mountResource("credentials");
 
     expect(wrapper.text()).toContain("sk-••••9K2A");
-    expect(wrapper.text()).toContain("Reveal 与重新认证闭环将在 T4-002 接入");
-    expect(wrapper.find("[data-testid='credential-reveal']").exists()).toBe(false);
+    await wrapper.get("[data-testid='credential-reveal']").trigger("click");
+    expect(wrapper.get("[role='dialog']").text()).toContain("重新认证");
+    expect(wrapper.get("[role='dialog']").text()).toContain("操作原因");
+    expect(wrapper.text()).not.toContain("one-time-secret");
+    await wrapper.get("input[autocomplete='current-password']").setValue("admin-password");
+    await wrapper.get("textarea").setValue("凭据轮换核查");
+    await wrapper.get("[data-testid='sensitive-confirm']").trigger("click");
+    await flushPromises();
+    expect(adminMocks.revealCredential).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("one-time-secret");
+    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
   });
 
-  it("shows a truthful disabled boundary for admin APIs reserved for T4-002", async () => {
+  it("loads the five audited admin pages from real API methods", async () => {
+    adminMocks.listUsers.mockResolvedValue([
+      {
+        user_id: "user-id",
+        masked_phone: "+86 138****8001",
+        status: "active",
+        credit_balance: 100,
+        must_change_password: false,
+      },
+    ]);
     const wrapper = await mountResource("users");
 
-    expect(wrapper.text()).toContain("用户管理");
-    expect(wrapper.text()).toContain("当前页面仅提供功能壳");
-    expect(wrapper.text()).toContain("T4-002");
-    expect(wrapper.findAll("tbody tr")).toHaveLength(0);
+    expect(adminMocks.listUsers).toHaveBeenCalledWith("access");
+    expect(wrapper.text()).toContain("+86 138****8001");
+    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
+    expect(wrapper.get("[data-testid='user-status-action']").text()).toContain("停用");
+  });
+
+  it("cancels without sending a sensitive request and disables duplicate submit", async () => {
+    adminMocks.listCredentials.mockResolvedValue([
+      {
+        credential_id: "credential-id",
+        provider_id: "provider-id",
+        name: "agnes-prod",
+        masked_key: "sk-••••9K2A",
+        status: "active",
+        rpm_limit: 120,
+        tpm_limit: 240000,
+        max_concurrency: 8,
+        rotation_source: "initial",
+        last_test_status: "passed",
+      },
+    ]);
+    const wrapper = await mountResource("credentials");
+    await wrapper.get("[data-testid='credential-reveal']").trigger("click");
+    await wrapper.get("[data-testid='sensitive-cancel']").trigger("click");
+    expect(adminMocks.revealCredential).not.toHaveBeenCalled();
+    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
   });
 
   it("shows masked invite summaries without inventing the one-time code", async () => {

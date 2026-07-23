@@ -70,3 +70,46 @@ export interface AdminOverview {
   modelCount: number;
   inviteCount: number;
 }
+
+export interface AdminUserSummary {
+  user_id: string;
+  masked_phone: string;
+  role: string;
+  status: string;
+  credit_balance: number;
+  must_change_password: boolean;
+  created_at: string;
+}
+
+export interface AdminAssetSummary {
+  asset_id: string;
+  owner_user_id: string;
+  project_id: string;
+  original_filename: string;
+  file_category: string;
+  mime_type: string;
+  byte_size: number;
+  sha256: string;
+  processing_status: string;
+  created_at: string;
+}
+
+export interface AuditLogSummary {
+  audit_id: string;
+  actor_user_id: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  reason: string;
+  result: string;
+  context: Record<string, unknown>;
+  trace_id: string;
+  created_at: string;
+}
+
+export interface SensitivePayload {
+  current_password: string;
+  reason: string;
+}

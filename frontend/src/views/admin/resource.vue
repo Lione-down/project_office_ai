@@ -2,92 +2,46 @@
 import { computed, onMounted, ref, watch } from "vue";
 
 import { ApiError } from "@/api/request";
+import SensitiveOperationDialog from "@/components/common/sensitive-operation-dialog.vue";
 import { adminApi } from "@/modules/admin/api";
+import {
+  adminConfigurations,
+  mapAdminRows,
+  type AdminDisplayRow,
+} from "@/modules/admin/presentation";
 import type { AdminSection } from "@/modules/admin/types";
 import { useSessionStore } from "@/store/session";
 
 const props = defineProps<{ section: AdminSection }>();
 const session = useSessionStore();
-const rows = ref<Array<Record<string, unknown>>>([]);
+interface PendingAction {
+  kind:
+    | "credential-reveal"
+    | "user-status"
+    | "user-password"
+    | "asset-preview"
+    | "asset-download"
+    | "asset-delete"
+    | "credit-adjust";
+  id: string;
+  title: string;
+  target: string;
+  consequence: string;
+  danger?: boolean;
+  status?: string;
+}
+
+const rows = ref<AdminDisplayRow[]>([]);
+const rawItems = ref<Array<Record<string, unknown>>>([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
+const successMessage = ref("");
+const pendingAction = ref<PendingAction | null>(null);
+const isSubmitting = ref(false);
+const actionError = ref("");
+const revealedValue = ref("");
 
-const configurations = {
-  users: {
-    title: "用户管理",
-    description: "查询用户、状态与强制改密标记",
-    group: "用户与邀请码",
-    columns: ["用户", "状态", "积分余额", "项目/资产", "最近登录"],
-    reserved: true,
-  },
-  invites: {
-    title: "邀请码管理",
-    description: "查看创建范围、使用情况和注册赠送积分",
-    group: "用户与邀请码",
-    columns: ["邀请码前缀", "状态", "已用/上限", "注册赠送积分", "有效期"],
-    reserved: false,
-  },
-  providers: {
-    title: "Provider 管理",
-    description: "配置模型服务边界与连接状态",
-    group: "服务配置",
-    columns: ["Provider", "Adapter", "Base URL", "状态", "默认超时"],
-    reserved: false,
-  },
-  credentials: {
-    title: "Credential 管理",
-    description: "每条记录只保存一个加密 API Key",
-    group: "服务配置",
-    columns: ["名称", "API Key", "状态", "RPM/TPM", "最大并发", "最近测试"],
-    reserved: false,
-  },
-  models: {
-    title: "Model 管理",
-    description: "发布用户可选模型并绑定能力与积分倍率",
-    group: "服务配置",
-    columns: ["显示名称", "模型代码", "Context", "用户可见", "积分倍率", "状态"],
-    reserved: false,
-  },
-  tasks: {
-    title: "任务管理",
-    description: "查看持久任务、子输出与异常状态",
-    group: "任务与资产",
-    columns: ["任务", "用户", "输出", "状态", "当前阶段", "积分"],
-    reserved: true,
-  },
-  assets: {
-    title: "资产管理",
-    description: "查看全部用户资产并执行受审计操作",
-    group: "任务与资产",
-    columns: ["文件", "用户", "项目", "类型/大小", "处理状态", "SHA-256"],
-    reserved: true,
-  },
-  credits: {
-    title: "积分管理",
-    description: "查询余额、预留、结算、释放和赠送流水",
-    group: "积分",
-    columns: ["时间", "用户", "类型", "关联对象", "变动", "变动后"],
-    reserved: true,
-  },
-  "audit-logs": {
-    title: "审计日志",
-    description: "查询敏感操作、结果与脱敏上下文",
-    group: "审计日志",
-    columns: ["时间", "操作者", "动作", "目标", "原因", "结果", "Trace ID"],
-    reserved: true,
-  },
-} satisfies Record<
-  AdminSection,
-  {
-    title: string;
-    description: string;
-    group: string;
-    columns: string[];
-    reserved: boolean;
-  }
->;
-
-const config = computed(() => configurations[props.section]);
+const config = computed(() => adminConfigurations[props.section]);
 const tabs = computed(() => {
   if (config.value.group === "用户与邀请码") {
     return [
@@ -116,58 +70,12 @@ function requireToken() {
   return session.accessToken;
 }
 
-function formatDate(value: unknown) {
-  if (typeof value !== "string") return "—";
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(
-    new Date(value),
-  );
-}
-
-function mapRows(section: AdminSection, items: Array<Record<string, unknown>>) {
-  if (section === "invites") {
-    return items.map((item) => ({
-      code: `${item.code_prefix}••••`,
-      status: item.status,
-      usage: `${item.used_count}/${item.max_uses}`,
-      credit: Number(item.registration_credit).toLocaleString("zh-CN"),
-      expires: formatDate(item.expires_at),
-    }));
-  }
-  if (section === "providers") {
-    return items.map((item) => ({
-      name: item.display_name,
-      adapter: item.protocol,
-      url: item.base_url,
-      status: item.status,
-      timeout: `${item.default_timeout_seconds} 秒`,
-    }));
-  }
-  if (section === "credentials") {
-    return items.map((item) => ({
-      name: item.name,
-      key: item.masked_key,
-      status: item.status,
-      limits: `${item.rpm_limit}/${item.tpm_limit}`,
-      concurrency: item.max_concurrency,
-      test: item.last_test_status ?? "未测试",
-    }));
-  }
-  if (section === "models") {
-    return items.map((item) => ({
-      name: item.display_name,
-      code: item.model_code,
-      context: Number(item.context_window).toLocaleString("zh-CN"),
-      visible: item.user_visible ? "是" : "否",
-      multiplier: `${item.credit_multiplier}×`,
-      status: item.status,
-    }));
-  }
-  return [];
-}
-
 async function load() {
   rows.value = [];
+  rawItems.value = [];
   errorMessage.value = "";
+  successMessage.value = "";
+  revealedValue.value = "";
   if (config.value.reserved) return;
   isLoading.value = true;
   try {
@@ -177,7 +85,13 @@ async function load() {
     if (props.section === "providers") items = await adminApi.listProviders(token);
     if (props.section === "credentials") items = await adminApi.listCredentials(token);
     if (props.section === "models") items = await adminApi.listModels(token);
-    rows.value = mapRows(props.section, items as Array<Record<string, unknown>>);
+    if (props.section === "users" || props.section === "credits") {
+      items = await adminApi.listUsers(token);
+    }
+    if (props.section === "assets") items = await adminApi.listAssets(token);
+    if (props.section === "audit-logs") items = await adminApi.listAuditLogs(token);
+    rawItems.value = items as Array<Record<string, unknown>>;
+    rows.value = mapAdminRows(props.section, rawItems.value);
   } catch (error) {
     errorMessage.value =
       error instanceof ApiError || error instanceof Error
@@ -185,6 +99,117 @@ async function load() {
         : "无法加载管理数据";
   } finally {
     isLoading.value = false;
+  }
+}
+
+function itemFor(row: AdminDisplayRow) {
+  return rawItems.value.find((item) =>
+    Object.values(item).some((value) => String(value) === row.id),
+  );
+}
+
+function openAction(kind: PendingAction["kind"], row: AdminDisplayRow) {
+  const item = itemFor(row);
+  const target = String(
+    item?.original_filename ?? item?.masked_phone ?? item?.name ?? row.id,
+  );
+  const definitions: Record<PendingAction["kind"], Omit<PendingAction, "kind" | "id" | "target">> = {
+    "credential-reveal": {
+      title: "Reveal Credential",
+      consequence: "明文仅在本次响应中短暂显示，页面关闭后不再保留。",
+    },
+    "user-status": {
+      title: item?.status === "active" ? "停用用户" : "启用用户",
+      consequence:
+        item?.status === "active"
+          ? "停用后该用户现有 Session 将立即撤销。"
+          : "启用后用户可以重新登录。",
+      danger: item?.status === "active",
+      status: item?.status === "active" ? "suspended" : "active",
+    },
+    "user-password": {
+      title: "重置用户密码",
+      consequence: "用户现有 Session 将撤销，下次登录必须修改临时密码。",
+      danger: true,
+    },
+    "asset-preview": {
+      title: "预览用户资产",
+      consequence: "本次跨用户读取将写入不可变审计记录。",
+    },
+    "asset-download": {
+      title: "下载用户资产",
+      consequence: "下载只通过鉴权响应，不暴露 storage key 或磁盘路径。",
+    },
+    "asset-delete": {
+      title: "删除用户资产",
+      consequence: "活动文件将立即清理；受控备份残留策略最长 30 天。",
+      danger: true,
+    },
+    "credit-adjust": {
+      title: "调整用户积分",
+      consequence: "调整会写入只追加积分流水，不能覆盖历史记录。",
+    },
+  };
+  pendingAction.value = { kind, id: row.id, target, ...definitions[kind] };
+  actionError.value = "";
+  revealedValue.value = "";
+}
+
+async function submitAction(payload: {
+  current_password: string;
+  reason: string;
+  new_password?: string;
+  amount?: number;
+}) {
+  if (!pendingAction.value || isSubmitting.value) return;
+  isSubmitting.value = true;
+  actionError.value = "";
+  const action = pendingAction.value;
+  try {
+    const token = requireToken();
+    const sensitive = {
+      current_password: payload.current_password,
+      reason: payload.reason,
+    };
+    if (action.kind === "credential-reveal") {
+      const response = await adminApi.revealCredential(action.id, sensitive, token);
+      revealedValue.value = response.api_key;
+      pendingAction.value = null;
+    }
+    if (action.kind === "user-status") {
+      await adminApi.changeUserStatus(action.id, action.status ?? "active", sensitive, token);
+    }
+    if (action.kind === "user-password") {
+      await adminApi.resetPassword(
+        action.id,
+        { ...sensitive, new_password: payload.new_password ?? "" },
+        token,
+      );
+    }
+    if (action.kind === "credit-adjust") {
+      await adminApi.adjustCredits(action.id, payload.amount ?? 0, sensitive, token);
+    }
+    if (action.kind === "asset-preview" || action.kind === "asset-download") {
+      const mode = action.kind === "asset-preview" ? "preview" : "download";
+      const blob = await adminApi.openAsset(action.id, mode, sensitive, token);
+      const url = URL.createObjectURL(blob);
+      window.open(url, mode === "preview" ? "_blank" : "_self", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    }
+    if (action.kind === "asset-delete") {
+      await adminApi.deleteAsset(action.id, sensitive, token);
+    }
+    successMessage.value = `${action.title}已完成。`;
+    if (action.kind !== "credential-reveal") {
+      pendingAction.value = null;
+      await load();
+      successMessage.value = `${action.title}已完成。`;
+    }
+  } catch (error) {
+    actionError.value =
+      error instanceof ApiError || error instanceof Error ? error.message : "敏感操作失败";
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
@@ -223,7 +248,15 @@ onMounted(load);
     </nav>
 
     <aside v-if="section === 'credentials'" class="boundary-note">
-      Credential 默认掩码。Reveal 与重新认证闭环将在 T4-002 接入。
+      Credential 默认掩码；Reveal 必须重新认证、填写原因并进入审计。
+    </aside>
+    <aside v-if="successMessage" class="boundary-note" role="status">
+      {{ successMessage }}
+      <a href="/admin/audit-logs">查看审计记录</a>
+    </aside>
+    <aside v-if="revealedValue" class="boundary-note" role="status">
+      <strong>仅显示一次：</strong>
+      <code>{{ revealedValue }}</code>
     </aside>
     <aside v-if="config.reserved" class="boundary-note boundary-note--reserved">
       <strong>当前页面仅提供功能壳</strong>
@@ -256,8 +289,41 @@ onMounted(load);
           </thead>
           <tbody>
             <tr v-for="(row, index) in rows" :key="index">
-              <td v-for="value in Object.values(row)" :key="String(value)">
+              <td v-for="value in row.values" :key="String(value)">
                 {{ value }}
+              </td>
+              <td v-if="section === 'credentials'">
+                <button
+                  class="table-action"
+                  type="button"
+                  data-testid="credential-reveal"
+                  @click="openAction('credential-reveal', row)"
+                >
+                  Reveal
+                </button>
+              </td>
+              <td v-if="section === 'users'" class="action-group">
+                <button
+                  class="table-action"
+                  type="button"
+                  data-testid="user-status-action"
+                  @click="openAction('user-status', row)"
+                >
+                  {{ itemFor(row)?.status === "active" ? "停用" : "启用" }}
+                </button>
+                <button class="table-action" type="button" @click="openAction('user-password', row)">
+                  重置密码
+                </button>
+              </td>
+              <td v-if="section === 'assets'" class="action-group">
+                <button class="table-action" type="button" @click="openAction('asset-preview', row)">预览</button>
+                <button class="table-action" type="button" @click="openAction('asset-download', row)">下载</button>
+                <button class="table-action table-action--danger" type="button" @click="openAction('asset-delete', row)">删除</button>
+              </td>
+              <td v-if="section === 'credits'">
+                <button class="table-action" type="button" @click="openAction('credit-adjust', row)">
+                  调整积分
+                </button>
               </td>
             </tr>
           </tbody>
@@ -267,164 +333,21 @@ onMounted(load);
         </p>
       </div>
     </div>
+
+    <SensitiveOperationDialog
+      v-if="pendingAction"
+      :title="pendingAction.title"
+      :target="pendingAction.target"
+      :consequence="pendingAction.consequence"
+      :danger="pendingAction.danger"
+      :submitting="isSubmitting"
+      :error="actionError"
+      :require-new-password="pendingAction.kind === 'user-password'"
+      :require-amount="pendingAction.kind === 'credit-adjust'"
+      @cancel="pendingAction = null"
+      @confirm="submitAction"
+    />
   </section>
 </template>
 
-<style scoped>
-.admin-resource {
-  display: grid;
-  gap: 18px;
-}
-
-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-header p {
-  margin: 0 0 6px;
-  color: var(--oa-accent);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-h1 {
-  margin: 0;
-  font-size: 30px;
-}
-
-header span {
-  display: block;
-  margin-top: 8px;
-  color: var(--oa-muted);
-}
-
-.resource-tabs {
-  display: flex;
-  min-height: 48px;
-  align-items: stretch;
-  gap: 30px;
-  border-bottom: 1px solid var(--oa-line);
-}
-
-.resource-tabs a {
-  position: relative;
-  display: grid;
-  place-items: center;
-  color: #475569;
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.resource-tabs a[aria-current="page"] {
-  color: #0759bd;
-}
-
-.resource-tabs a[aria-current="page"]::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 3px;
-  background: #0b6ed0;
-  content: "";
-}
-
-.boundary-note {
-  border: 1px solid #b8d6ed;
-  border-radius: 8px;
-  padding: 13px 16px;
-  color: #075985;
-  background: #f3f8fc;
-  line-height: 1.65;
-}
-
-.boundary-note--reserved {
-  display: grid;
-  color: #8a4b08;
-  background: #fff8ed;
-  border-color: #f2cf9a;
-  gap: 4px;
-}
-
-.toolbar {
-  display: flex;
-  gap: 12px;
-}
-
-.toolbar label {
-  width: min(100%, 340px);
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
-.table-panel {
-  min-height: 460px;
-  overflow: hidden;
-  border: 1px solid var(--oa-line);
-  border-radius: 12px;
-  background: #fff;
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-th,
-td {
-  min-width: 130px;
-  padding: 16px;
-  border-bottom: 1px solid var(--oa-line);
-  text-align: left;
-}
-
-th {
-  color: #475569;
-  background: #fbfcfc;
-  font-size: 13px;
-  font-weight: 750;
-}
-
-td {
-  font-variant-numeric: tabular-nums;
-}
-
-.empty-copy,
-.state-copy {
-  margin: 0;
-  padding: 42px 20px;
-  color: var(--oa-muted);
-  line-height: 1.7;
-  text-align: center;
-}
-
-.state-copy--error {
-  color: var(--oa-danger);
-}
-
-@media (max-width: 640px) {
-  header {
-    flex-direction: column;
-  }
-
-  .toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>
+<style scoped src="./resource.css"></style>

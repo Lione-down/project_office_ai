@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T4-001 用户流程与管理后台功能壳`
-- 下一任务：`T4-002 管理员最高权限与审计`
-- 当前状态：`T4-002 READY`
+- 最近完成：`T4-002 管理员最高权限与审计`
+- 下一任务：`T4-003 黄金数据回归`
+- 当前状态：`T4-003 BLOCKED`（未验证 10 组已授权且脱敏黄金材料外部前置）
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -40,7 +40,7 @@
 | T3-004 | DONE | T3-003 | `feat(excel): add deterministic sales analysis workbook renderer`；验证证据见下文 |
 | T3-005 | DONE | T3-004 | `feat(generation): complete combined ppt and excel workflow`；Week 3 Gate |
 | T4-001 | DONE | T3-005 | `feat(frontend): expose alpha user and admin workflows`；UI V1 与浏览器证据见下文 |
-| T4-002 | READY | T4-001 | 管理员最高权限与审计 |
+| T4-002 | DONE | T4-001 | `feat(admin): add audited global asset access`；权限、审计与浏览器证据见下文 |
 | T4-003 | BLOCKED | T4-002 | 黄金数据回归 |
 | T4-004 | BLOCKED | T4-003 | Office/WPS 与故障演练 |
 | T4-005 | BLOCKED | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
@@ -1009,3 +1009,68 @@
   `0 0` 后收口。
 - T4-002 是下一唯一 `READY` 任务；新 Codex 任务必须重新读取 live 项目文档与 Git/origin
   状态，不得依赖聊天摘要，也不得提前实现 T4-003。
+
+## T4-002 执行记录
+
+### 范围
+
+- 新增管理员用户查询、密码重置、状态变更、全局资产查询/preview/download/delete、
+  积分调整与只读 audit HTTP 闭环；普通用户稳定 `403 admin_required`。
+- 敏感操作逐次校验当前管理员密码与非空原因；Credential Reveal/Test、用户、积分和资产
+  成功/失败均只追加脱敏 audit。preview/download 使用 POST JSON，不让密码/原因进入 URL。
+- 管理员资产只接受 UUID，服务端从 `file_assets` 解析 owner 与 deterministic exact keys；
+  复用引用、处理中状态、质量和派生文件删除 gate。删除 audit 记录活动文件状态与最长
+  30 天备份残留策略，不伪造不受应用控制的备份已擦除。
+- 五个 UI V1 敏感页面接入真实 frontend API；统一对话框覆盖动作/目标/后果、当前密码、
+  原因、临时密码/积分金额、取消、提交防重复、结果反馈和 audit 跳转。
+
+### Changed files
+
+- Backend：admin/audit contracts、service、schema、API/router/application/error wiring，
+  资产管理员动作与 Credential audit 脱敏。
+- Frontend：统一敏感操作对话框、admin API/types/presentation、用户/Credential/资产/积分/
+  audit 页面与 request JSON delete/POST download。
+- Tests：`backend/tests/admin/`、`backend/tests/audit/` 与 Frontend admin contract。
+- Records：T4-002 task card、task index、`docs/{API,DATA_MODEL,SECURITY,ENVIRONMENT,
+  PROGRESS}.md`、`docs/ui-v1/IMPLEMENTATION.md` 与 `pitfalls.md`。
+- 保留且未暂存：用户未跟踪 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件
+  或未脱敏材料。
+
+### TDD、focused 与浏览器证据
+
+- RED：Backend 因缺少 `admin_operations`/`audit` 模块 collection 失败；Frontend 管理页
+  4 个 contract 中 3 个因真实列表、Reveal 与统一对话框缺失按预期失败。
+- GREEN focused：`tests/admin + tests/audit + tests/security + asset service` 最终
+  `34 passed`；Frontend 管理/API/request `3 files / 12 tests passed`；Production Build
+  `98 modules transformed`。
+- Headed Chrome 在真实 Production Build 上使用受控 Mock API 验证资产、Credential、
+  用户和 audit 页面；取消对话框敏感请求数为 0，Reveal 确认请求数为 1，默认值保持掩码。
+- `1440px` 资产页与 `375px` audit 页页面级 overflow 均为 0；宽表只在受控 scroller
+  内滚动；重新认证对话框与 UI V1 信息层级、暖瓷白/墨色/钢蓝及危险语义一致。
+  最终 browser console 为 `0 errors / 0 warnings`。
+
+### Broad、security、deep review 与 runtime
+
+- Backend full：`552 passed, 2 skipped in 49.09s`；两项 skip 仅为未显式 opt-in 的真实
+  Agnes Contract，T2-004 仍只有 Mock 通过。
+- Frontend：`22 files / 59 tests passed`，Production Build 通过；PPT Renderer：
+  `4 files / 20 tests passed` 且 build 通过。
+- Ruff check 通过，Ruff format check 为 `323 files already formatted`；`pip check`
+  通过；`pip-audit` 0 known vulnerabilities，仅跳过本地非 PyPI package；Frontend 与
+  PPT Renderer `npm audit` 均为 0 vulnerabilities；Alembic 保持
+  `20260723_0013 (head)`，本任务无 migration。
+- 当前主会话顺序 deep review 修复：失败 audit 随业务异常回滚、Credential 保存完整
+  IP/User-Agent、reason schema 在 actor/trace 前拦截失败、preview/download 敏感 GET
+  URL，以及 Python/Vue 主文件超过 500 行。修复后无剩余 blocking security/logic finding。
+- 任务卡 4 条 Docker 命令均实际尝试，PATH 无 `docker`，全部在容器启动前
+  `CommandNotFoundException`。没有 Docker、真实 MySQL/Redis/Agnes/LibreOffice、
+  Microsoft Office/WPS 新证据；受控 Mock/SQLite/offline 结果不冒充真实 runtime。
+
+### 完成与下一任务
+
+- T4-002 范围、RED/GREEN、实现、focused/broad/security、浏览器视觉与交互、主会话
+  deep review 和状态文档同步完成；单一 commit 推送并确认远端 `0 0` 后收口。
+- T4-003 依赖代码已满足，但任务卡要求的 10 组拥有使用权且已脱敏销售输入与明确期望
+  指标尚未在本会话验证，因此保持 `BLOCKED`，没有伪造为唯一 `READY`，也不读取本地
+  private golden data。外部前置确认后再创建新 Codex 任务并按启动顺序执行。

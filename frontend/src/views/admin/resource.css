@@ -1,0 +1,176 @@
+.admin-resource {
+  display: grid;
+  gap: 18px;
+}
+
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+header p {
+  margin: 0 0 6px;
+  color: var(--oa-accent);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+header span {
+  display: block;
+  margin-top: 8px;
+  color: var(--oa-muted);
+}
+
+.resource-tabs {
+  display: flex;
+  min-height: 48px;
+  align-items: stretch;
+  gap: 30px;
+  border-bottom: 1px solid var(--oa-line);
+}
+
+.resource-tabs a {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: #475569;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.resource-tabs a[aria-current="page"] {
+  color: #0759bd;
+}
+
+.resource-tabs a[aria-current="page"]::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: #0b6ed0;
+  content: "";
+}
+
+.boundary-note {
+  border: 1px solid #b8d6ed;
+  border-radius: 8px;
+  padding: 13px 16px;
+  color: #075985;
+  background: #f3f8fc;
+  line-height: 1.65;
+}
+
+.boundary-note--reserved {
+  display: grid;
+  color: #8a4b08;
+  background: #fff8ed;
+  border-color: #f2cf9a;
+  gap: 4px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+}
+
+.toolbar label {
+  width: min(100%, 340px);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.table-panel {
+  min-height: 460px;
+  overflow: hidden;
+  border: 1px solid var(--oa-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+th,
+td {
+  min-width: 130px;
+  padding: 16px;
+  border-bottom: 1px solid var(--oa-line);
+  text-align: left;
+}
+
+th {
+  color: #475569;
+  background: #fbfcfc;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+.action-group {
+  display: flex;
+  gap: 10px;
+}
+
+.table-action {
+  min-height: 40px;
+  border: 0;
+  padding: 0 6px;
+  color: var(--oa-accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.table-action--danger {
+  color: var(--oa-danger);
+}
+
+.empty-copy,
+.state-copy {
+  margin: 0;
+  padding: 42px 20px;
+  color: var(--oa-muted);
+  line-height: 1.7;
+  text-align: center;
+}
+
+.state-copy--error {
+  color: var(--oa-danger);
+}
+
+@media (max-width: 640px) {
+  header {
+    flex-direction: column;
+  }
+
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -94,6 +94,8 @@
 
 21. `audit_logs`
     - actor、action、target type/id、IP、User-Agent、原因、结果、脱敏 JSON context、Trace ID 和时间；只追加。
+    - T4-002 固化 IP `/24` 或 `/64` 摘要、单行 bounded User-Agent、context 白名单与
+      失败结果；不保存密码、Token、Key、storage key、签名 URL 或磁盘路径。
 
 ## 关键唯一约束
 
@@ -142,7 +144,11 @@
   estimated credits。`generation_tasks` 聚合两个 step，`credit_ledger` 仅追加幂等
   finalize/release；Redis 不承载唯一输出或结算状态。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
-- 管理员资产操作：权限判断、业务结果和 audit 写入必须具备可追溯的一致性边界。
+- 管理员用户/积分操作：重新认证后，状态、密码/Session、ledger 与成功 audit 在同一
+  数据库事务提交；目标不存在、余额不足等失败 audit 使用独立提交，不能随失败事务回滚。
+- 管理员资产操作：权限判断、业务结果和 audit 写入必须具备可追溯的一致性边界；只按
+  数据库 owner/asset exact keys 操作。删除成功 audit 记录活动文件清理状态与最长
+  `backup_retention_days=30` 策略，不伪造不受应用控制的备份删除。
 
 ## 状态字段
 

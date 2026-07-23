@@ -16,6 +16,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import TraceIdMiddleware, UploadBodyLimitMiddleware
 from app.core.redis import RedisManager
 from app.services.auth_registration import RegistrationService
+from app.services.admin_operations import AdminOperationsService
 from app.services.auth_invites import InviteAdminService
 from app.services.auth_security import (
     InviteCodeHasher,
@@ -67,6 +68,7 @@ def create_app(
     terminology_services: object | None = None,
     brief_services: BriefServices | None = None,
     generation_services: GenerationServices | None = None,
+    admin_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
@@ -161,6 +163,14 @@ def create_app(
             evidence_manifests=evidence_manifest_store,
         )
 
+    if admin_services is None and database is not None and auth_services is not None:
+        admin_services = AdminOperationsService(
+            database.session_factory,
+            auth_services.sessions,
+            PasswordService(),
+            asset_services,
+        )
+
     if (
         terminology_services is None
         and database is not None
@@ -242,6 +252,7 @@ def create_app(
     app.state.auth_services = auth_services
     app.state.provider_services = provider_services
     app.state.asset_services = asset_services
+    app.state.admin_services = admin_services
     app.state.terminology_services = terminology_services
     app.state.brief_services = brief_services
     app.state.generation_services = generation_services

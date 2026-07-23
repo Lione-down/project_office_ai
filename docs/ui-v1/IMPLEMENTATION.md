@@ -1,6 +1,6 @@
 # Office AI Alpha UI V1 实施映射
 
-- 状态：`T4-001 DONE`
+- 状态：`T4-001/T4-002 DONE`
 - 视觉权威：`docs/ui-v1/README.md` 与本目录 14 张 `APPROVED-V1` UI 图
 - 工程范围：Vue 3 + TypeScript；沿用现有 scoped CSS 与全局 token，不引入第二套设计系统
 
@@ -87,3 +87,13 @@ Spacing 只使用 `4 / 8 / 12 / 16 / 24 / 32 / 48 / 64px` 阶梯。Radius 使用
   最终 clean browser console 为 `0 errors / 0 warnings`。
 - 浏览器使用受控 Mock API 验证前端视觉、交互和 API contract，不代表真实
   MySQL/Redis/Agnes/LibreOffice 或 Office/WPS runtime 通过。
+
+## T4-002 敏感操作闭环（2026-07-24）
+
+- 用户、Credential、资产、积分和 audit 五个敏感页面已接入真实 frontend API module；
+  Credential 仍默认掩码，Reveal 成功后只在当前页面短暂显示。
+- 统一重新认证对话框展示动作、目标与后果，要求当前管理员密码和原因；密码重置增加临时
+  密码，积分调整增加正负金额。危险动作使用红色语义，提交中禁用重复触发，取消零请求。
+- Headed Chrome 在 Production Build 上验证资产、Credential、用户与 audit 页面：
+  Reveal 取消发出 0 次敏感请求，确认只发出 1 次；`1440px` 与 `375px` 页面级 overflow
+  均为 0，console 为 0 errors / 0 warnings。受控 Mock 只证明视觉、交互和 HTTP contract。
