@@ -62,7 +62,8 @@
 | `OFFICE_AI_MAX_EVIDENCE_ITEMS` | 单资产 Evidence item 上限，默认 10000，在对象构建前执行 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_OCR_RETRY_LIMIT` | 暂时性 OCR 失败最大总尝试次数，默认 3 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS` | OCR exponential backoff 基数，默认 30 秒 | 否 | T2-002 | Compose 普通变量 |
-| `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
+| `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice quality sidecar internal URL | 否 | T3-003 | Compose internal URL |
+| `OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS` | LibreOffice 打开、转 PDF timeout，默认 120 秒 | 否 | T3-003 | Compose 普通变量，范围 `(0, 600]` |
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_RENDERED_ROOT` | Backend 只读访问 Renderer work volume 的根目录，默认 `/app/rendered` | 否 | T3-002 | Compose path；不得映射为静态目录 |
 | `OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS` | PPT Renderer HTTP timeout，默认 120 秒 | 否 | T3-002 | Compose 普通变量 |
@@ -75,6 +76,8 @@
 T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
 
 T3-002 的 `ppt-renderer` 使用独立 pinned Node image，只在 private network 暴露 internal HTTP，root filesystem read-only，以 non-root 用户写入 `shared-work`。Backend 将同一 volume 只读挂载到 `OFFICE_AI_RENDERED_ROOT`，验证 contract/hash/size 后再复制到受控资产存储；Renderer 不接收 Secret、Provider credential、用户路径或 Host port。
+
+T3-003 将 LibreOffice 改为项目自有 internal sidecar：non-root、read-only rootfs、private network、无 Host port/Secret/Provider credential；只读挂载原始 asset volume，只写 `shared-work`，以 `--headless` 打开并转 PDF，再用 PDFium 生成逐页 PNG。Backend 复验 sidecar schema、固定 key、hash/size 与页数后复制到 asset `quality/` 目录。当前本机未安装 Docker/`soffice`，该描述是静态合同而非本机 runtime 通过证据。
 
 ### 本机兼容变量
 

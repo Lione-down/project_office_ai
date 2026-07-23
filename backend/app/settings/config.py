@@ -184,6 +184,16 @@ class Settings(BaseSettings):
         "http://ppt-renderer:3000",
         validation_alias="OFFICE_AI_PPT_RENDERER_URL",
     )
+    libreoffice_url: str = Field(
+        "http://libreoffice:8081",
+        validation_alias="OFFICE_AI_LIBREOFFICE_URL",
+    )
+    libreoffice_timeout_seconds: float = Field(
+        120,
+        validation_alias="OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS",
+        gt=0,
+        le=600,
+    )
     rendered_root: Path = Field(
         Path("/app/rendered"),
         validation_alias="OFFICE_AI_RENDERED_ROOT",

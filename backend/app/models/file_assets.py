@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UuidBinary, new_uuid7, utc_datetime_type, utc_now
@@ -115,6 +115,39 @@ class FileAsset(Base):
     )
     processing_error_message: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="脱敏处理错误"
+    )
+    quality_status: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="质量门禁状态"
+    )
+    quality_report_key: Mapped[str | None] = mapped_column(
+        String(768), nullable=True, comment="版本化质量报告存储键"
+    )
+    quality_report_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="质量报告SHA-256摘要"
+    )
+    quality_report_schema_version: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="质量报告Schema版本"
+    )
+    quality_engine_version: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="质量引擎版本"
+    )
+    quality_preview_keys: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True, default=list, comment="PDF与逐页预览存储键"
+    )
+    quality_validated_key: Mapped[str | None] = mapped_column(
+        String(768), nullable=True, comment="通过质量门禁的下载文件键"
+    )
+    quality_validated_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="通过质量门禁文件SHA-256摘要"
+    )
+    quality_validated_byte_size: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="通过质量门禁文件字节数"
+    )
+    quality_repair_attempt_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="确定性自动修复次数"
+    )
+    quality_checked_at: Mapped[datetime | None] = mapped_column(
+        utc_datetime_type(), nullable=True, comment="质量门禁完成时间（UTC）"
     )
     processing_started_at: Mapped[datetime | None] = mapped_column(
         utc_datetime_type(), nullable=True, comment="处理开始时间（UTC）"

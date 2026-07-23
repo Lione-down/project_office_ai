@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T3-002 PPT Renderer 与系统模板`
-- 下一任务：`T3-003 PPT QA`
-- 当前状态：`T3-003 READY`
+- 最近完成：`T3-003 PPT QA`
+- 下一任务：`T3-004 Excel Renderer 与系统模板`
+- 当前状态：`T3-004 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -36,8 +36,8 @@
 | T2-005 | DONE | T2-004 | `feat(preflight): add brief confirmation and conflict gates`；验证证据见下文 |
 | T3-001 | DONE | T2-005 | `feat(task): add durable generation orchestration`；验证证据见下文 |
 | T3-002 | DONE | T3-001 | `feat(ppt): add deterministic sales presentation renderer`；验证证据见下文 |
-| T3-003 | READY | T3-002 | PPT QA |
-| T3-004 | BLOCKED | T3-003 | Excel Renderer 与系统模板 |
+| T3-003 | DONE | T3-002 | `test(ppt): enforce presentation quality gates`；验证证据见下文 |
+| T3-004 | READY | T3-003 | Excel Renderer 与系统模板 |
 | T3-005 | BLOCKED | T3-004 | Excel QA 与组合任务；Week 3 Gate |
 | T4-001 | BLOCKED | T3-005 | 用户流程与管理后台功能壳 |
 | T4-002 | BLOCKED | T4-001 | 管理员最高权限与审计 |
@@ -717,3 +717,51 @@
 - 本机 PATH 与 Program Files 未发现 LibreOffice `soffice.exe`，固定样本未完成 Headless 打开/转换；结构合同与真实 PptxGenJS 输出不能替代 LibreOffice、Microsoft Office 或 WPS 接受。
 - 未读取 ignored `.env` 或本机 Secret；未运行真实 MySQL/Redis、真实 Agnes 或用户材料。真实 Agnes 仍因未 explicit opt-in 保持 2 skipped，T2-004 Mock 证据未被提升。
 - T3-002 的实现、TDD、focused/broad/security、主会话顺序 deep review 与状态同步已完成；以单一逻辑 commit 推送后收口。T3-003 是下一唯一 `READY` 任务，本会话未实现任何 PPT QA。
+
+## T3-003 执行记录
+
+### 范围
+
+- 新增严格 `presentation-quality-report.v1`，固定关联原始 asset/hash、Renderer/template/Plan、质量引擎、LibreOffice、PDF/逐页 PNG、validated output 与最多一次 repair；finding 不含正文、路径或 storage key。
+- 以 bounded ZIP/XML 检查损坏 OOXML、空白/缺页、对象越界、缺图、长标题、坏 chart workbook range 与 Evidence 引用；仅 geometry/autofit blocker 可确定性修复一次，原 PPTX 不覆盖。
+- 新增 internal LibreOffice sidecar：固定 asset identity/source variant、无交互打开/转 PDF、PDFium 逐页转 PNG、原子 completion manifest 与实际 artifact replay 校验。
+- 质量报告、preview、可选 repaired PPTX 使用同 asset 的固定 `quality/` key；DB checkpoint 和下载路径都复验实际 hash/size。`blocked` 返回 permanent failure，既有结算释放全部 reserve。
+- 未实现 T3-004 Excel Renderer，不读取或修改用户材料、Secret、`.env`、黄金数据、旧 UI 草稿或 design-system。
+
+### Changed files
+
+- Quality：`backend/app/services/quality/presentation/` 与 `backend/tests/quality/presentation/`。
+- Model/Migration：`file_assets` quality metadata、`20260723_0013_presentation_quality_metadata.py` 及历史 migration head contract。
+- Asset/API：validated PPTX download gate、safe quality summary 字段与 LocalStorage repaired key allowlist。
+- Runtime：LibreOffice sidecar Dockerfile、Compose private/non-root/read-only boundary、settings 和 `pypdfium2` dependency。
+- Records：T3-003/T3-004 task cards、task index、`docs/{PLAN,API,DATA_MODEL,ENVIRONMENT,SECURITY,PROGRESS}.md` 与 `pitfalls.md`。
+- 保留且未暂存：`.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 与 ignored `output/`。
+
+### TDD、focused 与主会话 deep review
+
+- RED 从缺失 quality package/strict schema 开始，依次建立损坏 OOXML、空白页、页缺失、越界、缺图、长标题、坏图表引用和 Evidence 引用 synthetic samples，再实现 contract、inspector、repair、sidecar、artifact store、service、migration、download 与 billing integration。
+- Focused `.venv/Scripts/python.exe -m pytest tests/quality/presentation -q`：`52 passed`；assets/generation/integration/storage-security/quality 合并：`138 passed`；migration focused：`17 passed`。
+- 主会话按 Schema/脱敏、OOXML bomb/path/XML 边界、repair 单次与原文件不可变、sidecar request/path/replay、artifact recovery/integrity、DB race/checkpoint、download/owner 与 billing 顺序 review。
+- Review 修复 4 项 hard stop：DB finalize race 构造无效 Plan、重放未复验 PDF/PNG、成功转换后同 request 无法 retry，以及 completion marker 未绑定完整输入 fingerprint；均先增加失败回归再转 GREEN。最终所有 owned Python source 不超过 500 行，无剩余 blocking security/logic finding。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend `.venv/Scripts/python.exe -m pytest tests -q --tb=no`：`477 passed, 2 skipped`；两项 skip 仅为未 opt-in 的真实 Agnes Contract。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 通过；`pip check` 通过。
+- PPT Renderer：`4 files / 20 tests passed`、build 通过、`npm audit --audit-level=high` 为 0 vulnerabilities。
+- Frontend：`6 files / 12 tests passed`、build 通过、`npm audit --audit-level=high` 为 0 vulnerabilities。
+- `alembic heads` 为唯一 `20260723_0013 (head)`；SQLite 空库 upgrade 通过；MySQL dialect offline upgrade 为 694 行并含 quality columns，`0013 -> 0012` downgrade 为 28 行并含 drop；未运行真实 MySQL。
+- `pip check` 通过；`pip-audit --local` 为 0 known vulnerabilities，仅跳过本地非 PyPI package；15 个 direct production dependency license metadata 无缺失。Compose 静态 quality/settings contract、Git sensitive/exact-path gate 通过。
+
+### Runtime 缺口与证据边界
+
+- 任务卡四条 Docker 命令已逐条实际尝试；当前 PATH 无 `docker`，全部在创建容器前 `CommandNotFoundException`，不标记 Compose、Backend、Renderer 或 LibreOffice container runtime 通过。
+- PATH 与 `C:\Program Files` 未发现 `soffice.exe`；没有真实执行 LibreOffice 打开/转 PDF。synthetic OOXML、sidecar contract 与 PDFium preview test 不冒充 LibreOffice、Microsoft Office 或 WPS 接受。
+- 未读取 ignored `.env` 或本机 Secret；未运行真实 MySQL `0013`、真实 Redis、真实 Agnes 或用户材料。真实 Agnes 仍保持 `2 skipped`，T2-004 Mock 证据未提升。
+
+### 安全与完成结论
+
+- 质量 sidecar 不接收路径、正文、Credential 或 Provider data；容器没有 Host port/external network/Secret，原始 asset volume 只读。报告 finding 与错误只返回稳定脱敏 code。
+- OOXML/XML/ZIP、HTTP body/response、PDF/PNG、页数和 geometry 均有上限；未知字段、path escape、hash/size/页数/版本漂移和 artifact tamper 全部 fail closed。
+- 原 PPTX 与历史质量报告不可变；修复最多一次。只有 `passed`/`passed_with_warnings` 且 validated artifact 完整性通过时可下载；blocked 任务失败并由既有 ledger 释放 reserve。
+- T3-003 的实现、TDD、focused/broad/security、主会话顺序 deep review 与状态同步已完成；以单一逻辑 commit 推送后收口。T3-004 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。

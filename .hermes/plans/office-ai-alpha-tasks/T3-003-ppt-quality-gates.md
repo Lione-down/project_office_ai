@@ -1,6 +1,6 @@
 # T3-003 PPT QA
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`T3-002`
 - 来源：总计划第 3、11、16 节与 Day 13
 - 建议 commit：`test(ppt): enforce presentation quality gates`
@@ -31,6 +31,27 @@
 - 所有阻断样本被正确拒绝，正常样本被正确放行。
 - 质量报告包含页码、规则、严重级别和可追踪证据，不泄露敏感内容。
 
+## 本次可执行成功标准
+
+- Owned implementation 限于 `backend/app/services/quality/presentation/`、对应
+  `backend/tests/quality/presentation/` synthetic fixtures、质量运行所需的
+  settings/dependency/Compose 边界，以及与当前 task/asset/download 状态衔接的最小改动。
+- `presentation-quality-report.v1` 严格拒绝未知字段，报告固定关联原始输出
+  asset/hash、Renderer/template/Plan 版本、质量引擎版本、LibreOffice 结果、预览摘要、
+  修复次数和脱敏 finding；finding 不保存原始正文、物理路径或 storage key。
+- synthetic fixtures 覆盖：损坏 OOXML、空白页、页缺失、对象越界、缺图、长标题、
+  坏图表引用和 Evidence 引用失败；正常样本必须放行。
+- LibreOffice sidecar 只接受内部、结构化且受控的 asset identity，在无交互模式打开并转
+  PDF；PDF 预览逐页转 PNG。未实际执行 LibreOffice/Office/WPS 时不得以 ZIP/XML
+  structure test 代替兼容性通过。
+- 只允许一次确定性修复；修复输出使用新的受控文件，不覆盖原 PPTX，随后重新执行全部
+  OOXML、LibreOffice、布局、内容和 Evidence 门禁。
+- `passed`/`passed_with_warnings` 才允许下载；`blocked` 返回稳定 permanent failure，
+  由既有任务结算释放预留且不扣费。质量报告、PDF/PNG 预览与原输出及 Renderer 版本可追踪。
+- focused 后运行 Backend broad、PPT Renderer、Frontend、migration/Compose 静态、
+  dependency/security 和 Git exact-path gate；Docker、真实 MySQL/Redis/Agnes、
+  LibreOffice、Microsoft Office/WPS 的未运行项按实际证据记录。
+
 ## 验证
 
 ```powershell
@@ -44,3 +65,13 @@ docker compose run --rm backend pytest backend/tests/integration -q
 
 - 不承诺任意字体环境像素级一致或完整视觉 AI 审核。
 - 回滚质量规则版本时保留历史报告；不得把旧 `blocked` 输出直接改为通过，必须重新验证。
+
+## 完成记录
+
+- 已按 TDD 建立 8 类 deterministic synthetic failure sample、严格
+  `presentation-quality-report.v1`、OOXML/layout/Evidence 检查、一次确定性修复、
+  LibreOffice/PDFium sidecar、不可变 report/preview/repaired artifact 与下载门禁。
+- Focused `52 passed`；Backend broad `477 passed, 2 skipped`；PPT Renderer
+  `20 passed`，Frontend `12 passed`，两端 build/audit 与 Python quality gate 通过。
+- 当前主机没有 Docker 与 `soffice`，未执行真实 LibreOffice、Microsoft Office/WPS、
+  真实 MySQL/Redis 或真实 Agnes；ZIP/XML 和 PDFium contract 未冒充这些 runtime 通过。

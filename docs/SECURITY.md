@@ -95,6 +95,13 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 同 request 的并发执行在 Renderer 内串行；sidecar replay 验证 Plan 和实际文件 hash/size，缺失或损坏的 derived output 可安全重建，不同 Plan 使用同一 request ID 时拒绝。
 - Renderer 容器 non-root、read-only rootfs、private network、无 Host port、无 Secret/Redis/Provider credential；Backend 只读挂载 renderer work volume。最终资产使用 owner-scoped fixed key 和 stable asset ID 原子写入，不覆盖完成输出，ready replay 必须复验磁盘 integrity。
 
+## PPT 质量门禁
+
+- `presentation-quality-report.v1` 为 strict schema；finding 只保存稳定 code、severity、rule version、repairable 与可选页码，不保存正文、文件名、storage key、绝对路径或用户材料。
+- OOXML 检查限制 ZIP entry 数量、单项/总解压大小、压缩比和 XML 大小，拒绝 path traversal、加密 entry、DTD/entity、坏 relationship、缺图、坏 chart range 与未知 Evidence 引用。
+- LibreOffice sidecar 只接受固定 asset identity/hash/size/source variant；源文件与输出均使用服务端派生 key。request replay 必须同时复验 manifest、PDF 与逐页 PNG 的实际 hash/size，不能只信 sidecar JSON。
+- 自动修复只允许一次且仅处理确定性 geometry/autofit 规则；repaired PPTX 使用新 key，原始输出永不覆盖。报告、preview 或 validated artifact 任一漂移均 fail closed，`blocked` 禁止下载并触发既有 release 结算。
+
 ## 日志与审计
 
 - 禁止记录密码、Key、Token、签名 URL、完整文件、完整 Prompt、明文手机号、完整 IP、Fingerprint 或 Trace 上下文中的 Secret。

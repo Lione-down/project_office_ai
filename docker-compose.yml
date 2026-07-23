@@ -75,6 +75,8 @@ services:
       OFFICE_AI_MASTER_KEY: ${OFFICE_AI_MASTER_KEY:-}
       OFFICE_AI_TASK_TIMEOUT_SECONDS: ${OFFICE_AI_TASK_TIMEOUT_SECONDS:-2700}
       OFFICE_AI_PPT_RENDERER_URL: http://ppt-renderer:3000
+      OFFICE_AI_LIBREOFFICE_URL: http://libreoffice:8081
+      OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS: ${OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS:-120}
       OFFICE_AI_RENDERED_ROOT: /app/rendered
       OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS: ${OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS:-120}
       OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES: ${OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES:-10485760}
@@ -99,6 +101,8 @@ services:
       redis:
         condition: service_healthy
       ppt-renderer:
+        condition: service_healthy
+      libreoffice:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
@@ -278,21 +282,31 @@ services:
 
   libreoffice:
     <<: *app-service
-    image: lscr.io/linuxserver/libreoffice:25.2.3
-    user: "1000:1000"
+    build:
+      context: ./backend
+      dockerfile: libreoffice-service/Dockerfile
+    image: office-ai-libreoffice:local
+    user: "10001:10001"
+    command: ["python", "-m", "app.services.quality.presentation.server"]
+    read_only: true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 128
     environment:
-      PUID: "1000"
-      PGID: "1000"
-      TZ: Asia/Shanghai
+      OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_QUALITY_WORK_ROOT: /app/work
+      OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS: ${OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS:-120}
     volumes:
+      - app-files:/app/files:ro
       - shared-work:/app/work
-      - libreoffice-config:/config
     tmpfs:
       - /tmp
+    networks:
+      - private
     healthcheck:
       <<: *healthcheck
       start_period: 30s
-      test: ["CMD-SHELL", "pgrep -f 'soffice|libreoffice' >/dev/null"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=3)"]
 
 networks:
   edge:
@@ -309,4 +323,3 @@ volumes:
   mysql-data:
   redis-data:
   clamav-data:
-  libreoffice-config:

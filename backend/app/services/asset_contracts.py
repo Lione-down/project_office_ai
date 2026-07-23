@@ -96,6 +96,10 @@ class AssetSummary:
     evidence_engine_version: str | None = None
     evidence_warning_count: int | None = None
     evidence_blocker_count: int | None = None
+    quality_status: str | None = None
+    quality_report_schema_version: str | None = None
+    quality_engine_version: str | None = None
+    quality_repair_attempt_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -183,6 +187,10 @@ def asset_summary(asset: FileAsset) -> AssetSummary:
         evidence_engine_version=asset.evidence_engine_version,
         evidence_warning_count=asset.evidence_warning_count,
         evidence_blocker_count=asset.evidence_blocker_count,
+        quality_status=asset.quality_status,
+        quality_report_schema_version=asset.quality_report_schema_version,
+        quality_engine_version=asset.quality_engine_version,
+        quality_repair_attempt_count=asset.quality_repair_attempt_count,
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )

@@ -265,6 +265,20 @@
 - 本任务处理：单进程内按 `work root + request ID` 串行执行；replay 同时核对 Plan、版本、页数、模板、文件 hash/size，缺失/损坏的 derived PPTX 重新生成并刷新 sidecar，不同 Plan 冲突 fail closed。
 - 预防/验证：所有文件型 external worker replay 都要覆盖并发同请求、sidecar 存在但文件缺失/损坏、不同输入复用 ID，以及最终持久化失败后的恢复。
 
+### 2026-07-23 · T3-003 · 质量报告重放必须复验全部 artifact
+
+- 现象：只复验 `report.json` 和 validated PPTX，会漏掉已缺失或被篡改的 PDF/PNG；数据库仍可能把不可用预览标成完成。
+- 影响：用户看到的预览与实际下载文件失去关联，历史质量证据不再可信。
+- 本任务处理：完成、恢复与重放均按报告逐项复验 PDF/PNG hash/size；report、preview 或 validated artifact 任一漂移都 fail closed。
+- 预防/验证：文件型质量 checkpoint 必须把“报告合同”和“实际 artifact 完整性”作为同一完成条件，并覆盖落库前恢复、落库后重放和篡改回归。
+
+### 2026-07-23 · T3-003 · 固定 request work dir 需要 durable completion marker
+
+- 现象：LibreOffice 已成功转换但调用方在落库前崩溃时，同 request 重试会遇到已存在目录；盲删重跑又会丢失已完成结果并引入并发覆盖。
+- 影响：可安全重放的确定性 QA 被误判为永久失败，或重复执行昂贵转换。
+- 本任务处理：sidecar 原子写入 strict `result.json`，重试先复验 user/asset/source variant/hash/size 的完整 request fingerprint、固定 key 以及 PDF/PNG 实际 hash/size；不一致时 fail closed。
+- 预防/验证：external file worker 的 completion marker 必须最后写、原子写且不可单独信任，manifest 与实际 artifact 始终双向校验。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

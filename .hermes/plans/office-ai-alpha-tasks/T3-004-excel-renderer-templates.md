@@ -1,6 +1,6 @@
 # T3-004 Excel Renderer 与系统模板
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T3-003`
 - 来源：总计划第 6、11 节与 Day 14
 - 建议 commit：`feat(excel): add deterministic sales analysis workbook renderer`

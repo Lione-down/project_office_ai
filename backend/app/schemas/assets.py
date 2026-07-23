@@ -52,5 +52,9 @@ class AssetResponse(StrictModel):
     evidence_engine_version: str | None
     evidence_warning_count: int | None
     evidence_blocker_count: int | None
+    quality_status: str | None = None
+    quality_report_schema_version: str | None = None
+    quality_engine_version: str | None = None
+    quality_repair_attempt_count: int | None = None
     created_at: datetime
     updated_at: datetime

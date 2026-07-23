@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterable
+from hashlib import sha256
 from uuid import UUID
 
 from sqlalchemy import select
@@ -298,14 +299,58 @@ class AssetManagementService:
         return asset
 
     def _asset_content(self, asset: FileAsset) -> AssetContent:
+        storage_key = asset.storage_key
+        is_generated_presentation = (
+            asset.generated_task_id is not None
+            and asset.file_category == "presentation"
+        )
+        if is_generated_presentation:
+            if asset.quality_status is None:
+                raise AssetOperationError(
+                    "asset_quality_pending", "演示文稿仍在质量检查中", 409
+                )
+            if asset.quality_status == "blocked":
+                raise AssetOperationError(
+                    "asset_quality_blocked", "演示文稿未通过质量门禁", 409
+                )
+            if (
+                asset.quality_status not in {"passed", "passed_with_warnings"}
+                or asset.quality_validated_key is None
+                or asset.quality_validated_sha256 is None
+                or asset.quality_validated_byte_size is None
+            ):
+                raise AssetOperationError(
+                    "asset_quality_state_invalid", "质量门禁状态无效", 409
+                )
+            storage_key = asset.quality_validated_key
         try:
-            path = self._storage.resolve_asset_key(
-                asset.user_id, asset.id, asset.storage_key
-            )
+            path = self._storage.resolve_asset_key(asset.user_id, asset.id, storage_key)
         except StorageOperationError as exception:
             raise self._translate_storage_error(exception) from exception
         if not path.is_file():
             raise AssetOperationError("asset_content_missing", "资产文件不存在", 404)
+        if is_generated_presentation:
+            digest = sha256()
+            byte_size = 0
+            with path.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    byte_size += len(chunk)
+                    if byte_size > asset.quality_validated_byte_size:
+                        raise AssetOperationError(
+                            "asset_quality_integrity_failed",
+                            "质量门禁文件完整性校验失败",
+                            409,
+                        )
+                    digest.update(chunk)
+            if (
+                byte_size != asset.quality_validated_byte_size
+                or digest.hexdigest() != asset.quality_validated_sha256
+            ):
+                raise AssetOperationError(
+                    "asset_quality_integrity_failed",
+                    "质量门禁文件完整性校验失败",
+                    409,
+                )
         return AssetContent(asset.id, path, asset.original_filename, asset.mime_type)
 
     async def _write_admin_audit(

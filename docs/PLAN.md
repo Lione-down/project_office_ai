@@ -88,7 +88,7 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - 个人术语库按 `library_id + version` 保存不可变 snapshot；`terminology-normalization.v1` 只执行显式数字、单位、币种和绝对日期规则，项目规则覆盖同用户全局规则，歧义、未知单位和来源冲突形成 unresolved item。
 - 标准化只生成保留 source fact raw/provenance 的派生 Evidence，不改写已落盘 Manifest；历史 Brief/任务固定引用术语库版本。
 - Agnes Structured Brief 必须通过 Pydantic/JSON Schema；只允许一次约束修复，仍失败则失败且不扣费。
-- `passed` 和 `passed_with_warnings` 可下载；`blocked` 自动修复一次，仍失败则禁止下载且不扣费。
+- PPT QA 使用版本化报告关联原输出、Renderer/template/Plan、LibreOffice PDF/逐页 PNG 与 validated artifact；`passed` 和 `passed_with_warnings` 可下载，`blocked` 最多自动修复一次，仍失败则禁止下载且不扣费。
 - 密码使用 Argon2id，Refresh Token 只保存 Hash，API Key 使用应用层加密，Master Key 只存在环境变量。
 - 日志不得包含密码、Key、签名 URL、完整文件、完整 Prompt 或未清理的用户输入。
 
