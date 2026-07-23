@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T2-002 OCR 与 Evidence Manifest`
-- 下一任务：`T2-003 术语库与证据标准化`
-- 当前状态：`T2-003 READY`
+- 最近完成：`T2-003 术语库与证据标准化`
+- 下一任务：`T2-004 Skills 与 Agnes Structured Brief`
+- 当前状态：`T2-004 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -31,8 +31,8 @@
 | T1-005 | DONE | T1-004 | `feat(asset): add isolated local asset management`；验证证据见下文 |
 | T2-001 | DONE | T1-005 | `feat(parser): add sandboxed office file ingestion`；验证证据见下文 |
 | T2-002 | DONE | T2-001 | `feat(evidence): add traceable ocr and evidence manifests`；验证证据见下文 |
-| T2-003 | READY | T2-002 | 术语库与证据标准化 |
-| T2-004 | BLOCKED | T2-003 | Skills 与 Agnes Structured Brief |
+| T2-003 | DONE | T2-002 | `feat(terms): add reusable terminology normalization`；验证证据见下文 |
+| T2-004 | READY | T2-003 | Skills 与 Agnes Structured Brief |
 | T2-005 | BLOCKED | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
 | T3-001 | BLOCKED | T2-005 | 任务、Outbox 与积分事务 |
 | T3-002 | BLOCKED | T3-001 | PPT Renderer 与系统模板 |
@@ -444,3 +444,61 @@
 
 - T2-002 严格范围内的实现、TDD、深度 security/architecture/adversarial review remediation、focused/broad/quality/migration/dependency 与文档同步已完成；Docker 与真实 MySQL runtime 缺口已如实记录。
 - T2-002 以单一逻辑 commit 推送后收口为 `DONE`；T2-003 是下一唯一 `READY` 任务，新会话必须重新按“新会话必读”顺序读取 live Git 与文档，不得依赖聊天摘要。
+
+## T2-003 执行记录
+
+### 范围
+
+- 建立 owner-scoped 个人术语库与项目覆盖；`library_id`、`item_id` 跨版本稳定，每次库/条目 mutation 写入新的不可变库 version 和完整条目 snapshot。
+- `/api/v1/term-libraries` 与 items 子资源提供 create/list/get/update/delete；默认只返回当前用户最新 active snapshot，显式 `version` 可读取历史版本，删除只追加 tombstone。
+- `terminology-normalization.v1` 确定性处理数字、百分比、CNY/USD、万/亿倍率、销售数量单位与绝对日期；缺少年份、未知单位、显式 unit/currency 冲突或同优先级别名歧义返回 unresolved。
+- 项目规则只覆盖同一用户同一项目的全局匹配；同一事实多来源标准化值不一致生成 `source_conflict` 并要求权威 evidence ID，不按顺序或数值静默裁决。
+- `NormalizedEvidenceItem` 保留 source fact 的 asset/version/location/raw/parser/OCR provenance，只附加 canonical term、normalized value、规则版本和术语库 snapshot 引用；不改写 `evidence-manifest.v1`。
+- 未实现 T2-004 Skill、Agnes、Structured Brief、Brief persistence 或 Preflight。
+
+### Changed files
+
+- Model/Migration：`backend/app/models/term_libraries.py`、`term_items.py`、model exports 与 `20260723_0008_terminology_snapshots.py`。
+- Service/Contracts：`backend/app/services/terminology/` 的 immutable snapshot service、contracts、normalizer、validation 与稳定 operation error。
+- API/Wiring：`backend/app/api/v1/term_libraries.py`、`backend/app/schemas/terminology.py`、router/application/error handler wiring。
+- Tests：`backend/tests/terminology/` 的 normalization、Evidence、service、API、migration/权限覆盖；历史 Evidence migration test 改为验证 `0007 -> 0008` 连续链，不再错误固定旧 Head。
+- Records：T2-003/T2-004 task cards、task index、`docs/PLAN.md`、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧版 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏黄金材料。
+
+### TDD 与 focused verification
+
+- RED 1：纯规则测试因 `app.services.terminology` 不存在而 collection fail；最小实现后发现整数 `2500` 被错误去掉尾零，修复 Decimal canonical formatting 后转 GREEN。
+- RED 2：service/migration 测试因 `term_items`/`term_libraries` 不存在而 collection fail；实现 owner scope、project ownership、不可变 snapshot 与 `0008` 后转 GREEN。
+- RED 3：API 测试因 `create_app` 缺少 terminology wiring 而 `TypeError`；补 schema/router/error/application 后转 GREEN。
+- RED 4：派生 Evidence 测试因 `normalize_evidence_item` 不存在而 collection fail；实现保留 provenance 的派生 contract、unit hint 与显式冲突阻断后转 GREEN。
+- 自审新增“`1.2万` + CNY 术语 unit”回归，先观察 `1.2 != 12000` 的预期失败，再把万/亿拆为已知倍率与待解析基础单位后转 GREEN。
+- 主会话 staged review 新增 4 个定向 RED：同 canonical term 但 unit/口径不一致的最高优先级候选不得择一；术语 unit 成功补齐后必须移除 `numeric_unit_unknown`，但保留独立 `ocr_numeric_low_confidence` blocker。最小修复后均转 GREEN。
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests/terminology -q`：`29 passed`。
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests/evidence -q`：`11 passed`；合并 focused 为 `40 passed`。
+
+### Broad、quality、migration 与 dependency gate
+
+- `backend/.venv/Scripts/python.exe -m pytest backend/tests -q`：`294 passed`。
+- `ruff check backend/app backend/tests backend/alembic` 与 `ruff format --check backend/app backend/tests backend/alembic` 均通过；174 个 Python 文件全部不超过 500 行。
+- `20260723_0008` 为唯一 Head；terminology migration 定向测试覆盖 SQLite 空库完整 upgrade、两张表与关键 snapshot 唯一约束。主会话逐项比对两表 model/migration 的 column、foreign key、unique constraint 与 index name 全部一致。MySQL dialect offline `upgrade head --sql` 退出码 `0`，生成两张表、命名外键/唯一约束及中文 COMMENT；PowerShell 显示片段发生 console transcoding，不是 migration 源文件编码丢失。
+- `pip check` 通过；Backend `pip-audit --local` 为 `0 known vulnerabilities`，仅按预期跳过本地非 PyPI package；14 个 direct production dependency license metadata 无缺失。
+- `git diff --check`、unstaged/staged added-line Secret/危险调用、binary 与禁止路径检查均纳入本任务 gate；最终 staged 结论见提交前记录。
+- 当前主会话按 migration/model、API/Service、Normalizer/Evidence、tests、security/scope 与状态文档顺序复核最终 cached diff；两项 blocker 完成 TDD remediation 后，最终 verdict 为 `security_concerns=0`、`logic_errors=0`，无剩余 blocking finding。
+
+### Runtime 缺口与证据边界
+
+- 当前 PATH 无 `docker`，任务卡 3 条 `docker compose run` 命令未进入容器，不标记 Compose/backend container runtime 通过。
+- 未读取 ignored `.env`、未使用本机 Secret，因此未运行真实 MySQL `0008` upgrade。Direct Windows focused/broad、SQLite 空库 migration 与 MySQL offline DDL 不冒充真实 MySQL row lock/constraint runtime。
+- 单进程临时 SQLite `upgrade head` 成功；紧接运行的 `alembic check` 因仓库既有 SQLite `BINARY(16)` introspection 被识别为 `NUMERIC(16)`，对全部历史及新增 UUID 列统一报告 type drift，因此不标记通过。定向 migration tests 与 MySQL offline DDL 证明 T2-003 表/约束契约，但不等同于真实 MySQL `alembic check`。
+
+### 安全与决策
+
+- 所有 library/version/item/project 读取先绑定 authenticated `user_id`；跨用户与不存在资源使用一致 not-found，不通过 version query 泄露 snapshot。
+- mutation 对最新 active 版本使用 locking read，并在同一事务写下一版本与完整 items；历史版本不更新，删除只追加 tombstone。
+- 标准化不调用模型、不访问公网、不猜缺失年份或单位；显式来源单位优先于术语 hint，冲突保留 raw 并阻断。
+- 来源冲突只输出 evidence ID/标准化候选并要求用户权威选择；派生 Evidence 保留 source provenance 且继续标记 `source_fact`。
+
+### 完成结论
+
+- T2-003 严格范围内的实现、四轮 TDD、focused/broad/quality/migration/dependency/security 与文档同步已完成；Docker、真实 MySQL 和 SQLite type-introspection 导致的 `alembic check` 非通过结论已如实记录。
+- T2-003 以单一逻辑 commit 推送后收口为 `DONE`；T2-004 是下一唯一 `READY` 任务，本会话未实现任何 Skill、Agnes 或 Structured Brief 代码。

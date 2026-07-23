@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T1-005` migration `20260722_0005` 已 additive 建立 `projects`、`file_assets` 及中文注释，当前共实现 10/21 张表
+- 状态：逻辑契约；`T2-003` migration `20260723_0008` 已 additive 建立 `term_libraries`、`term_items` 及中文注释，当前共实现 12/21 张表
 
 ## 全局约定
 
@@ -39,10 +39,12 @@
    - 字段兼容未来用户模板，但 Alpha 只发布系统模板。
 
 7. `term_libraries`
-   - 用户、名称、说明、状态、版本。
+   - 每个不可变 version 一行：版本行 ID、跨版本稳定 `library_id`、用户、可选项目、前一版本、名称、说明、状态、版本和创建时间。
+   - `(library_id, version)` 唯一；mutation 锁定当前版本后创建下一版本，删除创建 `deleted` tombstone，不覆盖历史版本。
 
 8. `term_items`
-   - 术语库、标准术语、别名、单位、定义、口径说明、优先级。
+   - 每个库 version 保存完整条目 snapshot：版本行 ID、跨版本稳定 `item_id`、术语库版本行、标准术语、JSON 别名、canonical unit、定义、口径说明、优先级和创建时间。
+   - `(term_library_version_id, item_id)` 与 `(term_library_version_id, canonical_term)` 唯一；条目更新/删除通过下一库版本表达。
 
 9. `briefs`
    - `brief_group_id`、revision、来源快照、内容 JSON、状态、确认时间；每个 revision 不可变。
@@ -97,6 +99,9 @@
 | `credit_ledger` | `(user_id, idempotency_key, entry_type)` | 防止重复预留/结算/释放 |
 | `file_assets` | `(storage_provider, storage_key)` | 存储定位唯一 |
 | `file_assets` | `(user_id, idempotency_key)` | 同一用户上传重放只创建一个资产 |
+| `term_libraries` | `(library_id, version)` | 稳定库 ID 下每个不可变版本唯一 |
+| `term_items` | `(term_library_version_id, item_id)` | 每个库 snapshot 内条目稳定 ID 唯一 |
+| `term_items` | `(term_library_version_id, canonical_term)` | 单一 snapshot 内标准术语不重复 |
 | `ai_models` | `(provider_id, model_code, credential_id)` | 模型与独立 Credential 绑定唯一 |
 | `provider_credentials` | `(provider_id, key_fingerprint)` | 防止同 Provider 重复 Key |
 
@@ -105,6 +110,7 @@
 - 注册事务：校验并锁定 `invite_codes`，创建 `users`，写入 `credit_ledger`，同步余额缓存。
 - T1-005 上传边界：先提交带不可变 quarantine key、`uploaded` 状态和幂等键的 `file_assets` checkpoint，再流式写文件；signature/project cleanup 成功时删除 checkpoint，cleanup 失败保留 `deleting`，最终 metadata commit 异常或 cancellation 时保留 `uploaded` 与文件定位，避免无数据库记录的 orphan file。写库幂等冲突发生在文件 I/O 前。`outbox_events` 尚未建立，T3-001 接入 Outbox 后再把后续处理投递纳入数据库事务边界。
 - T2-002 证据边界：解析结果落盘后先在同一资产行提交 deterministic Manifest key 和 `building`，再生成/校验/原子写入 Manifest；最终条件更新一次性写入 `ready` 和摘要 metadata。暂时性 OCR 失败先精确清理本轮解析/Manifest 输出，再以 exponential backoff 回到 `quarantined`；第 3 次失败稳定拒绝，不产生伪造证据或无限重试。用户删除资产时必须按记录的 exact keys 幂等清理原文件、解析结果与 Manifest，任一清理失败都保留 `deleting`，不得伪装成 `deleted`。
+- T2-003 术语边界：owner-scoped mutation 以 locking read 获取最新 active 库版本，同一事务插入下一库版本与完整条目 snapshot；历史 Brief/任务只引用稳定 `library_id + version`，回滚规则只选择旧版本，不改写 Manifest、Brief 或历史 snapshot。
 - 生成事务：创建 `generation_tasks`、inputs、reserve ledger 与 Outbox；同一 idempotency key 重放返回既有结果。
 - 结算事务：按子输出结果写 finalize/release，不允许同一输出重复结算。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
@@ -126,6 +132,7 @@
 - `T1-005` 新增 `20260722_0005`，建立 `projects`、`file_assets`，包含 owner/project/parent 外键、active default generated key、storage location 与 user idempotency 唯一约束及中文注释；SQLite 空库完整升级、MySQL dialect offline SQL 和单一 Head `20260722_0005` 已验证。当前会话未获授权读取本地 `.env`，因此未把 offline 结果冒充真实 MySQL runtime upgrade。
 - `T2-001` 新增 `20260723_0006`，只向 `file_assets` additive 增加 8 个安全处理 metadata 字段；SQLite 空库完整升级、MySQL dialect offline SQL、中文 COMMENT 与唯一 Head `20260723_0006` 已验证。当前会话未读取本地 `.env`，未把 offline 结果冒充真实 MySQL runtime upgrade。
 - `T2-002` 新增 `20260723_0007`，只向 `file_assets` additive 增加 9 个 Evidence Manifest 与 OCR retry metadata 字段；真实 MySQL runtime 结果以本任务执行记录为准。
+- `T2-003` 新增 `20260723_0008`，建立不可变 `term_libraries` 与 `term_items` snapshot 表、owner/project/previous-version 外键、3 项版本唯一约束和中文 COMMENT。SQLite 空库完整升级与单一 Head、MySQL dialect offline DDL 已验证；本任务未读取 `.env`，未运行真实 MySQL `0008` upgrade。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

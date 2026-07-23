@@ -85,6 +85,8 @@ generation_reserve -> generation_finalize | generation_release -> refund
 
 - 证据类型限定为 `source_fact`、`calculated_fact`、`ai_inference`，每项保留资产版本和 Sheet/单元格、页码、段落或 OCR BBox 定位。
 - 数字 OCR 置信度低于 `0.90` 阻断相关计算；叙述低于 `0.75` 告警；单位未知或来源冲突必须解决。
+- 个人术语库按 `library_id + version` 保存不可变 snapshot；`terminology-normalization.v1` 只执行显式数字、单位、币种和绝对日期规则，项目规则覆盖同用户全局规则，歧义、未知单位和来源冲突形成 unresolved item。
+- 标准化只生成保留 source fact raw/provenance 的派生 Evidence，不改写已落盘 Manifest；历史 Brief/任务固定引用术语库版本。
 - Agnes Structured Brief 必须通过 Pydantic/JSON Schema；只允许一次约束修复，仍失败则失败且不扣费。
 - `passed` 和 `passed_with_warnings` 可下载；`blocked` 自动修复一次，仍失败则禁止下载且不扣费。
 - 密码使用 Argon2id，Refresh Token 只保存 Hash，API Key 使用应用层加密，Master Key 只存在环境变量。

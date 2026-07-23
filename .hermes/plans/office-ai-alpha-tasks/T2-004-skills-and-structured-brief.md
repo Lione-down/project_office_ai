@@ -1,6 +1,6 @@
 # T2-004 Skills 与 Agnes Structured Brief
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T2-003`
 - 外部前置：真实 Agnes API Key 以未跟踪方式提供，用于最终 Contract Test
 - 来源：总计划第 9、10 节与 Day 9

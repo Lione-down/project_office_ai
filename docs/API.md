@@ -131,9 +131,19 @@ T1-005 上传支持 XLSX、XLSM、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、T
 | GET | `/skills/{skill_code}` | 指定 Skill 当前可用版本与能力要求 |
 | GET | `/models` | 管理员发布且满足所选 Skill 能力的模型 |
 | GET | `/templates` | Alpha 系统认证模板 |
-| GET | `/term-libraries` | 当前用户术语库 |
-| POST | `/term-libraries` | 创建术语库 |
-| POST | `/term-libraries/{library_id}/items` | 增加标准术语、别名、单位与口径 |
+| GET | `/term-libraries` | 当前用户各术语库的最新 active snapshot |
+| POST | `/term-libraries` | 创建个人或 owner-scoped 项目术语库 |
+| GET | `/term-libraries/{library_id}` | 当前 snapshot；`version` 查询显式历史版本 |
+| PATCH | `/term-libraries/{library_id}` | 新建库 metadata 版本，不原地覆盖 |
+| DELETE | `/term-libraries/{library_id}` | 新建 deleted tombstone，历史版本仍可显式读取 |
+| GET | `/term-libraries/{library_id}/items` | 当前或显式 version 的条目 snapshot |
+| POST | `/term-libraries/{library_id}/items` | 增加标准术语、别名、单位与口径并新建库版本 |
+| PATCH | `/term-libraries/{library_id}/items/{item_id}` | 更新条目并新建完整库版本 |
+| DELETE | `/term-libraries/{library_id}/items/{item_id}` | 从新版本移除条目，不改写历史 snapshot |
+
+T2-003 的 `library_id` 与 `item_id` 是跨版本稳定 ID；每次库或条目 mutation 都生成递增的不可变 version 行及完整条目 snapshot。默认读取最新 active 版本，只有显式 `version>=1` 才能读取历史版本；当前 tombstone、跨用户 ID 和不存在资源统一返回 `404 term_library_not_found`，条目缺失返回 `404 term_item_not_found`。项目库的 `project_id` 必须属于当前用户且未删除，不能引用其他用户项目。
+
+术语条目支持标准术语、最多 100 个 NFKC 去重别名、canonical unit code、定义、指标口径和 `-1000..1000` 优先级。项目规则只覆盖同一用户同一项目的全局匹配；同层级、同优先级映射到不同标准术语时返回 `term_ambiguous` unresolved。`terminology-normalization.v1` 确定性处理绝对日期、数字、百分比、CNY/USD、万/亿倍率和销售数量单位；缺少年份、未知单位、显式单位冲突或多来源标准化值不一致不会被猜测或静默合并。派生 `NormalizedEvidenceItem` 保留 source fact 的 asset/version/location/raw/provenance，并附加规则版本与术语库 version snapshot；它不改写已落盘的 `evidence-manifest.v1`。
 
 ## Brief 与 Generation
 
@@ -197,6 +207,6 @@ T1-005 上传支持 XLSX、XLSM、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、T
 ## 后续 contract gate
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
-- `T2-001` 实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 实现术语；`T2-004`/`T2-005` 实现 Brief/Preflight。
+- `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 实现 Brief/Preflight。
 - `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

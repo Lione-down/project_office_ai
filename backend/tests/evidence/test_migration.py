@@ -17,11 +17,12 @@ def alembic_config() -> Config:
     return config
 
 
-def test_evidence_migration_is_the_current_single_head() -> None:
+def test_evidence_migration_remains_in_the_single_revision_chain() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260723_0007"]
+    assert len(scripts.get_heads()) == 1
     assert scripts.get_revision("20260723_0007").down_revision == "20260723_0006"
+    assert scripts.get_revision("20260723_0008").down_revision == "20260723_0007"
 
 
 def test_evidence_metadata_migration_adds_only_bounded_manifest_fields(

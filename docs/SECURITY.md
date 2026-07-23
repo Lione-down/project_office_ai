@@ -56,6 +56,11 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - OCR client 只向 `http://paddleocr:8080/v1/ocr` 发送已完成安全解码的原始图片 bytes、MIME 和 SHA-256；timeout、network、429/502/503/504、响应大小/项数超限、非法 JSON/Schema、非有限 confidence/coordinates 全部 fail closed。暂时性不可用先清理本轮输出并按 30/60 秒 backoff 重试，最多 3 次；其他错误或重试耗尽稳定拒绝，不生成空白或猜测证据。
 - Evidence Manifest 只允许三类显式 provenance：本任务生成 `source_fact`，`calculated_fact` 必须带 calculation expression，`ai_inference` 必须带 model identity；T2-002 不生成后两类。每条 source fact 关联资产 UUID、`sha256:` 资产版本、parser/OCR engine 版本和 Excel cell、PDF page/BBox、Word paragraph、CSV cell、text line 或 image OCR BBox。单资产最多构建 10000 条 evidence，在 Pydantic object expansion 前执行，避免小值/高结构输入放大 worker memory。
 - 叙述 OCR confidence `<0.75` 只告警；数字 `<0.90` 或单位未知设置 calculation blocker。未知单位保持 `null`，不得默认零、币种或任意单位；来源冲突裁决和术语标准化仍属于 T2-003。
+- 术语库 API 和 service 始终按 access Session 的 `user_id` 查询；跨用户 library/item/project ID 与不存在资源使用相同 not-found 语义，不能通过版本查询或项目覆盖枚举其他用户 snapshot。
+- 术语库 mutation 只追加不可变 version 与完整条目 snapshot，删除只追加 tombstone；历史任务固定引用 `library_id + version`，回滚规则不得改写已生成 Manifest、Brief 或任务输入。
+- 标准化使用固定 `terminology-normalization.v1`，不调用模型或公网；只识别显式绝对日期、数字、百分比、币种、万/亿倍率和受支持销售单位。缺少年份、未知单位、显式 unit/currency 冲突全部保留 raw 并阻断，不从上下文猜测。
+- 项目规则只覆盖同一用户同一项目的全局匹配；同层级同优先级别名歧义与同一事实多来源值不一致形成 unresolved item。来源冲突必须由用户指定权威 evidence ID，系统不得按顺序、最大值或最新文件静默裁决。
+- `NormalizedEvidenceItem` 继承 source fact 的 asset/version/location/raw/parser/OCR provenance，只附加 normalized value、规则版本与术语库 version 引用；不能把标准化结果伪装为 `ai_inference`，也不改写 `evidence-manifest.v1`。
 - Asset API 只返回 parser/Manifest Schema/engine 版本、warning/blocker 数量、稳定错误码与脱敏错误；不返回原始/解析/Manifest storage key、Manifest SHA-256、绝对路径、OCR 原文、BBox 或证据内容。
 
 ## Provider 与 Prompt 安全

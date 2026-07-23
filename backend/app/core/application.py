@@ -29,6 +29,7 @@ from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
+from app.services.terminology.service import TerminologyLibraryService
 from app.settings.config import Settings, get_settings
 from app.storage.local import LocalStorageAdapter
 
@@ -50,6 +51,7 @@ def create_app(
     auth_services: AuthServices | None = None,
     provider_services: object | None = None,
     asset_services: object | None = None,
+    terminology_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
@@ -136,6 +138,16 @@ def create_app(
             ),
         )
 
+    if (
+        terminology_services is None
+        and database is not None
+        and auth_services is not None
+    ):
+        terminology_services = TerminologyLibraryService(
+            database.session_factory,
+            auth_services.sessions,
+        )
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
@@ -147,6 +159,7 @@ def create_app(
     app.state.auth_services = auth_services
     app.state.provider_services = provider_services
     app.state.asset_services = asset_services
+    app.state.terminology_services = terminology_services
     app.add_middleware(
         UploadBodyLimitMiddleware,
         max_body_bytes=application_settings.max_upload_body_bytes,

@@ -188,6 +188,20 @@
 - 本任务处理：backend 仅为 owner-scoped 删除挂载 parsed/evidence volume；`scanning/parsing` 期间返回 `409 asset_processing_in_progress`，防止 worker 在删除后重新落盘。其余状态先持久化 `deleting`，再按数据库 exact keys 幂等清理原文件、解析结果和 Manifest，全部成功后才标记 `deleted`。任一派生清理失败返回 `asset_delete_failed` 并保留 checkpoint，重试可继续清理。
 - 预防/验证：每增加一种资产派生存储，都必须把删除生命周期、active writer race 与 fault-injection 测试作为同一任务的验收项；禁止只软删数据库行或递归扫描 broad root。
 
+### 2026-07-23 · T2-003 · 术语库更新不能破坏历史任务口径
+
+- 现象：若 `term_libraries` 只保留一行并原地 PATCH，条目更新、删除或项目覆盖变化会让历史 Brief/任务引用到新的别名、单位和指标口径。
+- 影响：同一历史输入在重放时产生不同标准化结果，证据链无法说明当时使用的规则，回滚还会改写已交付结果。
+- 本任务处理：`library_id`/`item_id` 作为跨版本稳定 ID，每次库或条目 mutation 在事务内新增库 version 与完整条目 snapshot；删除只新增 tombstone，显式 version 仍可 owner-scoped 读取。
+- 预防/验证：所有历史任务只引用 `library_id + version`；规则回滚选择旧 snapshot，不 UPDATE/DELETE 历史 version，也不重写 Manifest 或 Brief。
+
+### 2026-07-23 · T2-003 · “万/亿”倍率不能和基础单位混为一体
+
+- 现象：初版把未知后缀统一当成 `unit_unknown`，`1.2万` 虽被保留却丢失 10000 倍率；若随后用术语 unit 补成 CNY，会错误得到 `1.2 CNY`。
+- 影响：销售金额和数量可产生数量级错误，且结果看似已标准化，不一定触发后续冲突。
+- 本任务处理：把万/亿建模为确定 scale-only 规则，先得到 `12000 + unknown base unit`；只有显式币种符号或版本化术语 unit 才补齐基础单位，否则保持 unresolved。
+- 预防/验证：标准化测试分别覆盖“倍率+显式单位”“倍率+术语 hint”“倍率但无基础单位”；Decimal canonical formatting 不能用盲目 `rstrip('0')`，避免把整数 `2500` 变成 `25`。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

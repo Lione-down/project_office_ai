@@ -7,6 +7,8 @@ from app.models.file_assets import FileAsset
 from app.models.invite_codes import InviteCode
 from app.models.projects import Project
 from app.models.provider_credentials import ProviderCredential
+from app.models.term_items import TermItem
+from app.models.term_libraries import TermLibrary
 from app.models.user_sessions import UserSession
 from app.models.users import User
 
@@ -20,6 +22,8 @@ __all__ = [
     "InviteCode",
     "Project",
     "ProviderCredential",
+    "TermItem",
+    "TermLibrary",
     "User",
     "UserSession",
 ]
