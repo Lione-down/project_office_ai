@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：已完成 T1、T2 与 `T3-001`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox contract 已实现，其余接口按后续任务实现
+- 状态：已完成 T1、T2、`T3-001` 与 `T3-002`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox 和内部 PPT Renderer contract 已实现，其余接口按后续任务实现
 
 ## 共同行为
 
@@ -173,6 +173,8 @@ T3-001 已实现 `POST /generations`、task GET/cancel/retry 和 Credits 查询�
 
 T3-001 Worker 以数据库 task/step checkpoint 为权威。重复 queue delivery 只有一个 claim；确定性暂时失败有限重试，安全 stale checkpoint 可恢复，已开始 Provider 调用但结果未知时进入 `provider_uncertain` 并保留 reserve。Python consumer 只定义版本化 queue contract 和注入式 executor；真正 PPT/XLSX renderer 由后续任务交付。
 
+T3-002 已实现内部 `POST /v1/render` PPT Renderer contract，不作为浏览器或公网 API 暴露。请求为 `ppt-renderer.request.v1`，只携带 UUID request ID 和经双端验证的 `presentation-plan.v1`；响应为 `ppt-renderer.response.v1`，只返回受控相对 output key、文件/Plan SHA-256、byte size、页数和固定模板/Renderer 版本。Python 适配层再次验证全部字段和共享 volume 中的文件内容，再以不可变 `file_assets` 版本关联 generation task；客户端不能提供输出路径或覆盖既有完成资产。
+
 ## Credits
 
 | Method | Path | 说明 |
@@ -220,5 +222,5 @@ T3-001 Worker 以数据库 task/step checkpoint 为权威。重复 queue deliver
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
 - `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight。
-- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；T3-002 起交付真实 Renderer，`T4-002` 完成管理端资产和 audit 闭环。
+- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；`T3-002` 已交付真实 PPT Renderer 与不可变输出适配层；`T3-003` 继续交付 PPT QA，`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

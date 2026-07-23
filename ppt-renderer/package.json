@@ -1,0 +1,25 @@
+{
+  "name": "office-ai-ppt-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.17 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-schema.mjs",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "pptxgenjs": "4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "jszip": "3.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

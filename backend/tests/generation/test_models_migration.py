@@ -25,7 +25,7 @@ def alembic_config() -> Config:
 def test_generation_migration_is_single_additive_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260723_0011"]
+    assert scripts.get_heads() == ["20260723_0012"]
     assert scripts.get_revision("20260723_0011").down_revision == "20260723_0010"
 
 

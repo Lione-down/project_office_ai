@@ -32,6 +32,8 @@ def test_resolve_rejects_path_traversal_and_forged_storage_key(tmp_path) -> None
     storage = LocalStorageAdapter(tmp_path)
 
     with pytest.raises(StorageOperationError, match="存储路径无效"):
+        storage.resolve_key("users")
+    with pytest.raises(StorageOperationError, match="存储路径无效"):
         storage.resolve_key(f"users/{USER_ID}/../../outside.txt")
     with pytest.raises(StorageOperationError, match="存储路径无效"):
         storage.resolve_asset_key(
@@ -39,6 +41,15 @@ def test_resolve_rejects_path_traversal_and_forged_storage_key(tmp_path) -> None
             ASSET_ID,
             f"users/{USER_ID}/quarantine/{OTHER_ASSET_ID}/original.pdf",
         )
+
+
+def test_resolve_accepts_only_the_fixed_generated_presentation_key(tmp_path) -> None:
+    storage = LocalStorageAdapter(tmp_path)
+    key = f"users/{USER_ID}/outputs/{ASSET_ID}/presentation.pptx"
+
+    assert storage.resolve_key(key) == tmp_path / key.replace("/", "\\")
+    with pytest.raises(StorageOperationError, match="存储路径无效"):
+        storage.resolve_key(f"users/{USER_ID}/outputs/{ASSET_ID}/other.pptx")
 
 
 async def test_stream_to_quarantine_hashes_content_without_buffering_whole_file(

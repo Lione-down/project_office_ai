@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T3-001 任务、Outbox 与积分事务`
-- 下一任务：`T3-002 PPT Renderer 与系统模板`
-- 当前状态：`T3-002 READY`
+- 最近完成：`T3-002 PPT Renderer 与系统模板`
+- 下一任务：`T3-003 PPT QA`
+- 当前状态：`T3-003 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -35,8 +35,8 @@
 | T2-004 | DONE | T2-003 | `feat(brief): generate evidence grounded structured briefs`；Mock Contract 通过，真实 Agnes 缺口见下文 |
 | T2-005 | DONE | T2-004 | `feat(preflight): add brief confirmation and conflict gates`；验证证据见下文 |
 | T3-001 | DONE | T2-005 | `feat(task): add durable generation orchestration`；验证证据见下文 |
-| T3-002 | READY | T3-001 | PPT Renderer 与系统模板 |
-| T3-003 | BLOCKED | T3-002 | PPT QA |
+| T3-002 | DONE | T3-001 | `feat(ppt): add deterministic sales presentation renderer`；验证证据见下文 |
+| T3-003 | READY | T3-002 | PPT QA |
 | T3-004 | BLOCKED | T3-003 | Excel Renderer 与系统模板 |
 | T3-005 | BLOCKED | T3-004 | Excel QA 与组合任务；Week 3 Gate |
 | T4-001 | BLOCKED | T3-005 | 用户流程与管理后台功能壳 |
@@ -669,3 +669,51 @@
 
 - T3-001 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security、主会话顺序 deep review 与状态文档同步已完成；Docker、真实 MySQL/Redis、真实 Agnes 和 Office/WPS runtime 缺口已如实记录。
 - T3-001 以单一逻辑 commit 推送后收口为 `DONE`；T3-002 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。
+
+## T3-002 执行记录
+
+### 范围
+
+- 新增独立 Node.js/TypeScript `ppt-renderer`，只接受严格 `presentation-plan.v1`，使用 PptxGenJS 4.0.1 生成真实 16:9 PPTX；不接受自由文本、客户端路径或 PPTX 输入。
+- 固化 `ppt.executive-blue.v1`、`ppt.operating-review.v1`、`ppt.data-story.v1` 三套 `1.0.0` 系统模板，覆盖 Slide Master、Placeholder、主题色、固定布局、页码和中文字体。
+- 支持标题、正文、内联 PNG/JPEG、native table、bar/line/pie chart、Evidence/source、speaker notes 与 OOXML metadata；Plan 限制 3–30 页，所有事实型元素引用已知 Evidence ID。
+- 建立版本化 renderer HTTP/worker envelope、受控 work root、请求/响应容量限制、同 request 并发去重、sidecar replay 与损坏 derived output repair。
+- Python 适配层校验 response、Plan/file SHA-256、byte size、模板/Renderer 版本和受控相对路径；输出以稳定 asset ID、任务外键和不可变 key 持久化到 `file_assets`，不覆盖旧输出。
+- 未实现 T3-003 的 overflow、字体替换、图片裁切、坏链、质量状态、LibreOffice 自动修复或视觉 QA。
+
+### Changed files
+
+- Renderer：`ppt-renderer/{src,tests,scripts}`、package/TypeScript/Vitest 配置、multi-stage Dockerfile 与 lockfile。
+- Backend：`backend/app/services/renderers/presentation/`、`file_assets` task 外键、LocalStorage 精确 generated-output key、Renderer settings。
+- Migration/Runtime：`20260723_0012_file_asset_generation_output.py`、历史 migration head tests、`docker-compose.yml` 的私有 non-root/read-only renderer 与 backend read-only handoff。
+- Records：T3-002/T3-003 task cards、task index、`docs/{API,DATA_MODEL,ENVIRONMENT,SECURITY,PROGRESS}.md` 与 `pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧 `docs/ui-mockups/`、`.playwright-cli/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏材料。
+
+### TDD、focused 与真实输出证据
+
+- RED：Node tests 先因 `contracts/renderer/worker-contract` 缺失而失败；Python tests 先因 `app.services.renderers` 缺失而 collection fail，随后按 schema、真实 OOXML、worker、HTTP client、output store/service 与 migration 分组转 GREEN。
+- Node：`npm test` 为 `4 files / 20 passed`；`npm run build` 通过。固定 synthetic sample 为 4 页、189,830 bytes，ZIP/XML contract 确认 4 notes、3 charts、1 master、至少 4 layouts、Placeholder、页码、native table、media、Evidence/source 和 metadata；两次渲染结构等价。
+- Python：`.venv/Scripts/python.exe -m pytest tests/renderers/presentation -q` 为 `27 passed`；presentation + storage + migration focused 合并为 `49 passed`。
+- 编译后 Node server 与 Python client 的真实跨进程 smoke 通过：3 页、85,987 bytes；Python 复验 Node canonical Plan SHA-256、PPTX SHA-256、byte size 和受控 output key。
+- 三套模板均生成真实 PPTX；同 request 并发 replay、损坏 work output repair、finalization failure recovery、ready output integrity、不同 Plan conflict 和冻结模板冲突均有回归。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend 全量候选运行唯一失败为既有 parser timing test：`424 passed, 2 skipped, 1 failed`，全量顺序 elapsed `0.385s > 0.3s`；该 exact test 单独运行 `1 passed`，精确排除后余集 `424 passed, 2 skipped, 1 deselected`。两项 skip 仅为未 opt-in 的真实 Agnes Contract。
+- `ruff format --check app tests` 为 254 files formatted；`ruff check app tests` 通过。owned Python/TypeScript source 均不超过 500 行，package lockfile 不计 source gate。
+- Frontend `6 files / 12 passed`、build 通过；`ppt-renderer` 与 frontend `npm audit` 均为 0 vulnerabilities。Backend `pip check` 通过，`pip-audit` 为 0 known vulnerabilities，仅跳过本地非 PyPI package。
+- `alembic heads` 为唯一 `20260723_0012 (head)`；SQLite 空库完整 upgrade、历史连续 migration 和 named FK contract 通过；MySQL dialect offline upgrade/downgrade 通过。未读取 `.env`，未运行真实 MySQL migration。
+- Compose 静态解析保持 9 服务；renderer 使用 pinned image build、non-root、read-only rootfs、private network、容量/CPU/PID 限制，无 Host port、Redis、Provider credential 或公网依赖；backend 只读挂载 renderer work volume。
+
+### 主会话 deep review 与安全结论
+
+- review 修复跨 Python/Node number canonicalization、Python 未校验 Plan hash、HTTP response 无界读取/不安全 base URL、ready replay 未复验磁盘、计划模板未绑定冻结 task snapshot、外部调用前 checkpoint 缺失，以及 Node 并发/损坏 replay 不可恢复。
+- storage review 发现 generated-output allowlist 在长度检查前索引 malformed key；修正为 shape-first fail closed，并增加短 key/伪造文件名回归。
+- 最终逐项复核 schema/reference、OOXML、worker concurrency/replay、HTTP boundary、task/template/asset integrity、migration/model、Compose isolation、测试与范围；无剩余 blocking security/logic finding。
+
+### Runtime 缺口与完成结论
+
+- 任务卡 3 条 `docker compose run` 命令已逐条实际尝试；当前 PATH 无 `docker`，均在容器创建前 `CommandNotFoundException`，不标记 Compose/container runtime 通过。
+- 本机 PATH 与 Program Files 未发现 LibreOffice `soffice.exe`，固定样本未完成 Headless 打开/转换；结构合同与真实 PptxGenJS 输出不能替代 LibreOffice、Microsoft Office 或 WPS 接受。
+- 未读取 ignored `.env` 或本机 Secret；未运行真实 MySQL/Redis、真实 Agnes 或用户材料。真实 Agnes 仍因未 explicit opt-in 保持 2 skipped，T2-004 Mock 证据未被提升。
+- T3-002 的实现、TDD、focused/broad/security、主会话顺序 deep review 与状态同步已完成；以单一逻辑 commit 推送后收口。T3-003 是下一唯一 `READY` 任务，本会话未实现任何 PPT QA。

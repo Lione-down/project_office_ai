@@ -251,6 +251,20 @@
 - 本任务处理：Brief call 保留原唯一键，task call 使用可空 task/step 外键与 `(task_step_id, attempt)`；retry billing key 改为固定 task UUID 和 retry 序号。
 - 预防/验证：共享审计表的唯一键必须明确互斥 scope；派生 idempotency key 必须从固定长度内部 ID 生成，并覆盖最大合法客户端输入。
 
+### 2026-07-23 · T3-002 · 跨语言 Plan hash 必须固定数值 canonicalization
+
+- 现象：Python `json.dumps` 与 JavaScript `JSON.stringify` 对整数/浮点数表示不同；几何值 `1` 在一端可能成为 `1.0`，导致同一合法 Plan 的 hash 不一致。
+- 影响：真实 Renderer 已生成文件，但 Python 会把 response 当作篡改而拒绝；无限精度或 scientific notation 还会让不同 runtime 的重放语义漂移。
+- 本任务处理：双端只接受有限、绝对值受限且最多 6 位小数的 Plan 数值，并使用 key 排序、UTF-8 字符和固定小数裁剪的共享 canonical JSON 算法；真实跨进程 smoke 验证 hash 相同。
+- 预防/验证：所有跨语言幂等/hash contract 必须用共享 fixture 和真实进程边界验证，不能只在各自语言内 self-hash。
+
+### 2026-07-23 · T3-002 · Renderer replay 不能只信 sidecar
+
+- 现象：只要 `result.json` 和输出路径存在就返回旧结果，会把部分写入、损坏文件或并发 sidecar race 当作成功；Python 虽能发现 hash 不符，同 request 重试仍会永远取到坏文件。
+- 影响：task checkpoint 无法自恢复，重复 delivery 可能持续失败或产生两个互相覆盖的 derived output。
+- 本任务处理：单进程内按 `work root + request ID` 串行执行；replay 同时核对 Plan、版本、页数、模板、文件 hash/size，缺失/损坏的 derived PPTX 重新生成并刷新 sidecar，不同 Plan 冲突 fail closed。
+- 预防/验证：所有文件型 external worker replay 都要覆盖并发同请求、sidecar 存在但文件缺失/损坏、不同输入复用 ID，以及最终持久化失败后的恢复。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

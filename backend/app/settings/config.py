@@ -180,6 +180,26 @@ class Settings(BaseSettings):
         ge=1,
         le=3600,
     )
+    ppt_renderer_url: str = Field(
+        "http://ppt-renderer:3000",
+        validation_alias="OFFICE_AI_PPT_RENDERER_URL",
+    )
+    rendered_root: Path = Field(
+        Path("/app/rendered"),
+        validation_alias="OFFICE_AI_RENDERED_ROOT",
+    )
+    ppt_renderer_timeout_seconds: float = Field(
+        120,
+        validation_alias="OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS",
+        gt=0,
+        le=600,
+    )
+    max_presentation_request_bytes: int = Field(
+        10 * 1024 * 1024,
+        validation_alias="OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES",
+        ge=1024,
+        le=50 * 1024 * 1024,
+    )
     task_timeout_seconds: int = Field(
         2_700,
         validation_alias="OFFICE_AI_TASK_TIMEOUT_SECONDS",

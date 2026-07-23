@@ -1,6 +1,6 @@
 # T3-003 PPT QA
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T3-002`
 - 来源：总计划第 3、11、16 节与 Day 13
 - 建议 commit：`test(ppt): enforce presentation quality gates`

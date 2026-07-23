@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T3-001` migration `20260723_0011` 已 additive 建立任务、步骤、输入与 Outbox，并补齐账务/Provider call 关系，当前共实现 19/21 张表
+- 状态：逻辑契约；`T3-002` migration `20260723_0012` 已为生成输出补齐命名 task 外键，当前共实现 19/21 张表
 
 ## 全局约定
 
@@ -128,6 +128,7 @@
 - T3-001 生成事务：锁定 owner 的最新 confirmed Brief、Model/Credential/Provider 与用户余额，复验 identity/capability/pricing/子输出总和，在同一事务创建 task、steps、inputs、负数 reserve ledger 与首个 Outbox；同一 user/idempotency key 重放返回既有结果，余额不足或 Outbox 写入失败整体回滚。
 - T3-001 执行/恢复边界：MySQL task/step checkpoint 为权威，Redis 只承载可丢失 queue/limit。published-before-marked 允许重复投递但数据库 claim 去重；safe stale step 复位后重新入队，已进入 Provider 且结果未知的 checkpoint 转 `provider_uncertain`。
 - T3-001 结算事务：全成功写幂等 finalize marker；全失败/可取消任务写 release；partial success 按成功子输出费用结算并 release 余量。所有流水只追加，`provider_uncertain` 保留 reserve。
+- T3-002 PPT 输出边界：`render:pptx` step 先以稳定 idempotency key 创建 `parsing` 资产 checkpoint，Renderer 结果先写 step checkpoint，再以 `users/{user_id}/outputs/{asset_id}/presentation.pptx` 原子持久化并最终置 `ready`。`generated_task_id` 关联生成任务；同 Plan replay 返回同一资产，不覆盖已完成文件，不同 Plan、模板 snapshot 漂移、文件 hash/size 漂移全部 fail closed。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
 - 管理员资产操作：权限判断、业务结果和 audit 写入必须具备可追溯的一致性边界。
 
@@ -151,6 +152,7 @@
 - `T2-004` 新增 `20260723_0009`，建立 `skills`、`briefs`、`provider_calls` 并以 migration 内冻结 payload 固化两个 Alpha Skill；SQLite 空库完整升级、单一 Head 与 MySQL dialect offline DDL 已验证，真实 Agnes Contract 未 opt-in。
 - `T2-005` 新增 `20260723_0010`，只向 `briefs` additive 增加可空 `preflight_snapshot JSON` 与 `estimated_credits INTEGER`；SQLite 空库完整升级测试、唯一 Head `20260723_0010` 与 MySQL dialect offline DDL 已通过。本任务未读取 `.env`，未运行真实 MySQL `0010` upgrade。
 - `T3-001` 新增 `20260723_0011`，建立 `generation_tasks`、`generation_task_steps`、`generation_task_inputs`、`outbox_events`，向 `credit_ledger` 增加 task 外键，并向 `provider_calls` additive 增加 task/step scope 与唯一约束。SQLite 空库完整升级、唯一 Head、MySQL dialect offline upgrade/downgrade 已通过；未读取 `.env`，未运行真实 MySQL/Redis runtime。
+- `T3-002` 新增 `20260723_0012`，只为既有 `file_assets.generated_task_id` 增加命名外键 `fk_file_assets_generated_task`。SQLite 空库完整升级、唯一 Head、历史 migration chain 和 MySQL dialect offline upgrade/downgrade 已通过；未读取 `.env`，未运行真实 MySQL runtime。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

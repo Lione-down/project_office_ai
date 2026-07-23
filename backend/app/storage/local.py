@@ -56,14 +56,24 @@ class LocalStorageAdapter:
         key = PurePosixPath(storage_key)
         parts = key.parts
         try:
+            has_expected_shape = len(parts) == 5
+            is_quarantine = (
+                has_expected_shape
+                and parts[2] == "quarantine"
+                and SAFE_OBJECT_NAME.fullmatch(parts[4]) is not None
+            )
+            is_generated_output = (
+                has_expected_shape
+                and parts[2] == "outputs"
+                and parts[4] == "presentation.pptx"
+            )
             is_valid = (
                 not key.is_absolute()
-                and len(parts) == 5
+                and has_expected_shape
                 and parts[0] == "users"
-                and parts[2] == "quarantine"
                 and UUID(parts[1]).version is not None
                 and UUID(parts[3]).version is not None
-                and SAFE_OBJECT_NAME.fullmatch(parts[4]) is not None
+                and (is_quarantine or is_generated_output)
             )
         except (ValueError, AttributeError):
             is_valid = False

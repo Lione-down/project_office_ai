@@ -64,12 +64,17 @@
 | `OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS` | OCR exponential backoff 基数，默认 30 秒 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
+| `OFFICE_AI_RENDERED_ROOT` | Backend 只读访问 Renderer work volume 的根目录，默认 `/app/rendered` | 否 | T3-002 | Compose path；不得映射为静态目录 |
+| `OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS` | PPT Renderer HTTP timeout，默认 120 秒 | 否 | T3-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES` | PresentationPlan/Renderer request 上限，默认 10 MB | 否 | T3-002 | Compose 普通变量 |
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
 | `OFFICE_AI_RUN_REAL_AGNES_CONTRACT` | 显式启用真实 Agnes Contract Test；仅精确值 `1` 启用 | 否 | T2-004 手工联调 | 临时进程环境；默认不设置 |
 | `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` | 真实 Contract Test 选择已加密 Agnes Credential 的 UUID，不是 API Key | 否 | T2-004 手工联调 | 临时进程环境；只与显式 opt-in 同时使用 |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
 T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
+
+T3-002 的 `ppt-renderer` 使用独立 pinned Node image，只在 private network 暴露 internal HTTP，root filesystem read-only，以 non-root 用户写入 `shared-work`。Backend 将同一 volume 只读挂载到 `OFFICE_AI_RENDERED_ROOT`，验证 contract/hash/size 后再复制到受控资产存储；Renderer 不接收 Secret、Provider credential、用户路径或 Host port。
 
 ### 本机兼容变量
 

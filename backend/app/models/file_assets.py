@@ -63,7 +63,10 @@ class FileAsset(Base):
         comment="父版本资产ID",
     )
     generated_task_id: Mapped[UUID | None] = mapped_column(
-        UuidBinary(), nullable=True, comment="生成任务ID"
+        UuidBinary(),
+        ForeignKey("generation_tasks.id", name="fk_file_assets_generated_task"),
+        nullable=True,
+        comment="生成任务ID",
     )
     manifest_key: Mapped[str | None] = mapped_column(
         String(768), nullable=True, comment="Evidence Manifest存储键"

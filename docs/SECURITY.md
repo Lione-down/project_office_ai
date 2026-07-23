@@ -88,6 +88,13 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - `credit_ledger` 与 `audit_logs` 只追加，不提供修改/删除业务接口。
 - Generation、Credits、Outbox/queue payload 和日志不得包含 Credential Secret、Prompt、文件正文、storage key 或本地路径；用户 task/credits 响应使用 `private, no-store`。
 
+## PPT Renderer 与生成输出
+
+- Renderer 只接受严格版本化 `PresentationPlan`；未知字段/版本、自由文本根对象、非有限或超精度数值、未知 Evidence/data/image 引用、路径型图片和客户端输出路径全部 fail closed。
+- Python 与 Node 使用同一 canonical Plan hash；Python 再验证 response schema、request ID、模板/Renderer 版本、页数、Plan/file SHA-256、byte size 和唯一受控相对 key。HTTP request/response 均有上限，错误不回显 Plan、图片、路径或 stack。
+- 同 request 的并发执行在 Renderer 内串行；sidecar replay 验证 Plan 和实际文件 hash/size，缺失或损坏的 derived output 可安全重建，不同 Plan 使用同一 request ID 时拒绝。
+- Renderer 容器 non-root、read-only rootfs、private network、无 Host port、无 Secret/Redis/Provider credential；Backend 只读挂载 renderer work volume。最终资产使用 owner-scoped fixed key 和 stable asset ID 原子写入，不覆盖完成输出，ready replay 必须复验磁盘 integrity。
+
 ## 日志与审计
 
 - 禁止记录密码、Key、Token、签名 URL、完整文件、完整 Prompt、明文手机号、完整 IP、Fingerprint 或 Trace 上下文中的 Secret。
