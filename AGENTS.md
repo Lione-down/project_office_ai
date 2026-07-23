@@ -29,7 +29,7 @@
 
 ## 安全与 Git
 
-- 禁止读取、打印、暂存或提交 `.env`、API Key、Token、密码、证书、私钥、用户文件和未脱敏黄金材料。
+- 禁止读取、打印、暂存、提交或推送任何环境配置文件，包括 `.env`、`.env.*`、`*.env`、`*.env.*`、`*.env.example` 以及误拼的 `.ene`、`.ene.*`、`*.ene`、`*.ene.*`；即使文件只包含示例值也不得进入 Git。API Key、Token、密码、证书、私钥、用户文件和未脱敏黄金材料同样禁止进入 Git。
 - Provider credential 只通过管理后台或本地未跟踪配置录入；解析 worker 不得挂载 credential，且不得访问公网。
 - 提交前至少运行 `git check-ignore -v .env`、`git diff --check`、`git diff --cached --name-only` 和 `git status --short`。
 - 使用精确路径暂存本任务拥有的文件，不使用 `git add .`，不混入用户无关改动。

@@ -2,6 +2,11 @@
 .env
 .env.*
 *.env
+*.env.*
+.ene
+.ene.*
+*.ene
+*.ene.*
 *.pem
 *.key
 *.p12

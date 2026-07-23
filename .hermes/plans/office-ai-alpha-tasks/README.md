@@ -9,7 +9,7 @@
 - 每个任务完成后先运行该任务的 focused verification，再运行任务要求的 broad verification。
 - 每个任务结束时同步更新 `docs/PROGRESS.md`；范围或接口变化同步更新 `docs/PLAN.md`、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md` 或 `docs/SECURITY.md`。
 - 每个任务只产生一个逻辑 commit，格式使用 `type(scope): subject`；只暂存本任务拥有的路径。
-- 不提交 `.env`、`.env.*`、API Key、Token、证书、私钥、用户文件或未脱敏黄金材料。
+- 不提交或推送任何环境配置文件，包括 `.env`、`.env.*`、`*.env`、`*.env.*`、`*.env.example` 及 `.ene` 误拼变体；即使只含示例值也不得进入 Git。API Key、Token、证书、私钥、用户文件和未脱敏黄金材料同样禁止提交。
 - 未经用户明确要求，不使用 subagent 或并行代理。
 
 ## 推荐方向
