@@ -21,7 +21,7 @@ def alembic_config() -> Config:
 def test_brief_migration_is_the_current_single_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260723_0009"]
+    assert scripts.get_heads() == ["20260723_0010"]
     assert scripts.get_revision("20260723_0009").down_revision == "20260723_0008"
 
 

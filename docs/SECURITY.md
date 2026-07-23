@@ -75,6 +75,9 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - Context 同时受 evidence budget 和完整 message+max-output budget 约束；不足时在调用前 fail closed，不截断必需 evidence。选定术语库必须使用显式 owner/project `library_id + version`，只发送该 snapshot 的标准术语、别名、unit、口径与优先级。
 - Agnes 输出必须精确保持 user goal/audience/include/exclude、asset/term/Skill/model snapshot 与 Skill 对应 output kind；`file/calculation` fact 和 `agnes_inference` 必须引用本次 Context 已知 evidence ID。非法结构或伪造引用只允许一次 repair，仍失败不创建 Brief 或积分。
 - `provider_calls` 只保存 ID、attempt、Request ID、Token、耗时、状态、错误分类和 `is_redacted=true`，禁止持久化 Key、Prompt、响应正文、文件内容、本地路径或 storage key。Brief API 响应使用 `private, no-store`。
+- T2-005 Brief GET/PATCH/Preflight/confirm 全部先认证并按 `briefs.user_id` owner scope 查询；跨用户 ID 与不存在资源统一为 not-found。PATCH 只追加新 Revision，不能由客户端替换来源资产、术语、Skill、模型或 Evidence snapshot；过期 Revision 与已确认 Revision fail closed。
+- Preflight 必须重新验证资产版本和 Manifest integrity、Evidence blocker、Brief unresolved item、Skill row 全合同、系统模板 allowlist、模型 snapshot identity、Agnes Provider、active Credential、allowed Skills 和 structured-output 能力。显式 resolution 的 code/action/evidence IDs 必须匹配当前 unresolved item，不能用任意 payload 静默移除 blocker。
+- confirm 只在无 blocking/incompatible finding 且用户接受当前预计积分时提交；model multiplier、模板和各子输出费用进入不可变 snapshot。费用变化或新增 blocker 的最新 snapshot 先提交再返回 409；已确认快照不重算、不提高。本阶段不读取 Secret、不调用 Provider、不扣积分，也不创建 task/ledger/Outbox。
 
 ## 任务与账务
 

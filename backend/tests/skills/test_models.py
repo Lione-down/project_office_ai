@@ -50,6 +50,8 @@ def test_brief_model_has_immutable_revision_and_owner_snapshot_columns() -> None
         "source_snapshot",
         "content",
         "content_checksum",
+        "preflight_snapshot",
+        "estimated_credits",
         "status",
         "confirmed_at",
         "created_at",

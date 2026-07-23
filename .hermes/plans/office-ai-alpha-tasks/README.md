@@ -39,8 +39,8 @@
 | `T2-002` | OCR 与 Evidence Manifest | `T2-001` | `DONE` | |
 | `T2-003` | 术语库与证据标准化 | `T2-002` | `DONE` | |
 | `T2-004` | Skills 与 Agnes Structured Brief | `T2-003` | `DONE` | |
-| `T2-005` | Brief 确认与 Preflight | `T2-004` | `READY` | Week 2 |
-| `T3-001` | 任务、Outbox 与积分事务 | `T2-005` | `BLOCKED` | |
+| `T2-005` | Brief 确认与 Preflight | `T2-004` | `DONE` | Week 2 |
+| `T3-001` | 任务、Outbox 与积分事务 | `T2-005` | `READY` | |
 | `T3-002` | PPT Renderer 与系统模板 | `T3-001` | `BLOCKED` | |
 | `T3-003` | PPT QA | `T3-002` | `BLOCKED` | |
 | `T3-004` | Excel Renderer 与系统模板 | `T3-003` | `BLOCKED` | |

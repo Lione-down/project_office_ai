@@ -31,6 +31,7 @@ from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
+from app.services.preflight.service import BriefWorkflowService
 from app.services.skills import SkillCatalogService
 from app.services.terminology.service import TerminologyLibraryService
 from app.settings.config import Settings, get_settings
@@ -172,7 +173,15 @@ def create_app(
                 evidence_manifest_store,
                 credential_cipher,
             )
-        brief_services = BriefServices(skills=skills, generation=generation)
+        brief_services = BriefServices(
+            skills=skills,
+            generation=generation,
+            workflow=BriefWorkflowService(
+                database.session_factory,
+                auth_services.sessions,
+                evidence_manifest_store,
+            ),
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:

@@ -7,6 +7,10 @@ from app.services.briefs.contracts import (
     StructuredBrief,
     TermLibraryVersion,
 )
+from app.services.preflight.contracts import (
+    BriefRevisionCommand,
+    PreflightCommand,
+)
 from app.skills.catalog import SkillDefinition
 
 
@@ -36,6 +40,14 @@ class BriefRevisionResponse(BaseModel):
     status: str
     content: StructuredBrief
     content_checksum: str
+
+
+class BriefConfirmationRequest(StrictRequest):
+    accepted_estimated_credits: int = Field(ge=0)
+
+
+BriefRevisionRequest = BriefRevisionCommand
+PreflightRequest = PreflightCommand
 
 
 class SkillResponse(BaseModel):

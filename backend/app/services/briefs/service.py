@@ -41,6 +41,7 @@ from app.services.provider_security import (
     CredentialCipher,
     ProviderConfigurationError,
 )
+from app.services.preflight.catalog import build_alpha_output_plan
 from app.skills.catalog import (
     SkillSelectionError,
     resolve_alpha_skill_selection,
@@ -307,6 +308,17 @@ class BriefGenerationService:
             "selected_model": content["selected_model"],
             "must_include": content["must_include"],
             "must_exclude": content["must_exclude"],
+            "template_versions": [
+                {
+                    "template_code": output.template_code,
+                    "version": output.template_version,
+                }
+                for output in build_alpha_output_plan(
+                    tuple(skill["skill_code"] for skill in content["selected_skills"]),
+                    (),
+                    inputs.model.credit_multiplier,
+                )
+            ],
         }
         revision = Brief(
             brief_group_id=brief_group_id,

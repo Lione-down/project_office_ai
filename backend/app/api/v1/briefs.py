@@ -1,15 +1,22 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Header, Request, Response
 
 from app.schemas.briefs import (
+    BriefConfirmationRequest,
     BriefGenerationRequest,
+    BriefRevisionRequest,
     BriefRevisionResponse,
+    PreflightRequest,
     SkillResponse,
 )
 from app.services.briefs.service import BriefOperationError
+from app.services.preflight.contracts import BriefSnapshot, PreflightSnapshot
 
 
 skill_router = APIRouter(prefix="/api/v1/skills", tags=["skills"])
 brief_router = APIRouter(prefix="/api/v1/briefs", tags=["briefs"])
+generation_router = APIRouter(prefix="/api/v1/generations", tags=["generations"])
 
 
 def _bearer_token(authorization: str | None) -> str:
@@ -75,3 +82,74 @@ async def generate_brief(
     )
     response.headers["Cache-Control"] = "private, no-store"
     return BriefRevisionResponse(**snapshot.model_dump())
+
+
+def _workflow(request: Request):
+    workflow = _services(request).workflow
+    if workflow is None:
+        raise BriefOperationError(
+            "preflight_not_configured", "Brief Preflight服务未配置", 503
+        )
+    return workflow
+
+
+@brief_router.get("/{brief_id}", response_model=BriefSnapshot)
+async def get_brief(
+    brief_id: UUID,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> BriefSnapshot:
+    access_token = _bearer_token(authorization)
+    snapshot = await _workflow(request).get(access_token, brief_id)
+    response.headers["Cache-Control"] = "private, no-store"
+    return snapshot
+
+
+@brief_router.patch(
+    "/{brief_id}",
+    status_code=201,
+    response_model=BriefSnapshot,
+)
+async def revise_brief(
+    brief_id: UUID,
+    payload: BriefRevisionRequest,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> BriefSnapshot:
+    access_token = _bearer_token(authorization)
+    snapshot = await _workflow(request).revise(access_token, brief_id, payload)
+    response.headers["Cache-Control"] = "private, no-store"
+    return snapshot
+
+
+@brief_router.post("/{brief_id}/confirm", response_model=PreflightSnapshot)
+async def confirm_brief(
+    brief_id: UUID,
+    payload: BriefConfirmationRequest,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> PreflightSnapshot:
+    access_token = _bearer_token(authorization)
+    snapshot = await _workflow(request).confirm(
+        access_token,
+        brief_id,
+        accepted_estimated_credits=payload.accepted_estimated_credits,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    return snapshot
+
+
+@generation_router.post("/preflight", response_model=PreflightSnapshot)
+async def preflight_generation(
+    payload: PreflightRequest,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> PreflightSnapshot:
+    access_token = _bearer_token(authorization)
+    snapshot = await _workflow(request).preflight(access_token, payload)
+    response.headers["Cache-Control"] = "private, no-store"
+    return snapshot

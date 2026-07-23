@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T2-004 Skills 与 Agnes Structured Brief`
-- 下一任务：`T2-005 Brief 确认与 Preflight`
-- 当前状态：`T2-005 READY`
+- 最近完成：`T2-005 Brief 确认与 Preflight`
+- 下一任务：`T3-001 任务、Outbox 与积分事务`
+- 当前状态：`T3-001 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -33,8 +33,8 @@
 | T2-002 | DONE | T2-001 | `feat(evidence): add traceable ocr and evidence manifests`；验证证据见下文 |
 | T2-003 | DONE | T2-002 | `feat(terms): add reusable terminology normalization`；验证证据见下文 |
 | T2-004 | DONE | T2-003 | `feat(brief): generate evidence grounded structured briefs`；Mock Contract 通过，真实 Agnes 缺口见下文 |
-| T2-005 | READY | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
-| T3-001 | BLOCKED | T2-005 | 任务、Outbox 与积分事务 |
+| T2-005 | DONE | T2-004 | `feat(preflight): add brief confirmation and conflict gates`；验证证据见下文 |
+| T3-001 | READY | T2-005 | 任务、Outbox 与积分事务 |
 | T3-002 | BLOCKED | T3-001 | PPT Renderer 与系统模板 |
 | T3-003 | BLOCKED | T3-002 | PPT QA |
 | T3-004 | BLOCKED | T3-003 | Excel Renderer 与系统模板 |
@@ -555,3 +555,62 @@
 
 - T2-004 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security 与文档同步已完成；Docker、真实 MySQL 和真实 Agnes Contract 缺口已如实记录。
 - T2-004 以单一逻辑 commit 推送后收口为 `DONE`；T2-005 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。
+
+## T2-005 执行记录
+
+### 范围
+
+- 新增 owner-scoped Brief GET、append-only PATCH、普通确认和一键 Preflight；过期或已确认 Revision 不可修改，重复确认同一 Revision/费用返回既有锁定结果。
+- Preflight 复验资产版本与 Manifest、Evidence blocker、Brief unresolved item、两个 Alpha Skill 合同、5 个系统模板、Agnes Provider/Credential 和模型 snapshot/capability。
+- 冲突稳定分为 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible`；resolution 必须匹配当前 unresolved code/action/evidence IDs。
+- 每个输出按 `ceil(800 × model.credit_multiplier)` 计算；multiplier、模板版本、子输出费用和总费用进入不可变 Preflight snapshot。
+- 新增基础确认页，可查看/编辑 goal 与 audience、显示输出/模板/积分和可操作冲突，并在 blocker 存在时禁用唯一 primary CTA。
+- `queued` 仅表示 generation-ready Brief；本任务不创建 `generation_tasks`、不写 `credit_ledger` 或 Outbox、不调用 Worker、不执行 Office renderer。
+
+### Changed files
+
+- Contract/Service：`backend/app/services/preflight/` 的 catalog、contracts、evaluator 与 workflow service；`backend/app/services/briefs/` 补系统模板 snapshot 和 workflow wiring。
+- Model/Migration：`backend/app/models/briefs.py` 与 `backend/alembic/versions/20260723_0010_brief_preflight_snapshot.py`，只 additive 增加两个可空字段。
+- API/Wiring：`backend/app/api/v1/briefs.py`、router、schemas、application。
+- Backend tests：`backend/tests/preflight/`，既有 Brief/Skill/Terminology migration/model contract 随连续 Head 更新。
+- Frontend：authenticated API client、in-memory Session token、Brief module/types、确认路由与 `frontend/src/views/brief/confirm.vue`，及相应 Vitest。
+- Records：T2-005/T3-001 task status、task index、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、本文件与 `pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧 `docs/ui-mockups/` 和 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏材料。
+
+### TDD、focused 与主会话 review
+
+- RED 从缺失 Preflight package、migration/model 字段、service/API、frontend client/route/view 和默认模板 snapshot 开始，按 contract、persistence、service、API 与 UI 分组转 GREEN。
+- 主会话顺序 deep review 新增并修复 resolution action/evidence matching、模型完整 identity、`auto_merge`/`needs_confirmation` 展示，以及“写诊断状态后立即抛 409 导致事务回滚”。
+- 最终 traceability review 又发现两项 hard stop：保存新 Revision 后页面仍向旧 ID 发 Preflight，以及 snapshot 未显式记录 task card 要求的 model multiplier。两项均先得到定向 RED，再最小修复转 GREEN。
+- Focused backend：`.venv/Scripts/python.exe -m pytest tests/preflight tests/briefs -q` 为 `57 passed`。
+- Frontend：`npm run test` 为 `6 files / 12 tests passed`；`npm run build` 通过。
+- Playwright 以脱敏本地 mock 验证 1280×900 与 375×812 页面；最终移动端 `scrollWidth=clientWidth=375`，模板显示中文标签且无横向溢出。截图留在 ignored `output/`，不纳入 Git。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend `.venv/Scripts/python.exe -m pytest tests -q --tb=no`：`370 passed, 2 skipped`；只跳过未 opt-in 的两项真实 Agnes Contract，未读取 `.env` 或 Credential。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 通过；221 个 Python 文件全部不超过 500 行。
+- `alembic heads` 为单一 `20260723_0010 (head)`；SQLite 空库 upgrade/migration tests 通过；MySQL dialect offline `upgrade head --sql` 退出码 `0`，生成 536 行并包含 `briefs` 两列 ALTER。
+- `pip check` 通过；`pip-audit --local` 为 0 known vulnerabilities，仅按预期跳过本地非 PyPI package；14 个 direct production dependency license metadata 无缺失。
+- `npm audit --audit-level=high` 为 0 vulnerabilities；Node lockfile 236 个 package license metadata 无缺失。
+- 主会话按 auth/owner boundary、append-only revision、transaction/locking、model/template/evidence compatibility、费用锁、API/UI、migration 和 adversarial abuse 顺序复核；修复 2 个 hard stop 后，无剩余 blocking security/logic finding。
+
+### Runtime 缺口与证据边界
+
+- 任务卡四条 Compose 命令已逐条实际尝试；当前 PATH 无 `docker`，全部在容器创建前 command not found，不标记 Compose/backend/frontend container runtime 通过。
+- 未读取 ignored `.env` 或本机 Secret，因此未运行真实 MySQL `0010` upgrade/row-lock probe；SQLite migration 与 MySQL offline DDL 不冒充真实 MySQL runtime。
+- 真实 Agnes Contract 仍未获 explicit opt-in，保持 `2 skipped`；T2-004 的 Mock Contract 证据未被提升为真实 Agnes 通过。
+- 本任务没有生成 Office 文件；Microsoft Office/WPS 接受与真实 renderer 证据仍属于 T3/T4 外部 Gate。
+
+### 安全与决策
+
+- 所有 Brief 操作先认证并按 `user_id` owner scope；来源资产还绑定 project、未删除、ready 状态、asset version、Manifest key/SHA。
+- PATCH 只接受明确用户字段、系统模板和匹配当前 unresolved item 的 resolution；来源、术语、Skill、模型与 Evidence 引用沿用权威 snapshot。
+- Preflight 不解密 Credential、不访问 Provider 或公网；只核对数据库中 active Agnes Provider/Credential/model capability，不把 Secret 放入 response、snapshot 或日志。
+- 费用变化或新增 blocker 先提交最新 snapshot 再返回 409；确认快照保持 multiplier/模板/子输出与总费用，重复确认不重算。
+- Frontend access token 只保存在 Pinia memory state，不写 localStorage、URL 或日志；Brief API 使用 Bearer 并返回 `private, no-store`。
+
+### 完成结论
+
+- T2-005 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security、实机 UI 和状态文档同步已完成；Docker、真实 MySQL、真实 Agnes 与 Office/WPS runtime 缺口已如实记录。
+- T2-005 以单一逻辑 commit 推送后收口为 `DONE`；T3-001 是下一唯一 `READY` 任务，本会话未创建 generation task、积分流水或 Outbox。

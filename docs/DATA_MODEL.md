@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T2-004` migration `20260723_0009` 已 additive 建立 `skills`、`briefs`、`provider_calls` 并固化两个 Alpha Skill，当前共实现 15/21 张表
+- 状态：逻辑契约；`T2-005` migration `20260723_0010` 已 additive 扩展 `briefs` 的 Preflight snapshot 与预计积分锁，当前共实现 15/21 张表
 
 ## 全局约定
 
@@ -47,8 +47,8 @@
    - `(term_library_version_id, item_id)` 与 `(term_library_version_id, canonical_term)` 唯一；条目更新/删除通过下一库版本表达。
 
 9. `briefs`
-   - 修订行 ID、跨 revision 稳定 `brief_group_id`、revision、用户、项目、选择模型、来源快照、17 字段内容 JSON、内容 checksum、状态、确认/创建时间。
-   - `(brief_group_id, revision)` 唯一；T2-004 只创建 revision 1 的 `draft`，后续修改必须追加新 revision，不 UPDATE 历史内容。
+   - 修订行 ID、跨 revision 稳定 `brief_group_id`、revision、用户、项目、选择模型、来源快照、17 字段内容 JSON、内容 checksum、可空 Preflight snapshot、可空锁定预计积分、状态、确认/创建时间。
+   - `(brief_group_id, revision)` 唯一；T2-004 创建 revision 1 的 `draft`，T2-005 修改时锁定最新 Revision 并追加下一行，不 UPDATE 历史内容、来源或确认快照。
 
 10. `skills`
     - 每版本一行：code、SemVer、kind、展示信息、output kind、input/output JSON Schema、workflow、能力要求、状态、checksum 和发布时间。
@@ -117,6 +117,7 @@
 - T2-002 证据边界：解析结果落盘后先在同一资产行提交 deterministic Manifest key 和 `building`，再生成/校验/原子写入 Manifest；最终条件更新一次性写入 `ready` 和摘要 metadata。暂时性 OCR 失败先精确清理本轮解析/Manifest 输出，再以 exponential backoff 回到 `quarantined`；第 3 次失败稳定拒绝，不产生伪造证据或无限重试。用户删除资产时必须按记录的 exact keys 幂等清理原文件、解析结果与 Manifest，任一清理失败都保留 `deleting`，不得伪装成 `deleted`。
 - T2-003 术语边界：owner-scoped mutation 以 locking read 获取最新 active 库版本，同一事务插入下一库版本与完整条目 snapshot；历史 Brief/任务只引用稳定 `library_id + version`，回滚规则只选择旧版本，不改写 Manifest、Brief 或历史 snapshot。
 - T2-004 Brief 边界：先 owner-scope 校验项目、ready 资产、Manifest integrity、显式术语库 version、Skill row 全合同、发布模型/Provider/Credential；只把 bounded evidence 与选定术语规则作为 untrusted user context 发送给唯一选定 Agnes。每次调用先写脱敏 `provider_calls`，合法响应再以新 `brief_group_id + revision=1` 保存不可变 Brief 并回链 calls；Schema/evidence/snapshot 失败只修复一次，仍失败不创建 Brief 或积分记录。timeout 只写 `provider_uncertain` call，不自动重试或切换 Provider。
+- T2-005 Preflight 边界：GET 可 owner-scoped 读取历史 Revision；PATCH 同时锁定目标行和 group 最新行，只有目标仍为最新且 `expected_revision` 匹配时才追加新 Revision。Preflight/confirm 锁定当前行并复验最新 Revision、资产版本/Manifest、Evidence blocker、Skill/template/model/Provider/Credential；状态和不可变 snapshot 在同一事务提交。费用变化或新增 blocker 先持久化最新 Preflight snapshot，再返回稳定 409；确认只把 Brief 置为 generation-ready `queued` 并锁定 multiplier/子输出费用/总预计积分，不创建任务、ledger 或 Outbox。
 - 生成事务：创建 `generation_tasks`、inputs、reserve ledger 与 Outbox；同一 idempotency key 重放返回既有结果。
 - 结算事务：按子输出结果写 finalize/release，不允许同一输出重复结算。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。
@@ -139,6 +140,8 @@
 - `T2-001` 新增 `20260723_0006`，只向 `file_assets` additive 增加 8 个安全处理 metadata 字段；SQLite 空库完整升级、MySQL dialect offline SQL、中文 COMMENT 与唯一 Head `20260723_0006` 已验证。当前会话未读取本地 `.env`，未把 offline 结果冒充真实 MySQL runtime upgrade。
 - `T2-002` 新增 `20260723_0007`，只向 `file_assets` additive 增加 9 个 Evidence Manifest 与 OCR retry metadata 字段；真实 MySQL runtime 结果以本任务执行记录为准。
 - `T2-003` 新增 `20260723_0008`，建立不可变 `term_libraries` 与 `term_items` snapshot 表、owner/project/previous-version 外键、3 项版本唯一约束和中文 COMMENT。SQLite 空库完整升级与单一 Head、MySQL dialect offline DDL 已验证；本任务未读取 `.env`，未运行真实 MySQL `0008` upgrade。
+- `T2-004` 新增 `20260723_0009`，建立 `skills`、`briefs`、`provider_calls` 并以 migration 内冻结 payload 固化两个 Alpha Skill；SQLite 空库完整升级、单一 Head 与 MySQL dialect offline DDL 已验证，真实 Agnes Contract 未 opt-in。
+- `T2-005` 新增 `20260723_0010`，只向 `briefs` additive 增加可空 `preflight_snapshot JSON` 与 `estimated_credits INTEGER`；SQLite 空库完整升级测试、唯一 Head `20260723_0010` 与 MySQL dialect offline DDL 已通过。本任务未读取 `.env`，未运行真实 MySQL `0010` upgrade。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。

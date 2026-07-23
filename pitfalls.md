@@ -216,6 +216,20 @@
 - 本任务处理：runtime 逐字段核对 Skill row 与冻结定义；Brief validation 同时锁定 goal/audience/asset/term/Skill/model/include/exclude/output kind，file/calculation facts 与 Agnes inference 必须引用本次已知 evidence。
 - 预防/验证：所有“版本 + checksum”合同都要测试“内容变、checksum 不变”；模型结构化输出除 Schema 外还必须验证 authoritative input snapshot 与跨字段语义。
 
+### 2026-07-23 · T2-005 · immutable Revision 页面不能继续使用旧资源 ID
+
+- 现象：PATCH 成功返回新的 `brief_id`，初版页面却继续用路由中的旧 Revision ID执行 Preflight/confirm。
+- 影响：保存编辑后必然命中 `brief_revision_stale`，用户无法完成 Week 2 确认流程；只测 PATCH request 会漏掉该跨请求状态错误。
+- 本任务处理：页面把已加载 Brief 的 ID 作为后续操作权威值，仅首次加载回退到路由参数；组件测试断言保存后最后一次 Preflight 使用新 Revision ID。
+- 预防/验证：所有 append-only resource UI 都要覆盖 create-next-version 后的下一次 read/action target，不能只断言 mutation payload 或页面 revision 文案。
+
+### 2026-07-23 · T2-005 · 需要返回 409 的状态变化不能在事务内直接抛出
+
+- 现象：确认时发现新 blocker 或预计积分变化，若在 `session.begin()` 内写状态后立即抛业务异常，context manager 会回滚最新 Preflight snapshot。
+- 影响：客户端收到 409，但后续 GET 看不到导致冲突的最新 blocker/费用，形成不可解释的重试循环；费用快照若遗漏 model multiplier 也无法审计计算依据。
+- 本任务处理：事务内保存最新状态、model multiplier、模板、子输出费用与总费用，把 409 延迟到事务成功退出后抛出；确认成功后始终读取既有锁定 snapshot，不重算。
+- 预防/验证：所有“持久化诊断状态后返回失败”的路径都要 fault-test commit/rollback 边界；费用锁必须同时保存公式输入和各子输出结果，不能只保存总数。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

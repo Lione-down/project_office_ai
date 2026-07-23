@@ -12,6 +12,11 @@ describe("application routes", () => {
           name: "admin",
           meta: { requiresAuth: true, roles: ["admin"] },
         }),
+        expect.objectContaining({
+          name: "brief-confirm",
+          path: "/briefs/:briefId/confirm",
+          meta: { requiresAuth: true },
+        }),
       ]),
     );
   });

@@ -1,6 +1,6 @@
 # T3-001 任务、Outbox 与积分事务
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T2-005`
 - 来源：总计划第 4、6、7、10、12 节与 Day 11
 - 建议 commit：`feat(task): add durable generation orchestration`

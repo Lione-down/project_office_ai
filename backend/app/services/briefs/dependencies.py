@@ -5,3 +5,4 @@ from dataclasses import dataclass
 class BriefServices:
     skills: object
     generation: object | None
+    workflow: object | None = None

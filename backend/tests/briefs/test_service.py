@@ -19,6 +19,7 @@ from app.services.briefs.contracts import (
     TermLibraryVersion,
 )
 from app.services.briefs.service import BriefOperationError
+from app.services.preflight.catalog import PPT_DEFAULT_TEMPLATE
 from tests.briefs.helpers import (
     ASSET_ID,
     CREDENTIAL_ID,
@@ -88,6 +89,12 @@ async def test_generation_persists_immutable_brief_and_redacted_call_metadata(
             "content": "销售额",
             "source": "user",
             "evidence_ids": [],
+        }
+    ]
+    assert briefs[0].source_snapshot["template_versions"] == [
+        {
+            "template_code": PPT_DEFAULT_TEMPLATE,
+            "version": "1.0.0",
         }
     ]
     assert len(calls) == 1

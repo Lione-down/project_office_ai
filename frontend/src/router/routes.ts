@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from "vue-router";
 
 import SystemView from "@/views/system-view.vue";
+import BriefConfirmView from "@/views/brief/confirm.vue";
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -20,5 +21,11 @@ export const routes: RouteRecordRaw[] = [
     name: "admin",
     component: SystemView,
     meta: { requiresAuth: true, roles: ["admin"] },
+  },
+  {
+    path: "/briefs/:briefId/confirm",
+    name: "brief-confirm",
+    component: BriefConfirmView,
+    meta: { requiresAuth: true },
   },
 ];

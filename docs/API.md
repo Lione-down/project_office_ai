@@ -165,7 +165,9 @@ T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset ver
 
 生成状态为：`draft`、`preflight`、`needs_resolution`、`queued`、`running`、`succeeded`、`partial_success`、`provider_uncertain`、`failed`、`cancelled`。
 
-`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与全部 Preflight/Generation endpoints 仍由 T2-005/T3 交付；T2-004 不暴露半成品确认、扣费、任务或 Outbox API。
+T2-005 已实现 owner-scoped `GET /briefs/{brief_id}`、`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与 `POST /generations/preflight`。GET 可读取 owner 的历史 Revision；PATCH 只允许基于最新 Revision 追加用户可编辑字段、系统模板版本和匹配当前 unresolved item 的显式 resolution，不允许客户端替换来源、术语、Skill、模型或 Evidence 引用。Preflight 每次复验资产版本/Manifest、Evidence blocker、Brief unresolved item、Skill 全合同、系统模板以及当前 Agnes Provider/Credential/模型能力，返回 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible` 四类结果。
+
+Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX/XLSX 组合再求和；model multiplier、各子输出费用和模板版本进入不可变 Preflight snapshot。普通模式需要 confirm 接受当前预计积分，一键模式必须在同一请求提交匹配的预计积分。重复确认同一 Revision 与同一费用返回已锁定 snapshot；`brief_revision_stale`、`preflight_blocked`、`estimated_credits_changed`、Skill/template/model incompatibility 均不能进入 `queued`。T2-005 的 `queued` 只表示 generation-ready Brief，不创建 `generation_tasks`、不预留积分、不写 ledger/Outbox，也不执行 Worker；这些边界由 T3-001 交付。
 
 ## Credits
 
@@ -213,6 +215,6 @@ T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset ver
 ## 后续 contract gate
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
-- `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 实现 Brief/Preflight。
+- `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight；T3-001 起实现任务、账务与 Outbox。
 - `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

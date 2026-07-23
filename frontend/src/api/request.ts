@@ -5,6 +5,10 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
 }
 
+export interface ApiRequestOptions {
+  accessToken?: string;
+}
+
 interface ErrorEnvelope {
   error?: {
     error_code?: string;
@@ -28,12 +32,21 @@ export class ApiError extends Error {
 export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions) {
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
 
-  async function request<T>(path: string, init: RequestInit): Promise<T> {
+  async function request<T>(
+    path: string,
+    init: RequestInit,
+    options: ApiRequestOptions = {},
+  ): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (options.accessToken) {
+      headers.set("Authorization", `Bearer ${options.accessToken}`);
+    }
     const response = await fetchImpl(
       `${normalizedBaseUrl}/${path.replace(/^\//, "")}`,
       {
         ...init,
-        headers: { Accept: "application/json", ...init.headers },
+        headers,
       },
     );
     const payload = (await response.json()) as T & ErrorEnvelope;
@@ -49,8 +62,38 @@ export function createApiClient({ baseUrl, fetchImpl = fetch }: ApiClientOptions
   }
 
   return {
-    get<T>(path: string): Promise<T> {
-      return request<T>(path, { method: "GET" });
+    get<T>(path: string, options?: ApiRequestOptions): Promise<T> {
+      return request<T>(path, { method: "GET" }, options);
+    },
+    post<T>(
+      path: string,
+      body: unknown,
+      options?: ApiRequestOptions,
+    ): Promise<T> {
+      return request<T>(
+        path,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        options,
+      );
+    },
+    patch<T>(
+      path: string,
+      body: unknown,
+      options?: ApiRequestOptions,
+    ): Promise<T> {
+      return request<T>(
+        path,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        options,
+      );
     },
   };
 }

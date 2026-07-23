@@ -52,4 +52,31 @@ describe("API client", () => {
       status: 503,
     });
   });
+
+  it("sends authenticated JSON writes without leaking the token into the body", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ revision: 2 }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = createApiClient({ baseUrl: "/api/v1", fetchImpl });
+
+    await client.patch(
+      "/briefs/brief-id",
+      { expected_revision: 1, goal: "季度复盘" },
+      { accessToken: "access-token" },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [url, request] = fetchImpl.mock.calls[0];
+    const headers = new Headers(request.headers);
+    expect(url).toBe("/api/v1/briefs/brief-id");
+    expect(request.method).toBe("PATCH");
+    expect(headers.get("Authorization")).toBe("Bearer access-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(request.body).toBe(
+      JSON.stringify({ expected_revision: 1, goal: "季度复盘" }),
+    );
+  });
 });

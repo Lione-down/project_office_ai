@@ -45,6 +45,12 @@ class Brief(Base):
         String(64), comment="Brief内容SHA-256"
     )
     status: Mapped[str] = mapped_column(String(20), comment="Brief修订状态")
+    preflight_snapshot: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, comment="不可变Preflight结果快照"
+    )
+    estimated_credits: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="用户确认的预计积分"
+    )
     confirmed_at: Mapped[datetime | None] = mapped_column(
         utc_datetime_type(), nullable=True, comment="用户确认时间（UTC）"
     )
