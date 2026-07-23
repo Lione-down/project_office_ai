@@ -23,14 +23,19 @@ class ProviderCall(Base):
             "attempt",
             name="uq_provider_calls_brief_attempt",
         ),
+        UniqueConstraint(
+            "task_step_id",
+            "attempt",
+            name="uq_provider_calls_task_step_attempt",
+        ),
         {"comment": "Provider调用脱敏元数据表"},
     )
 
     id: Mapped[UUID] = mapped_column(
         UuidBinary(), primary_key=True, default=new_uuid7, comment="Provider调用ID"
     )
-    brief_group_id: Mapped[UUID] = mapped_column(
-        UuidBinary(), index=True, comment="关联Brief稳定组ID"
+    brief_group_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(), nullable=True, index=True, comment="关联Brief稳定组ID"
     )
     brief_revision_id: Mapped[UUID | None] = mapped_column(
         UuidBinary(),
@@ -38,6 +43,20 @@ class ProviderCall(Base):
         nullable=True,
         index=True,
         comment="成功后关联的Brief修订行ID",
+    )
+    task_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(),
+        ForeignKey("generation_tasks.id", name="fk_provider_calls_task"),
+        nullable=True,
+        index=True,
+        comment="关联生成任务ID",
+    )
+    task_step_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(),
+        ForeignKey("generation_task_steps.id", name="fk_provider_calls_task_step"),
+        nullable=True,
+        index=True,
+        comment="关联生成阶段ID",
     )
     attempt: Mapped[int] = mapped_column(Integer, comment="调用尝试序号")
     provider_id: Mapped[UUID] = mapped_column(

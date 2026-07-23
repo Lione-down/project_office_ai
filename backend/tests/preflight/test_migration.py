@@ -21,7 +21,7 @@ def alembic_config() -> Config:
 def test_preflight_migration_is_the_current_single_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260723_0010"]
+    assert scripts.get_heads() == ["20260723_0011"]
     assert scripts.get_revision("20260723_0010").down_revision == "20260723_0009"
 
 
@@ -41,7 +41,7 @@ def test_preflight_migration_adds_only_brief_snapshot_columns(
     )
     get_settings.cache_clear()
     try:
-        command.upgrade(alembic_config(), "head")
+        command.upgrade(alembic_config(), "20260723_0010")
     finally:
         get_settings.cache_clear()
 

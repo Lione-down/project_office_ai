@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T2-005 Brief 确认与 Preflight`
-- 下一任务：`T3-001 任务、Outbox 与积分事务`
-- 当前状态：`T3-001 READY`
+- 最近完成：`T3-001 任务、Outbox 与积分事务`
+- 下一任务：`T3-002 PPT Renderer 与系统模板`
+- 当前状态：`T3-002 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -34,8 +34,8 @@
 | T2-003 | DONE | T2-002 | `feat(terms): add reusable terminology normalization`；验证证据见下文 |
 | T2-004 | DONE | T2-003 | `feat(brief): generate evidence grounded structured briefs`；Mock Contract 通过，真实 Agnes 缺口见下文 |
 | T2-005 | DONE | T2-004 | `feat(preflight): add brief confirmation and conflict gates`；验证证据见下文 |
-| T3-001 | READY | T2-005 | 任务、Outbox 与积分事务 |
-| T3-002 | BLOCKED | T3-001 | PPT Renderer 与系统模板 |
+| T3-001 | DONE | T2-005 | `feat(task): add durable generation orchestration`；验证证据见下文 |
+| T3-002 | READY | T3-001 | PPT Renderer 与系统模板 |
 | T3-003 | BLOCKED | T3-002 | PPT QA |
 | T3-004 | BLOCKED | T3-003 | Excel Renderer 与系统模板 |
 | T3-005 | BLOCKED | T3-004 | Excel QA 与组合任务；Week 3 Gate |
@@ -614,3 +614,58 @@
 
 - T2-005 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security、实机 UI 和状态文档同步已完成；Docker、真实 MySQL、真实 Agnes 与 Office/WPS runtime 缺口已如实记录。
 - T2-005 以单一逻辑 commit 推送后收口为 `DONE`；T3-001 是下一唯一 `READY` 任务，本会话未创建 generation task、积分流水或 Outbox。
+
+## T3-001 执行记录
+
+### 范围
+
+- Additive 建立 `generation_tasks`、`generation_task_steps`、`generation_task_inputs` 与 `outbox_events`，补齐 `credit_ledger` 的 task 外键和 `provider_calls` 的 task/step attempt 关联。
+- `POST /generations` 在同一数据库事务锁定 owner、最新已确认 Brief、Model/Credential/Provider 和余额，冻结输入/模板/Skill/model snapshot，写入 task、steps、reserve ledger 与首个 Outbox；同 user/idempotency key 重放既有任务。
+- 实现 owner-scoped task 查询、取消、受限重试和 Credits balance/ledger；状态机覆盖 queued/running/succeeded/partial_success/provider_uncertain/failed/cancelled。
+- 实现 MySQL checkpoint 权威的 Worker 编排、Outbox at-least-once Dispatcher、Redis 丢失恢复、safe stale step 恢复、每用户并发和 Credential RPM/TPM/最大并发限制。
+- Python consumer 只接受注入的 step executor；本任务不渲染或伪造 PPTX/XLSX，不提前实现 T3-002。
+
+### Changed files
+
+- Models/Migration：`backend/app/models/{generation_tasks,generation_task_steps,generation_task_inputs,outbox_events,credit_ledger,provider_calls}.py`、model exports 与 `backend/alembic/versions/20260723_0011_generation_outbox_credits.py`。
+- Service/Worker：`backend/app/services/{generation,generation_contracts,generation_snapshots,credit_transactions,generation_worker,credential_limits,outbox,outbox_events}.py` 与 `backend/app/workers/generation/`。
+- API/Wiring：`backend/app/api/v1/generations.py`、`backend/app/schemas/generation.py`、router、application lifespan、Redis Lua helper、settings/error contract 与 Compose timeout mapping。
+- Tests：`backend/tests/{generation,credits,outbox,integration}/`，以及历史 migration/model contract 对连续 `0011` Head 和 ProviderCall additive 字段的更新。
+- Records：T3-001/T3-002 task status、task index、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、本文件与 `pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪的 `design-system/`、旧 `docs/ui-mockups/`、`.playwright-cli/` 和 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏材料。
+
+### TDD、focused 与主会话 review
+
+- RED 首先因 generation service 不存在而 collection fail；随后按 model/migration、事务幂等、credits、状态机、Worker、Outbox、并发/限流、API/lifespan 分组转 GREEN。
+- Focused：`.venv/Scripts/python.exe -m pytest tests/generation tests/credits tests/outbox tests/integration -q` 为 `27 passed`。
+- 主会话顺序 deep review 修复 8 项 hard stop：Skill version 未冻结、safe stale step 未复位、service 幂等键校验绕过、满长 retry billing key 超列宽、ProviderCall 跨任务唯一键冲突、过期任务仍执行、confirm 后模型/费用漂移，以及子输出费用与锁定总额不一致。
+- 修复项均增加或扩展定向回归；最终按 auth/owner、transaction/idempotency、ledger、state machine、checkpoint/recovery、provider uncertainty、limits、migration/API 顺序复核，无剩余 blocking security/logic finding。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend `.venv/Scripts/python.exe -m pytest tests -q --tb=no`：`397 passed, 2 skipped`；两项 skip 仅为未 opt-in 的真实 Agnes Contract。
+- `ruff check app tests alembic` 与 `ruff format --check app tests alembic` 通过；252 个 Python 文件全部不超过 500 行。
+- `alembic heads` 为单一 `20260723_0011 (head)`；SQLite 空库完整 upgrade 通过；MySQL dialect offline upgrade 捕获 674 行并包含四张新表、外键、ProviderCall task/step unique 和 nullable Brief group，`0011 -> 0010` offline downgrade 生成通过。
+- `pip check` 通过；`pip-audit --local` 为 0 known vulnerabilities，仅按预期跳过本地非 PyPI package；14 个 direct production dependency license metadata 无缺失。
+- Frontend `npm audit --audit-level=high` 为 0 vulnerabilities，251 个 package license metadata 无缺失；`npm run test` 为 `6 files / 12 tests passed`，`npm run build` 通过。
+- 候选变更敏感模式扫描为 0 命中；最终 Git exact-path staging 前后继续执行 ignore、diff、staged-name 与状态门禁。
+
+### Runtime 缺口与证据边界
+
+- 任务卡四条 `docker compose run --rm backend pytest ...` 命令已逐条实际尝试；当前 PATH 无 `docker`，全部在容器创建前 `CommandNotFoundException`，不标记 Compose/backend container runtime 通过。
+- 未读取 ignored `.env` 或本机 Secret，因此未运行真实 MySQL `0011` transaction/row-lock 或真实 Redis queue/Lua/recovery runtime；SQLite migration、MySQL offline DDL 与测试 double 不冒充这些 runtime 证据。
+- 真实 Agnes Contract 仍未获 explicit opt-in，保持 `2 skipped`；T2-004 的 Mock Contract 不提升为真实 Agnes 通过。
+- 本任务没有生成 Office 文件；Microsoft Office/WPS 接受、LibreOffice 和真实 renderer 证据仍属于 T3-002 及后续 Gate。
+
+### 安全与决策
+
+- Task create/read/cancel/retry 和 Credits 查询均先认证并 owner scope；响应使用 `private, no-store`，queue/outbox payload 不含 Credential Secret、文件正文、Prompt、storage key 或本地路径。
+- 任务、不可变输入/能力快照、reserve ledger 和 Outbox 同事务提交；余额不足或 Outbox 写入失败整体回滚。账务真相保持 append-only，余额缓存只在同一事务同步。
+- 全成功 finalize 全额；全失败/可取消任务 release；部分成功 finalize 成功子输出费用并 release 余量。`provider_uncertain` 保留 reserve，不自动重试或重复结算。
+- 重复 queue message 依赖数据库 claim/checkpoint 去重；安全 stale step 可恢复，已进入 Provider 且结果未知的 checkpoint 转 `provider_uncertain`，不能伪装为安全重放。
+- confirm 后仍复验 model/provider/credential identity、pricing/capability 与子输出费用总和，防止锁定费用或能力 snapshot 被漂移配置绕过。
+
+### 完成结论
+
+- T3-001 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security、主会话顺序 deep review 与状态文档同步已完成；Docker、真实 MySQL/Redis、真实 Agnes 和 Office/WPS runtime 缺口已如实记录。
+- T3-001 以单一逻辑 commit 推送后收口为 `DONE`；T3-002 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。

@@ -3,7 +3,7 @@
 - 前缀：`/api/v1`
 - 数据格式：JSON；文件上传与下载除外
 - 身份：短期 Session Access Token + 可撤销 Refresh Token
-- 状态：`T1-005` 已实现 Auth、Admin Invite、Provider/Credential/Model Registry、Projects 与 Assets；其余接口按后续任务实现
+- 状态：已完成 T1、T2 与 `T3-001`；Auth、资产、Provider/Model、Evidence/Brief/Preflight、Generation/Credits/Outbox contract 已实现，其余接口按后续任务实现
 
 ## 共同行为
 
@@ -167,7 +167,11 @@ T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset ver
 
 T2-005 已实现 owner-scoped `GET /briefs/{brief_id}`、`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与 `POST /generations/preflight`。GET 可读取 owner 的历史 Revision；PATCH 只允许基于最新 Revision 追加用户可编辑字段、系统模板版本和匹配当前 unresolved item 的显式 resolution，不允许客户端替换来源、术语、Skill、模型或 Evidence 引用。Preflight 每次复验资产版本/Manifest、Evidence blocker、Brief unresolved item、Skill 全合同、系统模板以及当前 Agnes Provider/Credential/模型能力，返回 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible` 四类结果。
 
-Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX/XLSX 组合再求和；model multiplier、各子输出费用和模板版本进入不可变 Preflight snapshot。普通模式需要 confirm 接受当前预计积分，一键模式必须在同一请求提交匹配的预计积分。重复确认同一 Revision 与同一费用返回已锁定 snapshot；`brief_revision_stale`、`preflight_blocked`、`estimated_credits_changed`、Skill/template/model incompatibility 均不能进入 `queued`。T2-005 的 `queued` 只表示 generation-ready Brief，不创建 `generation_tasks`、不预留积分、不写 ledger/Outbox，也不执行 Worker；这些边界由 T3-001 交付。
+Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX/XLSX 组合再求和；model multiplier、各子输出费用和模板版本进入不可变 Preflight snapshot。普通模式需要 confirm 接受当前预计积分，一键模式必须在同一请求提交匹配的预计积分。重复确认同一 Revision 与同一费用返回已锁定 snapshot；`brief_revision_stale`、`preflight_blocked`、`estimated_credits_changed`、Skill/template/model incompatibility 均不能进入 `queued`。
+
+T3-001 已实现 `POST /generations`、task GET/cancel/retry 和 Credits 查询。Create 只接受 owner 的最新已确认 Brief，并在同一事务冻结 Brief/input/template/Skill/model 与预计积分 snapshot，创建任务/步骤、预留流水和首个 Outbox；同 user/idempotency key 返回既有任务。执行前再次验证 Model/Provider/Credential identity、能力、费用和子输出总和，配置漂移 fail closed。Task/credits 响应使用 `Cache-Control: private, no-store`；稳定错误码包括 `brief_not_confirmed`、`brief_revision_stale`、`generation_preflight_stale`、`insufficient_credits`、`task_not_found`、`task_retry_not_allowed` 与 `idempotency_key_invalid`。
+
+T3-001 Worker 以数据库 task/step checkpoint 为权威。重复 queue delivery 只有一个 claim；确定性暂时失败有限重试，安全 stale checkpoint 可恢复，已开始 Provider 调用但结果未知时进入 `provider_uncertain` 并保留 reserve。Python consumer 只定义版本化 queue contract 和注入式 executor；真正 PPT/XLSX renderer 由后续任务交付。
 
 ## Credits
 
@@ -176,7 +180,7 @@ Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX
 | GET | `/credits/balance` | 事务内维护的余额缓存 |
 | GET | `/credits/ledger` | 当前用户只追加的积分流水 |
 
-失败任务不结算；组合任务只结算成功子输出；`provider_uncertain` 保留预留直到人工决策。
+`credit_ledger` 只追加，`users.credit_balance` 仅为同事务维护的余额缓存。创建任务写负数 `generation_reserve`；全部成功写幂等 finalize marker，全部失败或可取消任务写正数 release，部分成功 finalize 成功子输出并 release 未使用部分；重复消息或 retry 不能重复结算。`provider_uncertain` 保留预留直到后续受审计决策。
 
 ## Admin
 
@@ -215,6 +219,6 @@ Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX
 ## 后续 contract gate
 
 - `T1-003` 已实现并测试 Auth/Invite；`T1-004` 已实现 Admin Provider/Credential/Model；`T1-005` 已实现 Projects/Assets。
-- `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight；T3-001 起实现任务、账务与 Outbox。
-- `T3-001` 实现 Generation/Credits；`T4-002` 完成管理端资产和 audit 闭环。
+- `T2-001` 已实现病毒扫描、深度类型/容量检查与安全解析；`T2-003` 已实现术语库、不可变 snapshot、确定性标准化与来源冲突项；`T2-004`/`T2-005` 已实现 Brief/Preflight。
+- `T3-001` 已实现 Generation/Credits/Outbox 持久编排；T3-002 起交付真实 Renderer，`T4-002` 完成管理端资产和 audit 闭环。
 - 任何端点增删或 envelope/state 变化必须先更新本文件和 `docs/PROGRESS.md`。

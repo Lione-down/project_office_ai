@@ -230,6 +230,27 @@
 - 本任务处理：事务内保存最新状态、model multiplier、模板、子输出费用与总费用，把 409 延迟到事务成功退出后抛出；确认成功后始终读取既有锁定 snapshot，不重算。
 - 预防/验证：所有“持久化诊断状态后返回失败”的路径都要 fault-test commit/rollback 边界；费用锁必须同时保存公式输入和各子输出结果，不能只保存总数。
 
+### 2026-07-23 · T3-001 · 任务、预留与 Outbox 必须只有一个事务事实
+
+- 现象：如果先创建任务、再单独预留积分或发布 Redis 消息，任一步骤失败都会留下无余额保障的任务、孤立扣费或数据库不可恢复的 queue 状态。
+- 影响：重放相同请求可能重复扣费，Redis 丢失后也无法判断任务是否真实提交。
+- 本任务处理：同一事务锁定 owner/latest confirmed Brief、余额和运行配置，写 task、不可变 inputs、reserve ledger 与首个 Outbox；数据库唯一键处理 idempotency race，Outbox failure fault test 证明整体回滚。
+- 预防/验证：queue 只传递工作提示，MySQL task/step/ledger/outbox 才是事实；所有跨事务重放都必须由持久唯一键和 checkpoint 去重。
+
+### 2026-07-23 · T3-001 · stale checkpoint 必须区分安全重试和外部结果未知
+
+- 现象：统一把 stale running step 重置为 pending，会把已经发到 Provider 但尚未持久化响应的调用当成安全重试；反过来完全不恢复又会永久卡住尚未进入外部调用的步骤。
+- 影响：前者可能重复 Provider 副作用和扣费，后者导致 Redis/进程故障后任务无法恢复。
+- 本任务处理：safe stale checkpoint 先复位为 pending 再创建恢复 Outbox；已经进入 Provider 的 stale checkpoint 收口为 `provider_uncertain` 并保留 reserve。
+- 预防/验证：每个外部边界前后必须持久化可判定 checkpoint；没有确定证据时选择 uncertain，不把未知执行伪装成确定失败。
+
+### 2026-07-23 · T3-001 · 共享 ProviderCall 与 retry key 必须按业务 scope 限宽
+
+- 现象：沿用 `(brief_group_id, attempt)` 会让不同 generation task 的相同步骤 attempt 发生唯一键冲突；把 128 字符客户端 Idempotency-Key 原样拼接 retry 后缀还会超过 ledger 列宽。
+- 影响：正常并行任务或允许重试的失败任务可能被数据库约束意外拒绝，甚至让账务重试无法落盘。
+- 本任务处理：Brief call 保留原唯一键，task call 使用可空 task/step 外键与 `(task_step_id, attempt)`；retry billing key 改为固定 task UUID 和 retry 序号。
+- 预防/验证：共享审计表的唯一键必须明确互斥 scope；派生 idempotency key 必须从固定长度内部 ID 生成，并覆盖最大合法客户端输入。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

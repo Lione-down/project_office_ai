@@ -5,7 +5,11 @@ from app.models.base import Base
 from app.models.briefs import Brief
 from app.models.credit_ledger import CreditLedger
 from app.models.file_assets import FileAsset
+from app.models.generation_task_inputs import GenerationTaskInput
+from app.models.generation_task_steps import GenerationTaskStep
+from app.models.generation_tasks import GenerationTask
 from app.models.invite_codes import InviteCode
+from app.models.outbox_events import OutboxEvent
 from app.models.projects import Project
 from app.models.provider_calls import ProviderCall
 from app.models.provider_credentials import ProviderCredential
@@ -23,7 +27,11 @@ __all__ = [
     "Brief",
     "CreditLedger",
     "FileAsset",
+    "GenerationTask",
+    "GenerationTaskInput",
+    "GenerationTaskStep",
     "InviteCode",
+    "OutboxEvent",
     "Project",
     "ProviderCall",
     "ProviderCredential",

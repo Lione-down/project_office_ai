@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -28,6 +29,14 @@ from app.services.briefs.dependencies import BriefServices
 from app.services.briefs.service import BriefGenerationService
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.output_store import ParsedOutputStore
+from app.services.generation import GenerationService
+from app.services.generation_contracts import GenerationServices
+from app.services.outbox import (
+    OutboxDispatcher,
+    OutboxRuntime,
+    RedisGenerationPublisher,
+    TaskRecoveryService,
+)
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
@@ -57,6 +66,7 @@ def create_app(
     asset_services: object | None = None,
     terminology_services: object | None = None,
     brief_services: BriefServices | None = None,
+    generation_services: GenerationServices | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
@@ -64,6 +74,7 @@ def create_app(
     database: DatabaseManager | None = None
     redis: RedisManager | None = None
     credential_cipher: CredentialCipher | None = None
+    outbox_runtime: OutboxRuntime | None = None
     evidence_manifest_store = EvidenceManifestStore(
         application_settings.evidence_root,
         max_output_bytes=application_settings.max_evidence_manifest_bytes,
@@ -183,11 +194,48 @@ def create_app(
             ),
         )
 
+    if (
+        generation_services is None
+        and database is not None
+        and auth_services is not None
+    ):
+        generation_services = GenerationServices(
+            GenerationService(
+                database.session_factory,
+                auth_services.sessions,
+                task_timeout_seconds=application_settings.task_timeout_seconds,
+            )
+        )
+
+    if database is not None and redis is not None:
+        outbox_runtime = OutboxRuntime(
+            OutboxDispatcher(
+                database.session_factory,
+                RedisGenerationPublisher(redis),
+            ),
+            TaskRecoveryService(
+                database.session_factory,
+                stale_after=timedelta(
+                    seconds=application_settings.task_timeout_seconds
+                ),
+            ),
+        )
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        for resource in reversed(resources):
-            await resource.close()
+        background_task = (
+            asyncio.create_task(outbox_runtime.run())
+            if outbox_runtime is not None
+            else None
+        )
+        try:
+            yield
+        finally:
+            if background_task is not None:
+                background_task.cancel()
+                await asyncio.gather(background_task, return_exceptions=True)
+            for resource in reversed(resources):
+                await resource.close()
 
     app = FastAPI(title="Office AI API", version="0.1.0", lifespan=lifespan)
     app.state.readiness_checker = readiness_checker
@@ -196,6 +244,7 @@ def create_app(
     app.state.asset_services = asset_services
     app.state.terminology_services = terminology_services
     app.state.brief_services = brief_services
+    app.state.generation_services = generation_services
     app.add_middleware(
         UploadBodyLimitMiddleware,
         max_body_bytes=application_settings.max_upload_body_bytes,

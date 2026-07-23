@@ -69,6 +69,8 @@
 | `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` | 真实 Contract Test 选择已加密 Agnes Credential 的 UUID，不是 API Key | 否 | T2-004 手工联调 | 临时进程环境；只与显式 opt-in 同时使用 |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
+T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
+
 ### 本机兼容变量
 
 - Settings 同时接受现有本地 `.env` 的 `OFFICE_AI_DB_HOST`、`OFFICE_AI_DB_PORT`、`OFFICE_AI_DB_NAME`、`OFFICE_AI_DB_USER`、`OFFICE_AI_DB_PASSWORD`，分别对应上表的 canonical MySQL变量。

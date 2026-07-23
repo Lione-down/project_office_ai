@@ -180,6 +180,12 @@ class Settings(BaseSettings):
         ge=1,
         le=3600,
     )
+    task_timeout_seconds: int = Field(
+        2_700,
+        validation_alias="OFFICE_AI_TASK_TIMEOUT_SECONDS",
+        ge=60,
+        le=86_400,
+    )
 
     @property
     def max_upload_body_bytes(self) -> int:

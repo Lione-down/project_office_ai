@@ -1,6 +1,6 @@
 # T3-002 PPT Renderer 与系统模板
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T3-001`
 - 来源：总计划第 6、11 节与 Day 12
 - 建议 commit：`feat(ppt): add deterministic sales presentation renderer`

@@ -38,7 +38,10 @@ class CreditLedger(Base):
         comment="用户ID",
     )
     task_id: Mapped[UUID | None] = mapped_column(
-        UuidBinary(), nullable=True, comment="关联生成任务ID"
+        UuidBinary(),
+        ForeignKey("generation_tasks.id", name="fk_credit_ledger_task"),
+        nullable=True,
+        comment="关联生成任务ID",
     )
     entry_type: Mapped[str] = mapped_column(
         String(40), index=True, comment="积分流水类型"

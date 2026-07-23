@@ -81,11 +81,12 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 
 ## 任务与账务
 
-- 生成创建、积分 reserve 和 Outbox 在同一事务边界内；数据库唯一键保证幂等。
-- Redis 丢失后从 MySQL Outbox 和 checkpoint 恢复，不能依据 queue 孤立消息扣费。
-- 失败任务释放 reserve；partial success 只 finalize 成功子输出；质量自动修复不额外收费。
-- `provider_uncertain` 不自动重试或重复结算，需要受审计决策。
+- T3-001 生成创建只接受 owner 的最新 confirmed Brief；同事务锁定用户余额与 Model/Credential/Provider，复验 Skill/model identity、capability、pricing 和子输出费用总和，再写不可变 inputs、task/steps、负数 reserve 与首个 Outbox。数据库唯一键保证幂等，任一写入失败整体回滚。
+- 每用户最多 2 个 running task；Credential 最大并发使用数据库 active checkpoint，RPM/TPM 使用单个 Redis Lua 原子窗口预算。Redis 限流丢失不能改变 task/ledger 事实，恢复后只影响新的 admission。
+- Redis queue 丢失后从 MySQL Outbox 和 checkpoint 恢复，不能依据孤立 queue message 扣费。重复投递由数据库 claim 去重；safe stale step 可重试，已经进入 Provider 且结果未知的 checkpoint 必须转 `provider_uncertain`。
+- 失败或可取消任务释放 reserve；partial success 只 finalize 成功子输出并 release 余量；质量自动修复不额外收费。`provider_uncertain` 保留 reserve，不自动重试或重复结算，需要后续受审计决策。
 - `credit_ledger` 与 `audit_logs` 只追加，不提供修改/删除业务接口。
+- Generation、Credits、Outbox/queue payload 和日志不得包含 Credential Secret、Prompt、文件正文、storage key 或本地路径；用户 task/credits 响应使用 `private, no-store`。
 
 ## 日志与审计
 
