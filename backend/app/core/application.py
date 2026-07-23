@@ -24,11 +24,14 @@ from app.services.auth_security import (
 )
 from app.services.auth_sessions import AuthSessionService
 from app.services.asset_management import AssetManagementService
+from app.services.briefs.dependencies import BriefServices
+from app.services.briefs.service import BriefGenerationService
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
 from app.services.provider_security import CredentialCipher, ProviderConfigurationError
+from app.services.skills import SkillCatalogService
 from app.services.terminology.service import TerminologyLibraryService
 from app.settings.config import Settings, get_settings
 from app.storage.local import LocalStorageAdapter
@@ -52,12 +55,18 @@ def create_app(
     provider_services: object | None = None,
     asset_services: object | None = None,
     terminology_services: object | None = None,
+    brief_services: BriefServices | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
     configure_logging(application_settings.log_level)
     resources: list[DatabaseManager | RedisManager] = []
     database: DatabaseManager | None = None
     redis: RedisManager | None = None
+    credential_cipher: CredentialCipher | None = None
+    evidence_manifest_store = EvidenceManifestStore(
+        application_settings.evidence_root,
+        max_output_bytes=application_settings.max_evidence_manifest_bytes,
+    )
 
     if readiness_checker is None:
         database = DatabaseManager(application_settings.database_url)
@@ -102,9 +111,7 @@ def create_app(
         )
 
     if (
-        provider_services is None
-        and database is not None
-        and redis is not None
+        database is not None
         and auth_services is not None
         and application_settings.master_key is not None
     ):
@@ -112,14 +119,21 @@ def create_app(
             credential_cipher = CredentialCipher(application_settings.master_key)
         except ProviderConfigurationError:
             credential_cipher = None
-        if credential_cipher is not None:
-            provider_services = ProviderAdminService(
-                database.session_factory,
-                auth_services.sessions,
-                PasswordService(),
-                credential_cipher,
-                rate_limiter=RedisRateLimiter(redis),
-            )
+
+    if (
+        provider_services is None
+        and database is not None
+        and redis is not None
+        and auth_services is not None
+        and credential_cipher is not None
+    ):
+        provider_services = ProviderAdminService(
+            database.session_factory,
+            auth_services.sessions,
+            PasswordService(),
+            credential_cipher,
+            rate_limiter=RedisRateLimiter(redis),
+        )
 
     if asset_services is None and database is not None and auth_services is not None:
         asset_services = AssetManagementService(
@@ -132,10 +146,7 @@ def create_app(
                 application_settings.parsed_root,
                 max_output_bytes=application_settings.max_parsed_output_bytes,
             ),
-            evidence_manifests=EvidenceManifestStore(
-                application_settings.evidence_root,
-                max_output_bytes=application_settings.max_evidence_manifest_bytes,
-            ),
+            evidence_manifests=evidence_manifest_store,
         )
 
     if (
@@ -147,6 +158,21 @@ def create_app(
             database.session_factory,
             auth_services.sessions,
         )
+
+    if brief_services is None and database is not None and auth_services is not None:
+        skills = SkillCatalogService(
+            database.session_factory,
+            auth_services.sessions,
+        )
+        generation = None
+        if credential_cipher is not None:
+            generation = BriefGenerationService(
+                database.session_factory,
+                auth_services.sessions,
+                evidence_manifest_store,
+                credential_cipher,
+            )
+        brief_services = BriefServices(skills=skills, generation=generation)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -160,6 +186,7 @@ def create_app(
     app.state.provider_services = provider_services
     app.state.asset_services = asset_services
     app.state.terminology_services = terminology_services
+    app.state.brief_services = brief_services
     app.add_middleware(
         UploadBodyLimitMiddleware,
         max_body_bytes=application_settings.max_upload_body_bytes,

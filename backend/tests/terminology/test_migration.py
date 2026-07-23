@@ -17,11 +17,12 @@ def alembic_config() -> Config:
     return config
 
 
-def test_terminology_migration_is_the_current_single_head() -> None:
+def test_terminology_migration_precedes_the_current_single_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260723_0008"]
+    assert scripts.get_heads() == ["20260723_0009"]
     assert scripts.get_revision("20260723_0008").down_revision == "20260723_0007"
+    assert scripts.get_revision("20260723_0009").down_revision == "20260723_0008"
 
 
 def test_terminology_migration_adds_versioned_library_tables(

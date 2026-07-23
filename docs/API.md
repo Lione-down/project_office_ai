@@ -145,6 +145,10 @@ T2-003 的 `library_id` 与 `item_id` 是跨版本稳定 ID；每次库或条目
 
 术语条目支持标准术语、最多 100 个 NFKC 去重别名、canonical unit code、定义、指标口径和 `-1000..1000` 优先级。项目规则只覆盖同一用户同一项目的全局匹配；同层级、同优先级映射到不同标准术语时返回 `term_ambiguous` unresolved。`terminology-normalization.v1` 确定性处理绝对日期、数字、百分比、CNY/USD、万/亿倍率和销售数量单位；缺少年份、未知单位、显式单位冲突或多来源标准化值不一致不会被猜测或静默合并。派生 `NormalizedEvidenceItem` 保留 source fact 的 asset/version/location/raw/provenance，并附加规则版本与术语库 version snapshot；它不改写已落盘的 `evidence-manifest.v1`。
 
+T2-004 已实现 `/skills`、`/skills/{skill_code}` 与 `/briefs/generate`。Skills API 要求有效 Session，只返回 migration 固化且 row 全合同/checksum 与 runtime registry 一致的两个 published `1.0.0` Skill。Brief generate request 只接受 `project_id`、1–20 个 `asset_ids`、显式 `term_library_versions`、1–2 个固定 `skill_codes`、一个 published `model_id`、goal/audience 与 must include/exclude；不接受客户端 evidence 正文、本地路径、Provider Key 或任意 Skill。响应为不可变 revision 1 `draft`，包含严格 17 字段 Structured Brief、group/revision ID 与内容 checksum，并返回 `Cache-Control: private, no-store`。
+
+T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset version、术语库 owner/project/version、Skill 全合同、模型能力及 Provider/Credential 状态。Provider 只收到 bounded evidence 与选定术语规则，所有文档内容作为 untrusted user data；模型返回必须保持 goal/audience/asset/term/Skill/model/include/exclude/output-kind authoritative snapshot，引用已知 evidence，`file/calculation` fact 和 `agnes_inference` 均必须有 evidence。JSON/Schema/snapshot/evidence 失败只修复一次；第二次失败返回对应 `brief_schema_invalid`、`brief_snapshot_mismatch` 或 `brief_evidence_invalid`，不保存 Brief。Context 不足在调用前返回 `context_budget_exceeded`；timeout 返回 `provider_uncertain` 且不自动重试，`401/403` 暂停所选 Credential，不静默切换 Provider。
+
 ## Brief 与 Generation
 
 | Method | Path | 说明 |
@@ -160,6 +164,8 @@ T2-003 的 `library_id` 与 `item_id` 是跨版本稳定 ID；每次库或条目
 | GET | `/generations/{task_id}/outputs` | 当前用户可下载的不可变输出版本 |
 
 生成状态为：`draft`、`preflight`、`needs_resolution`、`queued`、`running`、`succeeded`、`partial_success`、`provider_uncertain`、`failed`、`cancelled`。
+
+`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与全部 Preflight/Generation endpoints 仍由 T2-005/T3 交付；T2-004 不暴露半成品确认、扣费、任务或 Outbox API。
 
 ## Credits
 

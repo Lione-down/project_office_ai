@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-23`
-- 最近完成：`T2-003 术语库与证据标准化`
-- 下一任务：`T2-004 Skills 与 Agnes Structured Brief`
-- 当前状态：`T2-004 READY`
+- 最近完成：`T2-004 Skills 与 Agnes Structured Brief`
+- 下一任务：`T2-005 Brief 确认与 Preflight`
+- 当前状态：`T2-005 READY`
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -32,8 +32,8 @@
 | T2-001 | DONE | T1-005 | `feat(parser): add sandboxed office file ingestion`；验证证据见下文 |
 | T2-002 | DONE | T2-001 | `feat(evidence): add traceable ocr and evidence manifests`；验证证据见下文 |
 | T2-003 | DONE | T2-002 | `feat(terms): add reusable terminology normalization`；验证证据见下文 |
-| T2-004 | READY | T2-003 | Skills 与 Agnes Structured Brief |
-| T2-005 | BLOCKED | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
+| T2-004 | DONE | T2-003 | `feat(brief): generate evidence grounded structured briefs`；Mock Contract 通过，真实 Agnes 缺口见下文 |
+| T2-005 | READY | T2-004 | Brief 确认与 Preflight；Week 2 Gate |
 | T3-001 | BLOCKED | T2-005 | 任务、Outbox 与积分事务 |
 | T3-002 | BLOCKED | T3-001 | PPT Renderer 与系统模板 |
 | T3-003 | BLOCKED | T3-002 | PPT QA |
@@ -502,3 +502,56 @@
 
 - T2-003 严格范围内的实现、四轮 TDD、focused/broad/quality/migration/dependency/security 与文档同步已完成；Docker、真实 MySQL 和 SQLite type-introspection 导致的 `alembic check` 非通过结论已如实记录。
 - T2-003 以单一逻辑 commit 推送后收口为 `DONE`；T2-004 是下一唯一 `READY` 任务，本会话未实现任何 Skill、Agnes 或 Structured Brief 代码。
+
+## T2-004 执行记录
+
+### 范围
+
+- 固化 `ppt.sales-business-review.v1` 与 `excel.sales-analysis-dashboard.v1` 两个不可变 Alpha Skill，保存完整 input/output Schema、workflow、能力要求与 checksum，并限制为已知单选或组合。
+- 建立 `skills`、`briefs`、`provider_calls` 模型与 `20260723_0009` migration；Brief 每次生成只写一个不可变 `draft` revision，Provider call 只保存脱敏 metadata。
+- 新增鉴权 Skills catalog/detail 与 Brief generate API；服务只读取 owner-scoped ready asset、Evidence Manifest、术语 snapshot、已发布模型和 active Credential。
+- 实现保守 Context/message budget、严格 17 字段 Structured Brief、evidence/source validation、最多一次 repair、timeout uncertain、401/403 Credential pause 与禁止 Provider fallback。
+- 未实现 T2-005 的 Brief PATCH、确认、Preflight、积分预留、生成任务或前端页面。
+
+### Changed files
+
+- Model/Migration：`backend/app/models/{skills,briefs,provider_calls}.py`、model exports 与 `backend/alembic/versions/20260723_0009_skills_and_structured_briefs.py`。
+- Skill/Brief contracts 与服务：`backend/app/skills/catalog.py`、`backend/app/services/skills.py`、`backend/app/services/briefs/`、`backend/app/schemas/briefs.py`。
+- API/Wiring：`backend/app/api/v1/briefs.py`、router/application/error wiring；Evidence Manifest store 增加 bounded read。
+- Tests：`backend/tests/skills/`、`backend/tests/briefs/`、`backend/tests/providers/agnes_contract/`，以及历史 terminology migration head 断言随连续 revision 更新。
+- Records：T2-004/T2-005 task cards、task index、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未触碰/未暂存：用户未跟踪 `design-system/`、旧 `docs/ui-mockups/` 与 ignored `output/`；未读取、打印或提交 `.env`、Secret、用户文件或未脱敏黄金材料。
+
+### TDD、focused 与 review
+
+- RED 从缺失 Skill/Brief modules、models、migration、API wiring 与 Agnes Contract 开始；按 catalog/model、strict schema/context、service/API、provider failure 与 contract 分组转 GREEN。
+- Focused 最终：`backend/tests/skills` 为 `17 passed`；`backend/tests/briefs` 为 `28 passed`；`backend/tests/providers/agnes_contract` 为 `2 passed, 2 skipped`。
+- 两项 Agnes skip 明确要求显式 real-contract opt-in，缺失时不读取 `.env` 或 Credential；Mock 覆盖最小文本/销售材料、响应 envelope 与 usage/request ID contract。
+- 主会话顺序 review 修复：数据库 Skill 内容可绕过 checksum 漂移、goal/audience/must constraints 未纳入权威快照、migration 导入 runtime catalog、Brief route cache/auth 顺序、术语规则未进入 Provider context、无 evidence 的 file/calculation/Agnes inference、独立 cipher wiring、Manifest 无界读取。
+- Broad 首轮另发现 MySQL offline DDL 无法编译 `BINARY(16)` seed UUID，先复现 4 个 migration regression，再改为 dialect-safe literal insert；相关 8 个 migration tests 转 GREEN。最终 review verdict 无 blocking security/logic finding。
+
+### Broad、quality、migration 与 dependency gate
+
+- Backend `.venv/Scripts/python.exe -m pytest tests -q --tb=no`：`341 passed, 2 skipped`，仅跳过未 opt-in 的真实 Agnes Contract。
+- `ruff format --check app tests alembic`：209 files already formatted；`ruff check app tests alembic`：All checks passed；全部 Python 文件不超过 500 行。
+- `alembic heads`：`20260723_0009 (head)`；SQLite 空库 upgrade 与 exact Skill seed checksum tests 通过；MySQL dialect `upgrade head --sql` 退出码 `0`。
+- `pip check`：No broken requirements；`pip-audit --local`：0 known vulnerabilities，仅按预期跳过本地非 PyPI package；14 个 direct production dependency license metadata 无缺失。
+- `git diff --check` 与 owned source Secret/危险调用扫描通过；`.env` 由 `.gitignore` 的 `*.env` 规则忽略。精确暂存后的 path/binary/added-line Secret/危险调用 gate 全部通过，staged paths 无禁止目录。
+
+### Runtime 缺口与证据边界
+
+- 当前 PATH 无 `docker`，任务卡 3 条 `docker compose run` 命令无法进入容器；Direct Windows focused/broad 不冒充 Compose runtime。
+- 未读取 ignored `.env` 或本机 Secret，未运行真实 MySQL `0009` upgrade；SQLite 空库 migration 与 MySQL offline DDL 不冒充真实 MySQL constraint/runtime 证据。
+- 未提供真实 Agnes opt-in、runtime Database/Master Key 与已配置 Credential，因此真实 Contract 为 `skipped`。T2-004 只标记 Mock Contract 和本地实现通过，不声称真实 Agnes 兼容性通过；最终外部集成结论仍由后续真实环境 Gate 承担。
+
+### 安全与决策
+
+- API 先认证再查询 Skill/Brief service；项目、资产、术语 snapshot、Evidence 与模型均绑定当前 owner，跨用户资源不进入 Provider context。
+- Provider 请求只含预算内 evidence/metadata/术语规则，不公开本地文件；`provider_calls` 不保存 Key、Prompt、响应正文、用户内容、storage key 或物理路径。
+- 初次结构/evidence validation 失败仅允许一次约束 repair；第二次失败不保存 Brief。timeout 标记 `provider_uncertain` 且不自动重试，401/403 暂停当前 Credential，均不静默切换 Provider。
+- migration seed 自包含，不导入 runtime application code；runtime 启动同时校验数据库 Skill checksum 与完整内容，防止 checksum 未变但行内容漂移。
+
+### 完成结论
+
+- T2-004 严格范围内的实现、TDD、focused/broad/quality/migration/dependency/security 与文档同步已完成；Docker、真实 MySQL 和真实 Agnes Contract 缺口已如实记录。
+- T2-004 以单一逻辑 commit 推送后收口为 `DONE`；T2-005 是下一唯一 `READY` 任务，新会话必须重新读取 live 文档、Git 与 origin 状态后再实现。

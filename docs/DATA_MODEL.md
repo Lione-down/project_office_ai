@@ -2,7 +2,7 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T2-003` migration `20260723_0008` 已 additive 建立 `term_libraries`、`term_items` 及中文注释，当前共实现 12/21 张表
+- 状态：逻辑契约；`T2-004` migration `20260723_0009` 已 additive 建立 `skills`、`briefs`、`provider_calls` 并固化两个 Alpha Skill，当前共实现 15/21 张表
 
 ## 全局约定
 
@@ -47,11 +47,13 @@
    - `(term_library_version_id, item_id)` 与 `(term_library_version_id, canonical_term)` 唯一；条目更新/删除通过下一库版本表达。
 
 9. `briefs`
-   - `brief_group_id`、revision、来源快照、内容 JSON、状态、确认时间；每个 revision 不可变。
+   - 修订行 ID、跨 revision 稳定 `brief_group_id`、revision、用户、项目、选择模型、来源快照、17 字段内容 JSON、内容 checksum、状态、确认/创建时间。
+   - `(brief_group_id, revision)` 唯一；T2-004 只创建 revision 1 的 `draft`，后续修改必须追加新 revision，不 UPDATE 历史内容。
 
 10. `skills`
-    - 每版本一行：code、SemVer、kind、展示信息、input/output schema、workflow、能力要求、状态、checksum。
+    - 每版本一行：code、SemVer、kind、展示信息、output kind、input/output JSON Schema、workflow、能力要求、状态、checksum 和发布时间。
     - `kind` 仅 `user_workflow` 或 `internal_step`。
+    - T2-004 migration 自包含固化 `ppt.sales-business-review.v1@1.0.0` 与 `excel.sales-analysis-dashboard.v1@1.0.0`；runtime 同时核对 row 全部合同字段与 checksum，数据库内容漂移时 fail closed。
 
 11. `generation_tasks`
     - 用户、项目、Brief、模型、idempotency key、组合 group、父任务、状态、进度、Skill/模型快照、预计/结算积分、错误类别、超时和时间戳。
@@ -63,8 +65,9 @@
     - 任务与资产、模板、术语库的关系及版本快照。
 
 14. `provider_calls`
-    - 任务、步骤、Provider、模型、Credential ID、Provider Request ID、状态、token usage、耗时、费用和错误分类。
-    - 不保存明文 API Key 或完整用户文件内容。
+    - T2-004 阶段保存 Brief group、可空 Brief revision、attempt、Provider、模型、Credential ID、Provider Request ID、状态、token usage、耗时、可空费用、错误分类、脱敏标记和时间。
+    - `(brief_group_id, attempt)` 唯一；成功 Brief 保存后，初次 schema-invalid 与 repair call 均关联最终 revision。失败/timeout 没有伪造 Brief row，但保留 group 级调用证据。
+    - 不保存明文 API Key、Prompt、响应正文、完整用户文件、本地路径或 storage key。T3-001 建立任务/步骤表后再 additive 增加 generation task/step 关系，不在 T2-004 提前建未来表。
 
 15. `outbox_events`
     - 事件类型、aggregate ID、payload、状态、重试次数、下一投递时间；保证 DB commit 后可恢复投递。
@@ -95,6 +98,8 @@
 | `users` | `(phone_country_code, phone_number)` | 防止重复账号 |
 | `projects` | `(active_default_owner_id)` generated key | 每个用户最多一个未删除的默认项目 |
 | `skills` | `(skill_code, version)` | Skill 版本不可歧义 |
+| `briefs` | `(brief_group_id, revision)` | Brief 历史修订不可歧义 |
+| `provider_calls` | `(brief_group_id, attempt)` | 同一 Brief 生成 attempt 唯一 |
 | `generation_tasks` | `(user_id, idempotency_key)` | 重复提交只创建一个任务 |
 | `credit_ledger` | `(user_id, idempotency_key, entry_type)` | 防止重复预留/结算/释放 |
 | `file_assets` | `(storage_provider, storage_key)` | 存储定位唯一 |
@@ -111,6 +116,7 @@
 - T1-005 上传边界：先提交带不可变 quarantine key、`uploaded` 状态和幂等键的 `file_assets` checkpoint，再流式写文件；signature/project cleanup 成功时删除 checkpoint，cleanup 失败保留 `deleting`，最终 metadata commit 异常或 cancellation 时保留 `uploaded` 与文件定位，避免无数据库记录的 orphan file。写库幂等冲突发生在文件 I/O 前。`outbox_events` 尚未建立，T3-001 接入 Outbox 后再把后续处理投递纳入数据库事务边界。
 - T2-002 证据边界：解析结果落盘后先在同一资产行提交 deterministic Manifest key 和 `building`，再生成/校验/原子写入 Manifest；最终条件更新一次性写入 `ready` 和摘要 metadata。暂时性 OCR 失败先精确清理本轮解析/Manifest 输出，再以 exponential backoff 回到 `quarantined`；第 3 次失败稳定拒绝，不产生伪造证据或无限重试。用户删除资产时必须按记录的 exact keys 幂等清理原文件、解析结果与 Manifest，任一清理失败都保留 `deleting`，不得伪装成 `deleted`。
 - T2-003 术语边界：owner-scoped mutation 以 locking read 获取最新 active 库版本，同一事务插入下一库版本与完整条目 snapshot；历史 Brief/任务只引用稳定 `library_id + version`，回滚规则只选择旧版本，不改写 Manifest、Brief 或历史 snapshot。
+- T2-004 Brief 边界：先 owner-scope 校验项目、ready 资产、Manifest integrity、显式术语库 version、Skill row 全合同、发布模型/Provider/Credential；只把 bounded evidence 与选定术语规则作为 untrusted user context 发送给唯一选定 Agnes。每次调用先写脱敏 `provider_calls`，合法响应再以新 `brief_group_id + revision=1` 保存不可变 Brief 并回链 calls；Schema/evidence/snapshot 失败只修复一次，仍失败不创建 Brief 或积分记录。timeout 只写 `provider_uncertain` call，不自动重试或切换 Provider。
 - 生成事务：创建 `generation_tasks`、inputs、reserve ledger 与 Outbox；同一 idempotency key 重放返回既有结果。
 - 结算事务：按子输出结果写 finalize/release，不允许同一输出重复结算。
 - Credential 操作：只通过 `credential_id` 关联；Reveal、测试和轮换写 `audit_logs`，任何日志不得含明文 Key。

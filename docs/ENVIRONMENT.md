@@ -65,6 +65,8 @@
 | `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice internal service URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
+| `OFFICE_AI_RUN_REAL_AGNES_CONTRACT` | 显式启用真实 Agnes Contract Test；仅精确值 `1` 启用 | 否 | T2-004 手工联调 | 临时进程环境；默认不设置 |
+| `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` | 真实 Contract Test 选择已加密 Agnes Credential 的 UUID，不是 API Key | 否 | T2-004 手工联调 | 临时进程环境；只与显式 opt-in 同时使用 |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
 ### 本机兼容变量
@@ -81,6 +83,7 @@
 - Master Key 必须使用密码学安全随机源生成并符合 Fernet key 格式；不得使用人类密码、源码默认值或 Provider Key 直接充当 Master Key。
 - 测试、Reveal、轮换和停用均通过 `credential_id`，不在 worker command、queue payload 或日志中传明文 Key。
 - `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
+- T2-004 真实 Contract Test 默认 skip；只有 `OFFICE_AI_RUN_REAL_AGNES_CONTRACT=1` 时才使用 runtime Database URL、Master Key 和 `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` 读取已加密 Credential。测试不读取 `.env`、不接受单独的明文 Key 变量、不回显 Key；缺少任一 runtime 前置时不得声称真实 Agnes 通过。
 - Master Key 轮换不覆盖旧 Credential；新 Key 以新的 Credential ID 和 `rotation_source` 录入，旧记录停用并保留审计链。跨 Master Key 重新加密工具不在 T1-004 范围。
 
 ## Auth 与管理员 Bootstrap

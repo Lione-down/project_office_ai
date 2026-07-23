@@ -1,6 +1,6 @@
 # T2-005 Brief 确认与 Preflight
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T2-004`
 - 来源：总计划第 7、9、10、12 节与 Day 10
 - 建议 commit：`feat(preflight): add brief confirmation and conflict gates`

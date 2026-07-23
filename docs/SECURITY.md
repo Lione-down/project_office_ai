@@ -71,6 +71,10 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 模型推断必须标记 `ai_inference`，不能冒充 `source_fact`。
 - `400` 不重试，`401/403` 暂停 Credential，`429/5xx` 有限重试，timeout 不确定进入 `provider_uncertain`。
 - Agnes 配置写入前验证 HTTPS、默认 `agnes-2.0-flash`、保守 `256K` Context 与 120 秒 timeout；Alpha 不认证其他 Provider，不静默切换。
+- T2-004 只从 owner-scoped、`ready` 且 key/SHA/asset version 完整性复验通过的 Manifest 构建 Context；Manifest read 上限为配置容量加 1 byte，不对被篡改的大文件执行无界读取。Evidence 和术语内容只进入 user message，固定 system contract 明确其为 untrusted data。
+- Context 同时受 evidence budget 和完整 message+max-output budget 约束；不足时在调用前 fail closed，不截断必需 evidence。选定术语库必须使用显式 owner/project `library_id + version`，只发送该 snapshot 的标准术语、别名、unit、口径与优先级。
+- Agnes 输出必须精确保持 user goal/audience/include/exclude、asset/term/Skill/model snapshot 与 Skill 对应 output kind；`file/calculation` fact 和 `agnes_inference` 必须引用本次 Context 已知 evidence ID。非法结构或伪造引用只允许一次 repair，仍失败不创建 Brief 或积分。
+- `provider_calls` 只保存 ID、attempt、Request ID、Token、耗时、状态、错误分类和 `is_redacted=true`，禁止持久化 Key、Prompt、响应正文、文件内容、本地路径或 storage key。Brief API 响应使用 `private, no-store`。
 
 ## 任务与账务
 

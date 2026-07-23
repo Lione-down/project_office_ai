@@ -202,6 +202,20 @@
 - 本任务处理：把万/亿建模为确定 scale-only 规则，先得到 `12000 + unknown base unit`；只有显式币种符号或版本化术语 unit 才补齐基础单位，否则保持 unresolved。
 - 预防/验证：标准化测试分别覆盖“倍率+显式单位”“倍率+术语 hint”“倍率但无基础单位”；Decimal canonical formatting 不能用盲目 `rstrip('0')`，避免把整数 `2500` 变成 `25`。
 
+### 2026-07-23 · T2-004 · 历史 migration 不能 import 可演进 runtime catalog
+
+- 现象：初版 `20260723_0009` 直接 import `ALPHA_SKILLS` 生成 seed；未来增加或修改 runtime Skill 时，历史 migration 的 seed/checksum 会漂移，甚至因固定两个 ID 与新数组长度不一致而无法从零升级。
+- 影响：相同 revision 在不同代码版本生成不同数据库内容，破坏 migration 可重放性和 Skill 不可变承诺。
+- 本任务处理：migration 内自包含冻结两个 `1.0.0` seed、Schema、workflow、能力与 checksum 算法；测试禁止 migration import `app.*`，并从空库核对 seed checksum 与 runtime v1 合同。
+- 预防/验证：版本化 seed 必须冻结在 migration 或不可变 data artifact；禁止历史 migration import 会继续演进的 service/catalog/model 代码。
+
+### 2026-07-23 · T2-004 · checksum 字段不能替代内容重算与 authoritative snapshot
+
+- 现象：只比较数据库 `checksum` 字段无法发现 Schema/workflow 已被改写但 checksum 未同步；只校验 Brief 的 17 个字段也无法阻止模型改写用户 goal、输出类型或 must include/exclude。
+- 影响：系统可能把漂移 Skill 或静默改变用户意图的 Brief 当作合法结果，checksum 和 evidence 引用形成虚假可信感。
+- 本任务处理：runtime 逐字段核对 Skill row 与冻结定义；Brief validation 同时锁定 goal/audience/asset/term/Skill/model/include/exclude/output kind，file/calculation facts 与 Agnes inference 必须引用本次已知 evidence。
+- 预防/验证：所有“版本 + checksum”合同都要测试“内容变、checksum 不变”；模型结构化输出除 Schema 外还必须验证 authoritative input snapshot 与跨字段语义。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
