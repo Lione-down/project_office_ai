@@ -64,7 +64,9 @@
 - `T4-003` 前：原计划要求 10 组材料；用户于 `2026-07-26` 明确确认没有更多材料，批准将
   1 组拥有使用权的 XLSX/PPTX 配对材料生成脱敏副本并作为 `1/10 pilot` 执行。
 - `T4-004` 前：本机可用 Microsoft Office 与 WPS、真实 Agnes 测试配置及 Docker
-  故障演练 runtime；当前只有 Microsoft Office 16.0 实际证据，任务继续 `BLOCKED`。
+  故障演练 runtime。当前 Microsoft Office 16.0 已验证；Docker Desktop 已安装但
+  Windows/WSL2 待重启；真实 Agnes 基础文本请求为 200，但 Structured Output Contract
+  因上游 grammar backend 返回 400；用户明确不安装 WPS。任务继续 `BLOCKED`。
 
 ## 最脆弱假设
 

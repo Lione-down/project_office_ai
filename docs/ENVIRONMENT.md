@@ -103,11 +103,21 @@ private author metadata、用户/客户身份或电话。当前 Microsoft PowerP
 已实际打开并导出黄金输出；PATH 无 Docker，LibreOffice/WPS 未安装，真实 Agnes 未
 opt-in。这些缺口不得由 Python/Node/OOXML 或 Microsoft Office 单 runtime 证据替代。
 
+T4-004 环境前置准备已安装 Docker Desktop `4.83.0` 到
+`D:\works\tool\Docker`，将 WSL data root 配置为
+`D:\works\tool\DockerData`，并把 `D:\works\tool\Docker\resources\bin` 写入 machine
+`PATH`。Docker Client `29.6.2`、Compose `v5.3.1` 可执行；安装器刚启用 WSL/
+VirtualMachinePlatform，Windows 要求 restart，因此 daemon、容器和 sidecar runtime
+尚未验证。用户明确不安装 WPS，此项继续作为 T4-004 未通过边界。
+
 ### 本机兼容变量
 
 - Settings 同时接受现有本地 `.env` 的 `OFFICE_AI_DB_HOST`、`OFFICE_AI_DB_PORT`、`OFFICE_AI_DB_NAME`、`OFFICE_AI_DB_USER`、`OFFICE_AI_DB_PASSWORD`，分别对应上表的 canonical MySQL变量。
 - Canonical变量优先；兼容 alias 只用于保留现有本机配置，不写入 Compose，也不改变部署契约。
 - 应用不会自动读取 `.env`。本机命令需使用 `python -m dotenv -f <path> run -- <command>` 或由 OS/IDE 注入；禁止用会回显变量值的命令检查配置。
+- 用户已长期授权 Agent 按最小必要原则读取仓库根 `.env` 并向本项目临时进程注入所需
+  值；该授权不改变应用的显式注入合同，也不允许打印、记录、复制、暂存或提交任何值，
+  且不适用于其他环境文件。
 - 本机 Windows Redis service 启用了密码认证。`OFFICE_AI_REDIS_URL` 必须通过本地未跟踪配置或临时进程环境注入；不得把 service config 中的密码复制到文档或 Git。
 
 ## Agnes Credential
@@ -118,6 +128,11 @@ opt-in。这些缺口不得由 Python/Node/OOXML 或 Microsoft Office 单 runtim
 - 测试、Reveal、轮换和停用均通过 `credential_id`，不在 worker command、queue payload 或日志中传明文 Key。
 - `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
 - T2-004 真实 Contract Test 默认 skip；只有 `OFFICE_AI_RUN_REAL_AGNES_CONTRACT=1` 时才使用 runtime Database URL、Master Key 和 `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` 读取已加密 Credential。测试不读取 `.env`、不接受单独的明文 Key 变量、不回显 Key；缺少任一 runtime 前置时不得声称真实 Agnes 通过。
+- `2026-07-26` 真实预检证明 endpoint、Key 与 text model 在不带
+  `response_format` 的最小请求上返回 HTTP `200`；项目两个 live Contract 在携带
+  `response_format={"type":"json_object"}` 时均返回 HTTP `400`，上游报告当前 grammar
+  backend 不支持 grammar-based JSON generation。因此只能声明基础文本访问可用，
+  Structured Output 仍未通过。
 - Master Key 轮换不覆盖旧 Credential；新 Key 以新的 Credential ID 和 `rotation_source` 录入，旧记录停用并保留审计链。跨 Master Key 重新加密工具不在 T1-004 范围。
 
 ## Auth 与管理员 Bootstrap

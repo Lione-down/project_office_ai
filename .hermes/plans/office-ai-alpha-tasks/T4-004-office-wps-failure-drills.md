@@ -6,6 +6,18 @@
 - 来源：总计划第 3、10、16–18、22 节与 Day 19
 - 建议 commit：`test(alpha): record compatibility and recovery drills`
 
+## 当前外部前置状态（2026-07-26）
+
+- Microsoft PowerPoint/Excel 16.0 已有黄金输出实际打开、重算与导出证据；用户自行负责
+  Office 激活。
+- Docker Desktop `4.83.0` 已安装到 `D:\works\tool\Docker`，machine `PATH` 已配置；
+  WSL/VirtualMachinePlatform 刚启用并要求 Windows restart，daemon 与 Compose runtime
+  尚未验证。
+- 真实 Agnes Key 的基础文本请求返回 HTTP `200`；两个 live Structured Output Contract
+  均因上游 grammar backend 不支持 `response_format` 返回 HTTP `400`。
+- 用户明确不安装 WPS。由于验收仍要求 Microsoft Office/WPS 双 runtime，本任务保持
+  `BLOCKED`，不得降级 Gate 或标记兼容通过。
+
 ## 目标
 
 用真实桌面 Office/WPS 和受控故障演练证明输出兼容性、Provider 错误语义、队列恢复、幂等与积分恢复符合 Alpha 合同。

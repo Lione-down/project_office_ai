@@ -426,6 +426,21 @@
 - 预防/验证：Office artifact 必须按 `自动结构/缓存 -> 实际应用重新计算 -> 导出视觉检查`
   三层收口；实际应用发现的缺陷回写 renderer tests，不能只记为人工备注。
 
+### 2026-07-26 · T4-004 前置 · 基础文本 200 不等于 Structured Output Contract 通过
+
+- 现象：真实 Agnes Key、endpoint 与 text model 的最小请求在不带 `response_format`
+  时返回 HTTP `200`，但项目 live Contract 增加
+  `response_format={"type":"json_object"}` 后返回 `upstream_error/400`；上游明确说明
+  当前 grammar backend 不支持 grammar-based JSON generation。
+- 影响：把“鉴权/基础文本可用”记录成“Structured Brief 真实兼容通过”，会掩盖生产请求
+  必然失败，并让 Mock Contract 的能力声明污染 Alpha release gate。
+- 本次处理：只用一次性加密 Credential 和临时数据库执行真实 Contract；分别记录
+  prompt-only 基础访问与 strict structured-output 结果，不修改业务 adapter，也不把
+  `2 failed, 2 passed` 降级为通过。
+- 预防/验证：真实 Provider gate 必须逐项验证 endpoint/auth、请求字段、structured
+  output、响应 envelope 与 usage；任何 fallback 都必须先有 RED contract、严格 schema
+  validation、单次 repair 和不重复计费边界，不能仅删除失败字段后宣称兼容。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
@@ -434,3 +449,4 @@
 | 2026-07-22 | T1-001 | 固化 Vue/FastAPI 目录边界、UTF-8、最小变更和 UI 先计划后实现规则 |
 | 2026-07-23 | 全局安全规则 | 环境示例文件同样禁止进入 Git；补齐 `.env`、`*.env.*` 与 `.ene` 误拼变体的 ignore 和提交检查 |
 | 2026-07-26 | T4-003 | 用户批准将 10 组黄金材料前置缩减为唯一 `1/10 pilot`，保留覆盖限制和严格脱敏/证据边界 |
+| 2026-07-26 | 项目 Secret 授权 | 用户长期授权按最小必要原则读取仓库根 `.env` 用于项目 runtime、真实 Agnes Contract 与配置验证；任何值仍禁止回显、复制、记录或进入 Git，其他环境文件继续禁读 |

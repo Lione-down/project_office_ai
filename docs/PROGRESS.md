@@ -3,8 +3,9 @@
 - 最后更新：`2026-07-26`
 - 最近完成：`T4-003 黄金数据回归`
 - 下一任务：无 dependency-ready 任务
-- 当前状态：`T4-004 BLOCKED`（Microsoft Office 16.0 已验证；WPS、真实 Agnes 配置与
-  Docker 故障演练 runtime 缺失）
+- 当前状态：`T4-004 BLOCKED`（Microsoft Office 16.0 已验证；Docker Desktop 已安装但
+  Windows/WSL2 待重启；真实 Agnes Key 可连通但 Structured Output Contract 返回 400；
+  用户明确不安装 WPS）
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -1139,3 +1140,52 @@
   单 runtime 证据不冒充 WPS、LibreOffice、容器或 Agnes 通过。
 - T4-003 完成只解除 T4-004 代码依赖。T4-004 外部前置仍不满足并保持 `BLOCKED`，
   当前没有唯一 `READY` 任务，因此不创建下一 Codex 任务。
+
+## T4-004 环境前置准备记录
+
+### 用户决策与安全边界
+
+- `2026-07-26` 用户要求将 Docker 安装到 `D:\works\tool\Docker` 并配置系统环境变量，
+  长期授权 Agent 按最小必要原则读取仓库根 `.env` 用于本项目 runtime、真实 Agnes
+  Contract 与配置验证；任何值仍不得回显、复制到 tracked 文件、暂存、提交或推送。
+- 用户明确本机不安装 WPS，并自行负责 Microsoft Office 激活。T4-004 任务卡仍把
+  Microsoft Office/WPS 双 runtime 作为硬性验收，因此该决定作为已知未通过边界保留，
+  不把 Microsoft Office 单 runtime 证据提升为 Office/WPS 兼容通过。
+
+### Docker Desktop 安装证据
+
+- 主机为 Windows 11 x64，31.2 GB RAM；CPU SLAT 与 BIOS/UEFI virtualization 均启用，
+  `LanmanServer` 为 `Running/Automatic`。
+- 从 Docker 官方 Windows x86_64 下载入口取得 Docker Desktop Installer
+  `4.83.0 (234302)`；Authenticode 状态为 `Valid`，签名者为 Docker Inc.，文件
+  SHA-256 为
+  `D812D89DA0CDA66C97CDF9DECB60DEBF17D71C358900DB33C48EB9EE9604F40C`。
+- 官方 all-users installer 使用 WSL2 backend、禁用 Windows containers，将应用安装到
+  `D:\works\tool\Docker`，WSL data root 配置为 `D:\works\tool\DockerData`。安装日志
+  明确记录 `Installation succeeded`，并将 `D:\works\tool\Docker\resources\bin`
+  写入 machine `PATH`。
+- 当前 CLI 可执行：Docker Client `29.6.2`、Docker Compose `v5.3.1`、Docker Desktop
+  CLI plugin `v0.4.2`。安装器刚启用 `VirtualMachinePlatform` 与
+  `Microsoft-Windows-Subsystem-Linux`，Windows 明确要求 restart；重启前
+  `com.docker.service` 为 stopped，`docker version` 只能返回 Client，daemon pipe
+  不存在。因此本记录不声称 daemon、镜像 pull、Compose services、MySQL/Redis、
+  LibreOffice 或故障演练已通过。
+
+### 真实 Agnes 预检证据
+
+- `.env` 在 `.gitignore` 命中 `*.env` 且未被 Git 跟踪；只检查必要变量是否存在并通过
+  临时进程注入，未输出、记录或提交任何值。真实 Key 仅加密写入一次性 SQLite
+  `provider_credentials`，测试后临时数据库和进程变量均清除。
+- 使用 `.env` 中的真实 Agnes Key 与 text model，对
+  `https://apihub.agnes-ai.com/v1/chat/completions` 发出最小文本请求：不带
+  `response_format` 时 HTTP `200`，响应含 `choices` 与 `usage`，证明 endpoint、Key
+  与基础文本模型可用。
+- `backend/tests/providers/agnes_contract` 显式 opt-in 后为 `2 failed, 2 passed`：
+  两个 Mock Contract 通过；最小文本与 synthetic sales 两个真实 Contract 均为 HTTP
+  `400`。受控最小 probe 确认，只要增加
+  `response_format={"type":"json_object"}` 即返回 `upstream_error/400`，上游明确说明
+  当前 grammar backend 不支持 grammar-based JSON generation。
+- 结论：真实 Agnes 基础文本访问已验证，但项目依赖的 Structured Output Contract 未
+  通过；这不是缺 Key，也不得用 prompt-only JSON `200` 冒充 strict structured-output
+  兼容。T4-004 在 Windows restart 后仍需 Docker 故障演练，并需对 Provider contract
+  作出有测试和安全边界的处理；本次环境准备未修改业务 adapter。
