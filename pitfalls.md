@@ -392,6 +392,40 @@
 - 预防/验证：敏感 re-auth 字段只放 body；需要审计的业务校验不能在建立 actor/trace 前被
   transport schema 截断。
 
+### 2026-07-26 · T4-003 · 单一样本不能复制成黄金数据多样性
+
+- 现象：原计划要求 10 组脱敏材料，但用户最终只能提供一份 XLSX 来源和一份 PPTX 参考
+  输出；把 Sheet、月份或重复运行拆成 10 组会让数量满足而证据失真。
+- 影响：重复运行可以证明确定性，却不能证明不同客户、模板、行业和异常输入的覆盖；若
+  把 `1/10 pilot` 写成完整 corpus 通过，会直接污染 Alpha release 判断。
+- 本任务处理：用户明确批准缩减为一个 `sales-pilot-v1` case；任务卡、总计划、进度和
+  Manifest 固定记录 `1/10 pilot`，仍运行 20 次 PPT/20 次 Excel，但将覆盖局限与外部
+  runtime 证据分开。
+- 预防/验证：黄金样本数量必须按独立来源 case 计数；重复运行、切片和副本只能作为同一
+  case 的 determinism evidence，不得提升 corpus count。
+
+### 2026-07-26 · T4-003 · 导入后改 cell 不等于 package 已脱敏
+
+- 现象：对导入 workbook 改写可见 cells 后，OOXML 仍可能保留未引用 shared strings、
+  drawings 或旧 package payload；按 raw XML 连续文本扫描又会把相邻业务数字误报为电话。
+- 影响：只看 worksheet UI 会漏掉 private token，直接 raw regex 又会制造假阳性，二者都
+  不能作为提交安全证据。
+- 本任务处理：用 artifact-tool 新建 workbook，只复制脱敏 values/formulas/必要格式，
+  shared formulas 按 OOXML 结构展开；PII 扫描按 cell/XML text-node 语义执行，并用 ignored
+  private replacement map 做一次不输出原值的精确残留检查。
+- 预防/验证：真实 Office 脱敏副本必须 fresh regenerate，再组合 exact-token 与 semantic
+  PII/package scan；禁止只依赖 visible cells 或整段 XML regex。
+
+### 2026-07-26 · T4-003 · OOXML 自动门禁不能替代实际 Office 视觉与计算
+
+- 现象：结构检查和 cached values 均通过时，Microsoft Excel 仍显示 `RANK.EQ` 为 `#NAME?`
+  且固定 print area 裁掉两个 chart categories；PowerPoint closing layout 也出现正文重叠。
+- 影响：自动报告会把实际不可用/不可读文件错误标成 `passed`。
+- 本任务处理：实际用 PowerPoint/Excel 16.0 打开并导出；以 RED contract 改用兼容 `RANK`、
+  显式 axis font 与 anchor-aware print area，并调整 PPT closing/source plan 后重复视觉验证。
+- 预防/验证：Office artifact 必须按 `自动结构/缓存 -> 实际应用重新计算 -> 导出视觉检查`
+  三层收口；实际应用发现的缺陷回写 renderer tests，不能只记为人工备注。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
@@ -399,3 +433,4 @@
 | 2026-07-22 | T1-001 | 初始化项目级会话读取、单任务、进度记录、验证、提交推送与敏感信息规则 |
 | 2026-07-22 | T1-001 | 固化 Vue/FastAPI 目录边界、UTF-8、最小变更和 UI 先计划后实现规则 |
 | 2026-07-23 | 全局安全规则 | 环境示例文件同样禁止进入 Git；补齐 `.env`、`*.env.*` 与 `.ene` 误拼变体的 ignore 和提交检查 |
+| 2026-07-26 | T4-003 | 用户批准将 10 组黄金材料前置缩减为唯一 `1/10 pilot`，保留覆盖限制和严格脱敏/证据边界 |

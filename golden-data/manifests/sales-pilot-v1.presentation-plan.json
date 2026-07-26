@@ -1,0 +1,223 @@
+{
+  "schema_version": "presentation-plan.v1",
+  "renderer_version": "ppt-renderer.v1",
+  "template": {
+    "code": "ppt.operating-review.v1",
+    "version": "1.0.0"
+  },
+  "locale": "zh-CN",
+  "metadata": {
+    "title": "2026 上半年销售经营 Pilot",
+    "subject": "授权脱敏单样本黄金回归",
+    "author": "Office AI",
+    "company": "Office AI",
+    "revision": "1"
+  },
+  "evidence_ids": [
+    "ev-pilot-task-total",
+    "ev-pilot-current-total",
+    "ev-pilot-prior-total",
+    "ev-pilot-performance"
+  ],
+  "images": {},
+  "data_sources": {
+    "pilot-metrics": {
+      "kind": "table",
+      "columns": [
+        "指标",
+        "结果"
+      ],
+      "rows": [
+        [
+          "任务总量",
+          "125250.74"
+        ],
+        [
+          "本期出货",
+          "119692"
+        ],
+        [
+          "上年同期",
+          "104383.6"
+        ],
+        [
+          "完成率",
+          "95.6%"
+        ],
+        [
+          "同比",
+          "14.7%"
+        ]
+      ]
+    },
+    "pilot-performance": {
+      "kind": "table",
+      "columns": [
+        "业务员",
+        "本期出货",
+        "上年同期"
+      ],
+      "rows": [
+        [
+          "销售员003",
+          7624,
+          8251
+        ],
+        [
+          "销售员004",
+          6556,
+          6823.5
+        ],
+        [
+          "销售员002",
+          6676.5,
+          5776
+        ],
+        [
+          "销售员001",
+          8850.5,
+          7142
+        ],
+        [
+          "销售员006",
+          13438.2,
+          11588.8
+        ],
+        [
+          "销售员005",
+          16700.8,
+          12610.5
+        ],
+        [
+          "销售员007",
+          59846,
+          52191.8
+        ]
+      ]
+    }
+  },
+  "slides": [
+    {
+      "layout": "title",
+      "title": "2026 上半年销售经营 Pilot",
+      "subtitle": "1/10 授权脱敏样本 · 确定性回归",
+      "speaker_notes": [
+        "本页声明单样本覆盖边界。"
+      ],
+      "elements": []
+    },
+    {
+      "layout": "content",
+      "title": "核心经营指标",
+      "speaker_notes": [
+        "指标由授权 XLSX 来源确定性复算。"
+      ],
+      "elements": [
+        {
+          "type": "table",
+          "data_source_id": "pilot-metrics",
+          "evidence_ids": [
+            "ev-pilot-task-total",
+            "ev-pilot-current-total",
+            "ev-pilot-prior-total"
+          ],
+          "x": 0.8,
+          "y": 1.35,
+          "w": 5.5,
+          "h": 3.7
+        },
+        {
+          "type": "text",
+          "text": "总体完成率 95.6%，同比 14.7%。",
+          "evidence_ids": [
+            "ev-pilot-performance"
+          ],
+          "x": 6.7,
+          "y": 1.55,
+          "w": 5.4,
+          "h": 1
+        },
+        {
+          "type": "source",
+          "text": "数据来源",
+          "evidence_ids": [
+            "ev-pilot-task-total",
+            "ev-pilot-current-total",
+            "ev-pilot-prior-total",
+            "ev-pilot-performance"
+          ],
+          "x": 0.8,
+          "y": 6.72,
+          "w": 11.7,
+          "h": 0.28
+        }
+      ]
+    },
+    {
+      "layout": "content",
+      "title": "业务员表现对比",
+      "speaker_notes": [
+        "仅显示 deterministic aliases，不包含真实姓名。"
+      ],
+      "elements": [
+        {
+          "type": "table",
+          "data_source_id": "pilot-performance",
+          "evidence_ids": [
+            "ev-pilot-current-total",
+            "ev-pilot-prior-total",
+            "ev-pilot-performance"
+          ],
+          "x": 0.8,
+          "y": 1.35,
+          "w": 11.7,
+          "h": 4.8
+        },
+        {
+          "type": "source",
+          "text": "数据来源",
+          "evidence_ids": [
+            "ev-pilot-current-total",
+            "ev-pilot-prior-total",
+            "ev-pilot-performance"
+          ],
+          "x": 0.8,
+          "y": 6.72,
+          "w": 11.7,
+          "h": 0.28
+        }
+      ]
+    },
+    {
+      "layout": "closing",
+      "title": "下一步措施",
+      "speaker_notes": [
+        "该结论仅用于单样本回归，不扩大为业务质量认证。"
+      ],
+      "elements": [
+        {
+          "type": "text",
+          "text": "保持月度复盘，优先跟踪完成率与同比偏差；补充样本前不扩大质量结论。",
+          "evidence_ids": [
+            "ev-pilot-performance"
+          ],
+          "x": 1.2,
+          "y": 3.2,
+          "w": 10.9,
+          "h": 1.2
+        },
+        {
+          "type": "source",
+          "text": "数据来源",
+          "evidence_ids": [
+            "ev-pilot-performance"
+          ],
+          "x": 1.2,
+          "y": 5.9,
+          "w": 10.9,
+          "h": 0.3
+        }
+      ]
+    }
+  ]
+}

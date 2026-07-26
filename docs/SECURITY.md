@@ -109,7 +109,8 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - `workbook-plan.v1` strict schema 禁止未知字段、自由公式、路径、外部连接、宏、Pivot、
   Power Query 和客户端输出位置；最多 20 Sheet、200,000 个实际生成 cell，Sheet/column/
   chart range、Excel anchor 与 inline validation 长度在写文件前校验。
-- Renderer 只生成英文 `SUM/AVERAGE/COUNT/IFERROR/RANK.EQ` 和英文逗号；每个公式同时
+- Renderer 只生成英文 `SUM/AVERAGE/COUNT/IFERROR/RANK` 和英文逗号；`RANK` 使用
+  Microsoft Office 可直接计算的兼容语法，避免未加 `_xlfn.` 的 `RANK.EQ` 产生 `#NAME?`；每个公式同时
   写确定性 cache。普通文本使用显式 string writer，关闭 strings-to-formulas/URLs，
   防止 CSV/Excel formula injection 和自动外链。
 - 原始 XLSX 使用 owner/asset 派生 key 原子保存且不可覆盖；Plan SHA-256、
@@ -156,6 +157,10 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - `.env`、`backend/files/`、output、日志、缓存、数据库目录、私有 golden data 必须被忽略。
 - 使用精确路径暂存；推送前检查 `.gitignore`、暂存区、diff 和新增二进制来源。
 - 获授权且脱敏的 golden sample 才能进入 Git；不确定授权时留在 `golden-data/private/`。
+- T4-003 的唯一 pilot 原件虽已由用户确认使用权，仍必须在副本中移除人员/客户/终端名称、
+  电话、地址、private author metadata、private 路径和非目录嵌入 payload；生成物 author
+  只允许脱敏系统值 `Office AI`，递归扫描通过前不得暂存。
+  `1/10 pilot` 必须进入 Manifest/报告，禁止切片或复制同一材料制造 corpus 数量。
 - Alpha 完成前运行全历史新增敏感信息检查，并记录 Microsoft Office/WPS 与真实 Agnes 人工/contract 证据。
 
 ## Incident 最小响应

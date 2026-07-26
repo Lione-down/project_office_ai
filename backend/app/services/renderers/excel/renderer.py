@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import xlsxwriter
+from xlsxwriter.utility import xl_cell_to_rowcol
 
 from app.services.renderers.excel.contracts import (
     ComputedColumn,
@@ -302,17 +303,38 @@ class ExcelRenderer:
                         ],
                     }
                 )
-            chart.set_title({"name": chart_plan.title})
+            chart.set_title(
+                {
+                    "name": chart_plan.title,
+                    "name_font": {"size": 14},
+                }
+            )
+            chart.set_x_axis(
+                {
+                    "num_font": {
+                        "size": 8,
+                        "rotation": -45,
+                    }
+                }
+            )
+            chart.set_y_axis({"num_font": {"size": 8}})
             chart.set_style(template.chart_style)
             chart.set_legend({"position": "bottom"})
             worksheet.insert_chart(chart_plan.anchor, chart)
+        chart_last_column = max(
+            (
+                xl_cell_to_rowcol(chart_plan.anchor)[1] + 8
+                for chart_plan in sheet.charts
+            ),
+            default=7,
+        )
         self._apply_sheet_settings(
             worksheet,
             sheet.freeze_panes.row,
             sheet.freeze_panes.column,
             sheet.print_settings,
             max(2 + len(sheet.metrics), 20),
-            7,
+            max(7, chart_last_column),
         )
 
     @staticmethod

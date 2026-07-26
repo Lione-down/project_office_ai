@@ -1,0 +1,205 @@
+{
+  "schema_version": "workbook-plan.v1",
+  "renderer_version": "excel-renderer.v1",
+  "template": {
+    "code": "excel.analysis-dashboard.v1",
+    "version": "1.0.0"
+  },
+  "locale": "zh-CN",
+  "metadata": {
+    "title": "2026 上半年销售经营 Pilot",
+    "subject": "授权脱敏单样本黄金回归",
+    "author": "Office AI",
+    "company": "Office AI",
+    "revision": "1"
+  },
+  "evidence_ids": [
+    "ev-pilot-task-total",
+    "ev-pilot-current-total",
+    "ev-pilot-prior-total",
+    "ev-pilot-performance"
+  ],
+  "sheets": [
+    {
+      "kind": "data",
+      "name": "经营数据",
+      "title": "脱敏经营数据",
+      "columns": [
+        {
+          "key": "salesperson",
+          "header": "业务员",
+          "value_type": "text"
+        },
+        {
+          "key": "task_total",
+          "header": "任务量",
+          "value_type": "number"
+        },
+        {
+          "key": "current_shipments",
+          "header": "本期出货",
+          "value_type": "number"
+        },
+        {
+          "key": "prior_shipments",
+          "header": "上年同期",
+          "value_type": "number"
+        },
+        {
+          "key": "completion_rate",
+          "header": "完成率",
+          "value_type": "number"
+        }
+      ],
+      "computed_columns": [
+        {
+          "key": "yoy",
+          "header": "同比",
+          "value_type": "percent",
+          "calculation": {
+            "kind": "yoy",
+            "current_column": "current_shipments",
+            "previous_column": "prior_shipments"
+          }
+        },
+        {
+          "key": "rank",
+          "header": "本期排名",
+          "value_type": "integer",
+          "calculation": {
+            "kind": "rank",
+            "source_column": "current_shipments",
+            "order": "descending"
+          }
+        }
+      ],
+      "rows": [
+        {
+          "salesperson": "销售员003",
+          "task_total": 7587.714607,
+          "current_shipments": 7624,
+          "prior_shipments": 8251,
+          "completion_rate": 1.004782
+        },
+        {
+          "salesperson": "销售员004",
+          "task_total": 9239.388012,
+          "current_shipments": 6556,
+          "prior_shipments": 6823.5,
+          "completion_rate": 0.709571
+        },
+        {
+          "salesperson": "销售员002",
+          "task_total": 7779.308583,
+          "current_shipments": 6676.5,
+          "prior_shipments": 5776,
+          "completion_rate": 0.858238
+        },
+        {
+          "salesperson": "销售员001",
+          "task_total": 8329.920416,
+          "current_shipments": 8850.5,
+          "prior_shipments": 7142,
+          "completion_rate": 1.062495
+        },
+        {
+          "salesperson": "销售员006",
+          "task_total": 16293.168288,
+          "current_shipments": 13438.2,
+          "prior_shipments": 11588.8,
+          "completion_rate": 0.824775
+        },
+        {
+          "salesperson": "销售员005",
+          "task_total": 13395.867722,
+          "current_shipments": 16700.8,
+          "prior_shipments": 12610.5,
+          "completion_rate": 1.246713
+        },
+        {
+          "salesperson": "销售员007",
+          "task_total": 62625.367627,
+          "current_shipments": 59846,
+          "prior_shipments": 52191.8,
+          "completion_rate": 0.955619
+        }
+      ],
+      "conditional_formats": [
+        {
+          "target_column": "yoy",
+          "kind": "cell",
+          "operator": "less_than",
+          "value": 0
+        }
+      ],
+      "data_validations": [],
+      "freeze_panes": {
+        "row": 2,
+        "column": 1
+      },
+      "print_settings": {
+        "orientation": "landscape",
+        "fit_width": 1,
+        "fit_height": 0,
+        "repeat_header": true
+      }
+    },
+    {
+      "kind": "summary",
+      "name": "经营看板",
+      "title": "经营看板",
+      "metrics": [
+        {
+          "key": "task_total",
+          "label": "任务总量",
+          "calculation": {
+            "kind": "sum",
+            "source_sheet": "经营数据",
+            "source_column": "task_total"
+          }
+        },
+        {
+          "key": "current_total",
+          "label": "本期出货",
+          "calculation": {
+            "kind": "sum",
+            "source_sheet": "经营数据",
+            "source_column": "current_shipments"
+          }
+        },
+        {
+          "key": "prior_total",
+          "label": "上年同期",
+          "calculation": {
+            "kind": "sum",
+            "source_sheet": "经营数据",
+            "source_column": "prior_shipments"
+          }
+        }
+      ],
+      "charts": [
+        {
+          "chart_type": "column",
+          "title": "出货对比",
+          "source_sheet": "经营数据",
+          "categories_column": "salesperson",
+          "value_columns": [
+            "current_shipments",
+            "prior_shipments"
+          ],
+          "anchor": "D3"
+        }
+      ],
+      "freeze_panes": {
+        "row": 1,
+        "column": 0
+      },
+      "print_settings": {
+        "orientation": "landscape",
+        "fit_width": 1,
+        "fit_height": 1,
+        "repeat_header": false
+      }
+    }
+  ]
+}

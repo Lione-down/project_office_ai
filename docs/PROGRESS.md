@@ -1,9 +1,10 @@
 # Office AI Alpha 进度记录
 
-- 最后更新：`2026-07-23`
-- 最近完成：`T4-002 管理员最高权限与审计`
-- 下一任务：`T4-003 黄金数据回归`
-- 当前状态：`T4-003 BLOCKED`（未验证 10 组已授权且脱敏黄金材料外部前置）
+- 最后更新：`2026-07-26`
+- 最近完成：`T4-003 黄金数据回归`
+- 下一任务：无 dependency-ready 任务
+- 当前状态：`T4-004 BLOCKED`（Microsoft Office 16.0 已验证；WPS、真实 Agnes 配置与
+  Docker 故障演练 runtime 缺失）
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -41,7 +42,7 @@
 | T3-005 | DONE | T3-004 | `feat(generation): complete combined ppt and excel workflow`；Week 3 Gate |
 | T4-001 | DONE | T3-005 | `feat(frontend): expose alpha user and admin workflows`；UI V1 与浏览器证据见下文 |
 | T4-002 | DONE | T4-001 | `feat(admin): add audited global asset access`；权限、审计与浏览器证据见下文 |
-| T4-003 | BLOCKED | T4-002 | 黄金数据回归 |
+| T4-003 | DONE | T4-002 | `test(golden): validate office generation corpus`；1/10 pilot 与实际 Office 证据见下文 |
 | T4-004 | BLOCKED | T4-003 | Office/WPS 与故障演练 |
 | T4-005 | BLOCKED | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
 
@@ -1074,3 +1075,67 @@
 - T4-003 依赖代码已满足，但任务卡要求的 10 组拥有使用权且已脱敏销售输入与明确期望
   指标尚未在本会话验证，因此保持 `BLOCKED`，没有伪造为唯一 `READY`，也不读取本地
   private golden data。外部前置确认后再创建新 Codex 任务并按启动顺序执行。
+
+## T4-003 启动记录
+
+### 用户批准与范围
+
+- `2026-07-26` 用户确认 private 目录中的一份 XLSX 与一份 PPTX 均拥有使用权，并授权在
+  不修改原件的前提下生成脱敏副本；同时明确没有更多数据，要求以该组进入 T4-003。
+- 两个文件作为同一 `sales-pilot-v1` case：XLSX 为来源，PPTX 为参考输出，不拆分或复制
+  冒充多组 corpus。任务与最终报告必须固定标记 `1/10 pilot`。
+- 启动只读准入发现：XLSX 31 个 Sheet，其中 1 个空白；存在人员/客户/联系电话/地址信息
+  和两个公式错误；PPTX 28 页，带作者 metadata 与 embedded objects。private 原件继续
+  ignored，只有通过递归脱敏和安全扫描的副本才允许进入 Git。
+- 20 次 PPT/20 次 Excel 重复运行用于验证同一 case 的确定性、结构、指标和引用，不证明
+  10 组材料的业务多样性。真实 Agnes、LibreOffice、Microsoft Office/WPS 证据仍按实际
+  runtime 单独报告。
+
+### 交付与 TDD
+
+- 新增 `golden-data/{inputs,expected,manifests}/`：tracked input 为 30 个安全命名
+  worksheet，expected 为 4 页 PPTX 与 2-Sheet XLSX；Manifest 固定授权、`1/10 pilot`、
+  5 个 artifact checksums、6 个指标、4 个 evidence IDs 与页/Sheet/chart requirements。
+- 脱敏采用 fresh package regeneration：1677 个 cells 改写为 deterministic aliases，
+  移除 1 个公式残留空白 worksheet、private metadata/drawings/旧 package payload，
+  修复 2 个坏公式，并把 1 张 merged 汇总表规范化为机器可复算指标表。private 原件未修改。
+- RED：Backend 因缺少 `app.services.golden` collection 失败；PPT golden 因缺少 Manifest
+  失败。Microsoft Excel 实际打开后另观察到 rank `#NAME?` 与 chart print-area 裁切，
+  对应 formula/axis/print-area tests 均先失败再实现。
+- GREEN：strict Manifest/path/hash/security contracts、指标复算、Excel 20 次 deterministic
+  generation、PPT 20 次 reference validation、Node 20 次 generation structural digest
+  与脱敏 CLI 报告全部完成。PPT raw SHA 只固定 baseline；重复生成仅排除会变化的 core
+  timestamp，其余 OOXML 与 media 全部进入 structural digest。
+
+### Focused、broad、security 与实际 Office
+
+- Focused：Backend golden `9 passed`；PPT golden `2 passed`；CLI 返回
+  `spreadsheet_generation_runs=20`、`presentation_reference_runs=20`，并明确 PPT
+  generation 由 Node suite 证明，不伪造 Backend 生成次数。
+- Backend full：`561 passed, 2 skipped in 49.07s`；两项 skip 仍为真实 Agnes 未显式
+  opt-in，T2-004 只有 Mock 通过。Ruff check/format、`pip check`、`pip-audit` 通过，
+  Python 已知漏洞为 0，仅跳过本地非 PyPI package。
+- Frontend：`22 files / 59 tests passed`、Production Build 通过；新 advisory 使
+  dev-only `js-beautify 1.15.4` 链产生 6 个 high，精确 override 到 `2.0.3` 后测试/build
+  不回归且 `npm audit` 为 0。PPT Renderer：`5 files / 22 tests passed`、build、audit 通过。
+- 17 个 Python direct production dependencies、Frontend lockfile 203 个 package entries
+  与 PPT Renderer 102 个 package entries 均无缺失 license metadata。
+- corpus 递归语义扫描：private token、手机号/座机/邮箱、宏、external relationship、
+  非目录 embedded payload、unsafe author 均为 `0`；input 30 Sheets/1042 formulas，
+  expected workbook 2 Sheets/17 formulas。
+- Microsoft PowerPoint 16.0 只读打开 expected PPTX 并实际导出 4/4 PNG；最终 4 页无
+  空白、越界、标题截断、closing overlap 或重复 source footer。
+- Microsoft Excel 16.0 只读打开 expected XLSX、`CalculateFullRebuild` 并实际导出 PDF：
+  2 Sheets、1 chart、17 formulas、0 formula error；7 个 chart categories、标题和 print
+  area 完整。`RANK.EQ` 改为兼容 `RANK`，避免缺少 `_xlfn.` 时的 `#NAME?`。
+
+### Deep review、边界与下一任务
+
+- 当前主会话按文件顺序 review；因用户禁止 subagent，没有启动独立 reviewer。修复
+  Manifest requirements 未独立执行、generic worksheet 名编码漂移、Office formula 与
+  chart visual gaps；最终无剩余 blocking security/logic finding。
+- `docker` 实测为 `docker_command_not_found`，无法运行 Compose/MySQL/Redis/Worker/
+  LibreOffice 故障演练；WPS/LibreOffice 未安装，真实 Agnes 未 opt-in。Microsoft Office
+  单 runtime 证据不冒充 WPS、LibreOffice、容器或 Agnes 通过。
+- T4-003 完成只解除 T4-004 代码依赖。T4-004 外部前置仍不满足并保持 `BLOCKED`，
+  当前没有唯一 `READY` 任务，因此不创建下一 Codex 任务。

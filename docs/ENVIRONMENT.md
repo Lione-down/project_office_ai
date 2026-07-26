@@ -97,6 +97,12 @@ T4-002 不新增环境变量、网络服务或 Secret 文件。管理员重新�
 Credential Reveal 仍要求 `OFFICE_AI_MASTER_KEY`。本地浏览器验证只使用受控 Mock API，
 不代表 Docker、MySQL/Redis、Agnes、LibreOffice 或 Office/WPS runtime 通过。
 
+T4-003 不新增 Secret 或外部网络依赖。private 原件只从 ignored
+`golden-data/private/` 本地读取；tracked 脱敏副本和 Manifest 不得保存 private 路径、
+private author metadata、用户/客户身份或电话。当前 Microsoft PowerPoint/Excel 16.0
+已实际打开并导出黄金输出；PATH 无 Docker，LibreOffice/WPS 未安装，真实 Agnes 未
+opt-in。这些缺口不得由 Python/Node/OOXML 或 Microsoft Office 单 runtime 证据替代。
+
 ### 本机兼容变量
 
 - Settings 同时接受现有本地 `.env` 的 `OFFICE_AI_DB_HOST`、`OFFICE_AI_DB_PORT`、`OFFICE_AI_DB_NAME`、`OFFICE_AI_DB_USER`、`OFFICE_AI_DB_PASSWORD`，分别对应上表的 canonical MySQL变量。

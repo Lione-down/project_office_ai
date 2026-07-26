@@ -9,9 +9,7 @@ from app.services.renderers.excel.contracts import (
 )
 
 
-FORMULA_FUNCTION_WHITELIST = frozenset(
-    {"AVERAGE", "COUNT", "IFERROR", "RANK.EQ", "SUM"}
-)
+FORMULA_FUNCTION_WHITELIST = frozenset({"AVERAGE", "COUNT", "IFERROR", "RANK", "SUM"})
 
 
 def comparison_formula(
@@ -49,7 +47,7 @@ def rank_formula(
     else:
         cached = 1 + sum(float(item) < value for item in source_values)
     formula = (
-        f"=RANK.EQ({source_column}{row_number},"
+        f"=RANK({source_column}{row_number},"
         f"${source_column}${first_row_number}:${source_column}${last_row_number},"
         f"{order})"
     )

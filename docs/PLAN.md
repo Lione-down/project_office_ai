@@ -22,6 +22,9 @@
 - 两个用户可见 Skill：销售经营汇报（PPTX）与销售数据分析和经营看板（XLSX），可共享材料组合执行。
 - 结构化 Brief、版本、证据引用、冲突处理、用户确认、预计积分和异步生成。
 - 3 套系统 PPT 模板、2 套系统 Excel 模板、确定性 renderer、LibreOffice 兼容验证和质量门禁。
+- T4-003 由用户于 `2026-07-26` 批准以唯一一组授权 XLSX 来源 + PPTX 参考输出完成
+  `1/10 pilot` 黄金回归；该变更降低 corpus 多样性证明，不降低脱敏、确定性、结构、
+  指标、引用、审计报告或敏感信息门禁。
 - MySQL 持久任务、Outbox、Redis 队列、checkpoint、幂等、有限重试、积分预留/结算/释放。
 - 管理员可查看、预览、下载和删除全部用户资产；所有敏感操作必须重新认证并写入 audit log。
 
@@ -110,12 +113,13 @@ generation_reserve -> generation_finalize | generation_release -> refund
 | Week 1 | `T1-001`–`T1-005` | 可注册登录、配置 Provider/模型并管理本地资产 |
 | Week 2 | `T2-001`–`T2-005` | 材料形成带证据的 Structured Brief，可修改、解决冲突并确认 |
 | Week 3 | `T3-001`–`T3-005` | 同一材料异步生成 PPTX 与 XLSX，通过基础 QA 并下载 |
-| Week 4 | `T4-001`–`T4-005` | 冷启动、真实 Agnes、黄金回归、Office/WPS 人工验收和敏感信息检查完成 |
+| Week 4 | `T4-001`–`T4-005` | 冷启动、真实 Agnes、1/10 pilot 黄金回归、Office/WPS 人工验收和敏感信息检查完成；未验证项显式保留 |
 
 ## Alpha 完成定义
 
 - 必须交付项全部完成，明确非范围没有被加入。
-- 自动测试、10 组脱敏黄金材料的 PPT/Excel 回归全部通过。
+- 自动测试、用户批准的 1 组脱敏 pilot 材料的 PPT/Excel 重复回归全部通过，并在 release
+  note 中明确不具备原计划 10 组 corpus 的多样性证据。
 - 所有 `passed` 文件经 Microsoft Office 与 WPS 人工打开且无修复提示。
 - 真实 Agnes Contract Test 和 Git 敏感信息检查通过。
 - `docs/PLAN.md`、`docs/PROGRESS.md`、实现、测试、Git 与推送状态一致。

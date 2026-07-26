@@ -58,7 +58,7 @@ def test_renderer_writes_expected_english_formulas_and_cached_values(
 
     assert data_formulas["E3"].value == "=IFERROR((D3-C3)/C3,0)"
     assert data_formulas["F4"].value == "=IFERROR((D4-C4)/C4,0)"
-    assert data_formulas["G3"].value == "=RANK.EQ(D3,$D$3:$D$5,0)"
+    assert data_formulas["G3"].value == "=RANK(D3,$D$3:$D$5,0)"
     assert data_cached["E3"].value == pytest.approx(0.2)
     assert data_cached["F4"].value == pytest.approx(-0.25)
     assert data_cached["G3"].value == 1
@@ -72,7 +72,7 @@ def test_renderer_writes_expected_english_formulas_and_cached_values(
     assert summary_cached["B4"].value == 100
     assert summary_cached["B5"].value == 3
     assert FORMULA_FUNCTION_WHITELIST == frozenset(
-        {"AVERAGE", "COUNT", "IFERROR", "RANK.EQ", "SUM"}
+        {"AVERAGE", "COUNT", "IFERROR", "RANK", "SUM"}
     )
 
     formulas.close()
@@ -101,6 +101,8 @@ def test_renderer_writes_chart_format_validation_freeze_and_print_contract(
     assert data.page_setup.fitToHeight == 0
     assert data.print_title_rows == "$2:$2"
     assert len(summary._charts) == 1
+    assert chart.x_axis.txPr is not None
+    assert str(summary.print_area) == "'经营看板'!$A$1:$L$21"
     assert chart.ser[0].val.numRef.f == "销售明细!$D$3:$D$5"
     assert chart.ser[0].cat.numRef.f == "销售明细!$A$3:$A$5"
 

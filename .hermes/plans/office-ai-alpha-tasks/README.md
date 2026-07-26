@@ -47,7 +47,7 @@
 | `T3-005` | Excel QA 与组合任务 | `T3-004` | `DONE` | Week 3 |
 | `T4-001` | 用户流程与管理后台功能壳 | `T3-005` | `DONE` | |
 | `T4-002` | 管理员最高权限与审计 | `T4-001` | `DONE` | |
-| `T4-003` | 黄金数据回归 | `T4-002` | `BLOCKED` | |
+| `T4-003` | 黄金数据回归 | `T4-002` | `DONE` | |
 | `T4-004` | Office/WPS 与故障演练 | `T4-003` | `BLOCKED` | |
 | `T4-005` | 安全检查与 Alpha 封版 | `T4-004` | `BLOCKED` | Week 4 / Alpha |
 
@@ -61,12 +61,17 @@
 ## 外部前置条件
 
 - `T2-004` 前：通过本地未跟踪配置或管理后台提供真实 Agnes API Key；不得写入计划、聊天记录或 Git。
-- `T4-003` 前：提供 10 组拥有使用权且已脱敏的销售材料及期望指标。
-- `T4-004` 前：本机可用 Microsoft Office 与 WPS，能够打开全部黄金输出并记录结果。
+- `T4-003` 前：原计划要求 10 组材料；用户于 `2026-07-26` 明确确认没有更多材料，批准将
+  1 组拥有使用权的 XLSX/PPTX 配对材料生成脱敏副本并作为 `1/10 pilot` 执行。
+- `T4-004` 前：本机可用 Microsoft Office 与 WPS、真实 Agnes 测试配置及 Docker
+  故障演练 runtime；当前只有 Microsoft Office 16.0 实际证据，任务继续 `BLOCKED`。
 
 ## 最脆弱假设
 
-本拆分假设真实 Agnes Key 和 10 组脱敏销售样本能在 Week 2 前到位，且 Week 4 可使用 Microsoft Office 与 WPS。若不成立，仍可完成代码和 Mock 验证，但不得把 Agnes 真实兼容、销售内容质量或 Office/WPS 可交付性标记为通过。
+本拆分原假设真实 Agnes Key 和 10 组脱敏销售样本能在 Week 2 前到位，且 Week 4 可使用
+Microsoft Office 与 WPS。实际仅有 1 组用户授权材料，因此 T4-003 只能证明该 pilot 的
+确定性和回归机制，不能把 Agnes 真实兼容、10 组内容多样性或 Office/WPS 可交付性标记
+为通过。
 
 ## 任务文档
 

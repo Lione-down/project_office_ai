@@ -1,0 +1,1 @@
+"""Deterministic golden regression support."""
