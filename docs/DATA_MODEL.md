@@ -163,7 +163,15 @@
 - `T1-003` 已创建 `20260722_0002`，建立 `users`、`user_sessions`、`invite_codes`、`credit_ledger`；UUID 为 `BINARY(16)`，时间为 MySQL `DATETIME(6)`。
 - `T1-003` runtime 补验新增 `20260722_0003`，为上述 4 张表及全部 41 个字段写入非空中文 COMMENT；2026-07-22 已在本机 MySQL 8.0.43 空库真实升级并通过 `information_schema` 与 `alembic check` 核对。
 - `T1-004` 新增 `20260722_0004`，建立 `ai_providers`、`provider_credentials`、`ai_models`、`audit_logs`；2026-07-22 已在本机 MySQL 从 `0003` 真实升级，4/4 table comments、52/52 column comments、两项关键唯一约束通过 `information_schema` 与事务内 rollback probe 核对，`alembic check` 无 drift。
-- `T1-005` 新增 `20260722_0005`，建立 `projects`、`file_assets`，包含 owner/project/parent 外键、active default generated key、storage location 与 user idempotency 唯一约束及中文注释；SQLite 空库完整升级、MySQL dialect offline SQL 和单一 Head `20260722_0005` 已验证。当前会话未获授权读取本地 `.env`，因此未把 offline 结果冒充真实 MySQL runtime upgrade。
+- `T1-005` 新增 `20260722_0005`，建立 `projects`、`file_assets`，包含
+  owner/project/parent 外键、active default generated key、storage location 与 user
+  idempotency 唯一约束及中文注释。T4-004 首次从 utf8mb4 MySQL 空库完整升级时发现
+  `(storage_provider VARCHAR(32), storage_key VARCHAR(768))` 可能超过 InnoDB 3072-byte
+  key 上限；两个只承载服务端 ASCII locator 的列已收紧为 `ascii_bin`，模型与 migration
+  同步。`0011` 改变 `provider_calls.brief_group_id` nullable 时同时显式保留既有中文
+  COMMENT，避免 MySQL `ALTER COLUMN` 产生 model drift。第二个隔离 utf8mb4 MySQL
+  database 已从零升级到 `20260723_0013 (head)`，`alembic check` 为
+  `No new upgrade operations detected`；旧失败 database 未删除，保留现场证据。
 - `T2-001` 新增 `20260723_0006`，只向 `file_assets` additive 增加 8 个安全处理 metadata 字段；SQLite 空库完整升级、MySQL dialect offline SQL、中文 COMMENT 与唯一 Head `20260723_0006` 已验证。当前会话未读取本地 `.env`，未把 offline 结果冒充真实 MySQL runtime upgrade。
 - `T2-002` 新增 `20260723_0007`，只向 `file_assets` additive 增加 9 个 Evidence Manifest 与 OCR retry metadata 字段；真实 MySQL runtime 结果以本任务执行记录为准。
 - `T2-003` 新增 `20260723_0008`，建立不可变 `term_libraries` 与 `term_items` snapshot 表、owner/project/previous-version 外键、3 项版本唯一约束和中文 COMMENT。SQLite 空库完整升级与单一 Head、MySQL dialect offline DDL 已验证；本任务未读取 `.env`，未运行真实 MySQL `0008` upgrade。

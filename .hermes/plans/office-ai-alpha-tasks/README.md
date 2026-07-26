@@ -48,8 +48,8 @@
 | `T4-001` | 用户流程与管理后台功能壳 | `T3-005` | `DONE` | |
 | `T4-002` | 管理员最高权限与审计 | `T4-001` | `DONE` | |
 | `T4-003` | 黄金数据回归 | `T4-002` | `DONE` | |
-| `T4-004` | Office/WPS 与故障演练 | `T4-003` | `BLOCKED` | |
-| `T4-005` | 安全检查与 Alpha 封版 | `T4-004` | `BLOCKED` | Week 4 / Alpha |
+| `T4-004` | Office/WPS 与故障演练 | `T4-003` | `DONE` | |
+| `T4-005` | 安全检查与 Alpha 封版 | `T4-004` | `READY` | Week 4 / Alpha |
 
 ## 阶段 Gate
 
@@ -64,16 +64,18 @@
 - `T4-003` 前：原计划要求 10 组材料；用户于 `2026-07-26` 明确确认没有更多材料，批准将
   1 组拥有使用权的 XLSX/PPTX 配对材料生成脱敏副本并作为 `1/10 pilot` 执行。
 - `T4-004` 前：本机可用 Microsoft Office 与 WPS、真实 Agnes 测试配置及 Docker
-  故障演练 runtime。当前 Microsoft Office 16.0 已验证；Docker Desktop 已安装但
-  Windows/WSL2 待重启；真实 Agnes 基础文本请求为 200，但 Structured Output Contract
-  因上游 grammar backend 返回 400；用户明确不安装 WPS。任务继续 `BLOCKED`。
+  故障演练 runtime。当前 Microsoft Office `16.0.20131.20154`、WPS Office
+  `12.1.0.26899`、WSL `2.7.11.0`、Docker Desktop `4.83.0`/Linux Engine `29.6.2` 与
+  Compose `v5.3.1` 已实际验证。Agnes Structured Output compatibility 已经 RED/GREEN
+  固定为显式 capability，并以本地未跟踪 Credential 完成真实 Contract；Microsoft
+  PowerPoint/Excel 与 WPS 也已实际打开同一组黄金 PPTX/XLSX 副本。
 
 ## 最脆弱假设
 
 本拆分原假设真实 Agnes Key 和 10 组脱敏销售样本能在 Week 2 前到位，且 Week 4 可使用
 Microsoft Office 与 WPS。实际仅有 1 组用户授权材料，因此 T4-003 只能证明该 pilot 的
-确定性和回归机制，不能把 Agnes 真实兼容、10 组内容多样性或 Office/WPS 可交付性标记
-为通过。
+确定性和回归机制；T4-004 已补齐 Agnes 真实兼容、Docker 故障恢复与 Office/WPS
+可交付性证据，但 `1/10 pilot` 仍不能代表原计划 10 组内容多样性。
 
 ## 任务文档
 

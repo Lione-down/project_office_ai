@@ -441,6 +441,30 @@
   output、响应 envelope 与 usage；任何 fallback 都必须先有 RED contract、严格 schema
   validation、单次 repair 和不重复计费边界，不能仅删除失败字段后宣称兼容。
 
+### 2026-07-27 · T4-004 · Provider 请求能力必须显式声明
+
+- 现象：Mock Agnes 接受 `response_format`，真实 Agnes grammar backend 却返回 HTTP 400；
+  adapter 无条件发送该字段会让基础可用的模型在 Structured Brief 路径必然失败。
+- 影响：Mock 合同会制造虚假的生产兼容性；反过来直接删除字段又可能在未来支持 native
+  structured output 时丢失能力，并被误解为降低应用层 Schema。
+- 本任务处理：增加默认 `false` 的严格布尔 capability `native_response_format`；只有显式
+  支持才发送 native 字段，应用层 strict Schema、一次 repair、Evidence 引用和错误分类不变。
+- 预防/验证：Provider-specific optional field 必须由显式 capability 驱动，并同时覆盖
+  unsupported、supported、错误类型与真实 opt-in Contract，不能从单次响应静默学习全局配置。
+
+### 2026-07-27 · T4-004 · Offline migration SQL 不能替代 utf8mb4 空库升级
+
+- 现象：历史 `file_assets` storage locator 在 SQLite/offline MySQL DDL 下通过，但真实
+  utf8mb4 MySQL 从零升级时，32+768 字符的联合唯一键超过 InnoDB 3072-byte 上限。
+- 影响：所有后续 migration 和 runtime test 都无法启动；若只在已有库增补新 migration，
+  新部署仍会先死在旧 revision。
+- 本任务处理：storage locator 本来就只允许服务端 ASCII key，因此模型与 `0005` 同步使用
+  `ascii_bin`；同时发现 `0011` nullable ALTER 会丢失列 COMMENT，upgrade/downgrade 均显式
+  传入 `existing_comment`。第二个隔离空库从零升级至唯一 head，`alembic check` 无 drift；
+  旧失败库不删除。
+- 预防/验证：长索引必须按真实 charset 的字节上限设计；Alpha 封版前至少在 utf8mb4
+  MySQL 空库跑完整 migration chain，不能只看 SQLite 或 dialect compile。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

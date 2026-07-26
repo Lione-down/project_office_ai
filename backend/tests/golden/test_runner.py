@@ -1,14 +1,63 @@
 import json
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
 
 from app.services.golden.contracts import GoldenRegressionError
-from app.services.golden.runner import GoldenRegressionRunner
+from app.services.golden.runner import (
+    GoldenRegressionRunner,
+    workbook_structural_sha256,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "golden-data/manifests/sales-pilot-v1.json"
+
+
+def _write_package(
+    path: Path,
+    *,
+    payload: bytes,
+    create_system: int,
+    external_attr: int,
+) -> None:
+    info = ZipInfo("xl/workbook.xml", date_time=(1980, 1, 31, 0, 0, 0))
+    info.compress_type = ZIP_DEFLATED
+    info.create_system = create_system
+    info.external_attr = external_attr
+    with ZipFile(path, "w") as package:
+        package.writestr(info, payload)
+
+
+def test_workbook_structural_digest_ignores_zip_metadata_and_xml_newlines(
+    tmp_path: Path,
+) -> None:
+    windows = tmp_path / "windows.xlsx"
+    linux = tmp_path / "linux.xlsx"
+    changed = tmp_path / "changed.xlsx"
+    _write_package(
+        windows,
+        payload=b'<?xml version="1.0"?>\r\n<workbook value="1"/>',
+        create_system=0,
+        external_attr=0x81B60000,
+    )
+    _write_package(
+        linux,
+        payload=b'<?xml version="1.0"?>\n<workbook value="1"/>',
+        create_system=3,
+        external_attr=0x81800000,
+    )
+    _write_package(
+        changed,
+        payload=b'<?xml version="1.0"?>\n<workbook value="2"/>',
+        create_system=3,
+        external_attr=0x81800000,
+    )
+
+    assert windows.read_bytes() != linux.read_bytes()
+    assert workbook_structural_sha256(windows) == workbook_structural_sha256(linux)
+    assert workbook_structural_sha256(windows) != workbook_structural_sha256(changed)
 
 
 def test_runner_repeats_spreadsheet_and_presentation_reference_checks() -> None:

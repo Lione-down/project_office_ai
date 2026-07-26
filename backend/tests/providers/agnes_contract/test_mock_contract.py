@@ -37,7 +37,10 @@ async def test_mock_agnes_contract_returns_validated_structured_brief() -> None:
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        completion = await AgnesAdapter(client=client).create_chat_completion(
+        completion = await AgnesAdapter(
+            configuration={"native_response_format": True},
+            client=client,
+        ).create_chat_completion(
             api_key="mock-key",
             request=ChatCompletionRequest(
                 model="agnes-2.0-flash",

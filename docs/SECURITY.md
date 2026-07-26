@@ -73,6 +73,10 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 模型推断必须标记 `ai_inference`，不能冒充 `source_fact`。
 - `400` 不重试，`401/403` 暂停 Credential，`429/5xx` 有限重试，timeout 不确定进入 `provider_uncertain`。
 - Agnes 配置写入前验证 HTTPS、默认 `agnes-2.0-flash`、保守 `256K` Context 与 120 秒 timeout；Alpha 不认证其他 Provider，不静默切换。
+- native `response_format` 只有在 Provider 配置的布尔 capability
+  `native_response_format=true` 时发送；默认省略不代表降低 Structured Brief 约束，响应
+  仍必须通过应用层 strict Schema、Evidence 引用和一次 repair。非布尔 capability fail
+  closed，禁止根据一次 400 静默永久改变全局 Provider 行为。
 - T2-004 只从 owner-scoped、`ready` 且 key/SHA/asset version 完整性复验通过的 Manifest 构建 Context；Manifest read 上限为配置容量加 1 byte，不对被篡改的大文件执行无界读取。Evidence 和术语内容只进入 user message，固定 system contract 明确其为 untrusted data。
 - Context 同时受 evidence budget 和完整 message+max-output budget 约束；不足时在调用前 fail closed，不截断必需 evidence。选定术语库必须使用显式 owner/project `library_id + version`，只发送该 snapshot 的标准术语、别名、unit、口径与优先级。
 - Agnes 输出必须精确保持 user goal/audience/include/exclude、asset/term/Skill/model snapshot 与 Skill 对应 output kind；`file/calculation` fact 和 `agnes_inference` 必须引用本次 Context 已知 evidence ID。非法结构或伪造引用只允许一次 repair，仍失败不创建 Brief 或积分。
@@ -89,6 +93,9 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 失败或可取消任务释放 reserve；partial success 只 finalize 成功子输出并 release 余量；质量自动修复不额外收费。`provider_uncertain` 保留 reserve，不自动重试或重复结算，需要后续受审计决策。
 - `credit_ledger` 与 `audit_logs` 只追加，不提供修改/删除业务接口。
 - Generation、Credits、Outbox/queue payload 和日志不得包含 Credential Secret、Prompt、文件正文、storage key 或本地路径；用户 task/credits 响应使用 `private, no-store`。
+- T4-004 真实恢复演练只使用隔离 UUID、合成用户、假 Credential 和真实 MySQL/Redis，
+  不访问 Provider 或用户文件。Redis outage 必须保留 pending Outbox/reserve；恢复后新 worker
+  只执行一次，duplicate delivery 不重复执行或结算；`provider_uncertain` 继续保留 reserve。
 
 ## PPT Renderer 与生成输出
 

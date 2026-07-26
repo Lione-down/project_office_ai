@@ -71,6 +71,8 @@
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
 | `OFFICE_AI_RUN_REAL_AGNES_CONTRACT` | 显式启用真实 Agnes Contract Test；仅精确值 `1` 启用 | 否 | T2-004 手工联调 | 临时进程环境；默认不设置 |
 | `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` | 真实 Contract Test 选择已加密 Agnes Credential 的 UUID，不是 API Key | 否 | T2-004 手工联调 | 临时进程环境；只与显式 opt-in 同时使用 |
+| `OFFICE_AI_RUN_T4_FAILURE_DRILL` | 显式启用 T4-004 真实 MySQL/Redis 故障演练；仅精确值 `1` 启用 | 否 | T4-004 手工联调 | 临时进程环境；默认不设置 |
+| `OFFICE_AI_T4_FAILURE_DRILL_RUN_ID` | 隔离一次故障演练数据的 UUID | 否 | T4-004 手工联调 | 临时进程环境；不得复用生产 identity |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
 T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
@@ -103,12 +105,20 @@ private author metadata、用户/客户身份或电话。当前 Microsoft PowerP
 已实际打开并导出黄金输出；PATH 无 Docker，LibreOffice/WPS 未安装，真实 Agnes 未
 opt-in。这些缺口不得由 Python/Node/OOXML 或 Microsoft Office 单 runtime 证据替代。
 
-T4-004 环境前置准备已安装 Docker Desktop `4.83.0` 到
-`D:\works\tool\Docker`，将 WSL data root 配置为
-`D:\works\tool\DockerData`，并把 `D:\works\tool\Docker\resources\bin` 写入 machine
-`PATH`。Docker Client `29.6.2`、Compose `v5.3.1` 可执行；安装器刚启用 WSL/
-VirtualMachinePlatform，Windows 要求 restart，因此 daemon、容器和 sidecar runtime
-尚未验证。用户明确不安装 WPS，此项继续作为 T4-004 未通过边界。
+T4-004 已在 Windows restart 后实际验证 WSL `2.7.11.0`/kernel `6.18.33.2`、
+Docker Desktop `4.83.0`、Linux Client/Engine `29.6.2` 与 Compose `v5.3.1`；
+`hello-world`、项目 Compose config、backend image rebuild、MySQL `8.4.5`、Redis
+`7.4.5`、PPT Renderer 与 LibreOffice `25.2.3.2` sidecar 均有真实 runtime 证据。
+Docker 程序位于 `D:\works\tool\Docker`，WSL data root 位于
+`D:\works\tool\DockerData`。WPS Office `12.1.0.26899` 与已激活的 Microsoft Office
+`16.0.20131.20154` 均已实际打开同一组黄金 PPTX/XLSX 验证副本；PowerPoint 4 页、
+Excel 2 Sheet、关键指标、公式结果和图表均通过视觉/交互检查，且双应用验证后的副本
+SHA-256 与 tracked expected 一致。
+
+T4-004 故障演练默认 skip，只有同时提供 opt-in 与唯一 run UUID 才允许连接真实
+MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credential，不读取用户文件
+或发送 Provider 请求；Redis stop/start 期间 MySQL task/outbox/ledger 为事实来源，结束后
+不自动删除持久记录，以保留可审计证据。
 
 ### 本机兼容变量
 
@@ -129,10 +139,12 @@ VirtualMachinePlatform，Windows 要求 restart，因此 daemon、容器和 side
 - `OFFICE_AI_MASTER_KEY` 缺失时，Credential 创建/Reveal/Provider 调用必须 fail closed。
 - T2-004 真实 Contract Test 默认 skip；只有 `OFFICE_AI_RUN_REAL_AGNES_CONTRACT=1` 时才使用 runtime Database URL、Master Key 和 `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` 读取已加密 Credential。测试不读取 `.env`、不接受单独的明文 Key 变量、不回显 Key；缺少任一 runtime 前置时不得声称真实 Agnes 通过。
 - `2026-07-26` 真实预检证明 endpoint、Key 与 text model 在不带
-  `response_format` 的最小请求上返回 HTTP `200`；项目两个 live Contract 在携带
-  `response_format={"type":"json_object"}` 时均返回 HTTP `400`，上游报告当前 grammar
-  backend 不支持 grammar-based JSON generation。因此只能声明基础文本访问可用，
-  Structured Output 仍未通过。
+  `response_format` 的最小请求上返回 HTTP `200`；两个 live Contract 携带 native
+  `response_format` 时因上游 grammar backend 返回 HTTP `400`。
+- `2026-07-27` 以 RED/GREEN 固定 capability contract：Agnes
+  `native_response_format` 默认 `false`，只在配置显式 `true` 时发送该字段；应用层仍执行
+  strict Schema、一次 repair 和 Evidence 校验。使用一次性加密 Credential 的真实 Contract
+  为 `4 passed`，没有打印或持久化 Key、Prompt、response body 或用户文件。
 - Master Key 轮换不覆盖旧 Credential；新 Key 以新的 Credential ID 和 `rotation_source` 录入，旧记录停用并保留审计链。跨 Master Key 重新加密工具不在 T1-004 范围。
 
 ## Auth 与管理员 Bootstrap

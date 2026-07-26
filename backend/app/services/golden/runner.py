@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import BadZipFile, ZipFile
 
 from openpyxl import load_workbook
 from openpyxl.utils.cell import range_boundaries
@@ -21,6 +22,28 @@ from app.services.golden.security import inspect_office_artifact
 from app.services.quality.presentation.inspector import PresentationPackageInspector
 from app.services.renderers.excel.contracts import WorkbookPlan
 from app.services.renderers.excel.renderer import ExcelRenderer
+
+
+def workbook_structural_sha256(path: str | Path) -> str:
+    digest = sha256()
+    try:
+        with ZipFile(path) as package:
+            entries = package.infolist()
+            names = [entry.filename for entry in entries]
+            if len(names) != len(set(names)):
+                raise GoldenRegressionError("golden_spreadsheet_package_invalid")
+            for name in sorted(names):
+                content = package.read(name)
+                if name.endswith((".xml", ".rels")):
+                    content = content.replace(b"\r\n", b"\n")
+                encoded_name = name.encode("utf-8")
+                digest.update(len(encoded_name).to_bytes(4, "big"))
+                digest.update(encoded_name)
+                digest.update(len(content).to_bytes(8, "big"))
+                digest.update(content)
+    except (BadZipFile, OSError) as exception:
+        raise GoldenRegressionError("golden_spreadsheet_package_invalid") from exception
+    return digest.hexdigest()
 
 
 class GoldenRegressionRunner:
@@ -180,13 +203,16 @@ class GoldenRegressionRunner:
         expected: Artifact,
     ) -> int:
         renderer = ExcelRenderer()
+        expected_structural_sha256 = workbook_structural_sha256(
+            self._repo_root / expected.path
+        )
         with TemporaryDirectory(prefix="office-ai-golden-xlsx-") as directory:
             for index in range(repetitions):
                 target = Path(directory) / f"run-{index + 1}.xlsx"
                 rendered = renderer.render(plan, target)
                 if (
-                    rendered.sha256 != expected.sha256
-                    or rendered.byte_size != expected.byte_size
+                    workbook_structural_sha256(rendered.path)
+                    != expected_structural_sha256
                     or rendered.sheet_count != expected.sheet_count
                 ):
                     raise GoldenRegressionError("golden_spreadsheet_drift")

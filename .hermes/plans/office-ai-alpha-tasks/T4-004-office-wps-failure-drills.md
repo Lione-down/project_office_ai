@@ -1,22 +1,25 @@
 # T4-004 Office/WPS 与故障演练
 
-- 状态：`BLOCKED`
+- 状态：`DONE`
 - Depends on：`T4-003`
 - 外部前置：本机可用 Microsoft Office、WPS 和真实 Agnes 测试配置
 - 来源：总计划第 3、10、16–18、22 节与 Day 19
 - 建议 commit：`test(alpha): record compatibility and recovery drills`
 
-## 当前外部前置状态（2026-07-26）
+## 当前外部前置状态（2026-07-27）
 
-- Microsoft PowerPoint/Excel 16.0 已有黄金输出实际打开、重算与导出证据；用户自行负责
-  Office 激活。
-- Docker Desktop `4.83.0` 已安装到 `D:\works\tool\Docker`，machine `PATH` 已配置；
-  WSL/VirtualMachinePlatform 刚启用并要求 Windows restart，daemon 与 Compose runtime
-  尚未验证。
-- 真实 Agnes Key 的基础文本请求返回 HTTP `200`；两个 live Structured Output Contract
-  均因上游 grammar backend 不支持 `response_format` 返回 HTTP `400`。
-- 用户明确不安装 WPS。由于验收仍要求 Microsoft Office/WPS 双 runtime，本任务保持
-  `BLOCKED`，不得降级 Gate 或标记兼容通过。
+- Microsoft PowerPoint/Excel `16.0.20131.20154` 已激活，并已实际打开同一组黄金
+  PPTX/XLSX 验证副本。
+- WPS Office `12.1.0.26899` 已安装并定位到 `D:\工具\WPS Office`。
+- WSL `2.7.11.0`、kernel `6.18.33.2` 与 Docker Desktop `4.83.0` 已实际启动；
+  `docker version` 返回 Linux Engine `29.6.2`，Compose `v5.3.1`，`hello-world` 与项目
+  `docker compose config --quiet` 均通过。WSL data root 位于
+  `D:\works\tool\DockerData`。
+- Agnes Structured Output compatibility 已先以 RED Contract 固定，再通过显式
+  `native_response_format` capability 最小修复；使用本地未跟踪 Credential 的真实
+  Contract 为 `4 passed`。
+- 本任务代码、外部 runtime、桌面兼容与恢复演练 Gate 均完成；下一唯一
+  dependency-ready 任务为 `T4-005`。
 
 ## 目标
 
@@ -31,11 +34,18 @@
 
 ## 实施步骤
 
-1. 在 Microsoft Office 和 WPS 分别打开全部通过自动门禁的黄金 PPTX/XLSX，记录修复提示、布局、公式和图表结果。
-2. 使用可控 Mock/测试响应演练错误；真实 Agnes 只做批准范围内的必要 Contract 调用，不制造破坏性流量。
-3. 在有持久任务时重启 Redis/Worker，验证 MySQL checkpoint 与 Outbox 恢复且不重复扣费。
-4. 重放相同 Idempotency-Key，演练取消、一成一败和 `provider_uncertain` 人工处置。
-5. 所有失败保持未完成状态并进入 `pitfalls.md`/`docs/PROGRESS.md`，不得降级 Gate 掩盖。
+1. RED：用离线单元 Contract 固定 Agnes 不支持 native `response_format` 时的显式 capability
+   行为，并保持严格应用层 Schema、一次 repair 和错误分类边界。
+2. GREEN：只做最小 Provider compatibility 实现；先跑 focused Contract，再显式 opt-in
+   重跑真实 Agnes，且不打印 Key、prompt 或 response body。
+3. 启动真实 MySQL/Redis/Worker runtime；使用隔离测试记录演练 Agnes `401`、`429`、
+   `5xx`、超时、非法 Schema，以及 Redis/Worker restart、Outbox recovery、重复提交、
+   取消、部分成功、`provider_uncertain` 与积分恢复。
+4. 在 Microsoft Office 和 WPS 分别打开所有 `passed` 黄金 PPTX/XLSX 副本，记录修复
+   提示、页/Sheet 数、公式、关键数字、图表、字体和布局；验证前后确认 tracked 黄金
+   文件 checksum 不变。
+5. 依次执行 focused、任务卡 Docker 命令、broad、quality/security 与当前主会话
+   sequential deep review；所有失败保持未完成状态并记录，不降级 Gate。
 
 ## 验收标准
 
@@ -47,10 +57,39 @@
 ## 验证
 
 ```powershell
-docker compose run --rm backend pytest backend/tests/integration -q
-docker compose run --rm backend pytest backend/tests/providers/agnes_contract -q
-docker compose run --rm backend python -m app.utils.golden_regression
+docker compose run --rm backend python -m pytest tests/integration -q
+docker compose run --rm backend python -m pytest tests/providers/agnes_contract -q
+$repo = (Get-Location).Path
+docker compose run --rm `
+  --volume "${repo}\golden-data\inputs:/workspace/golden-data/inputs:ro" `
+  --volume "${repo}\golden-data\expected:/workspace/golden-data/expected:ro" `
+  --volume "${repo}\golden-data\manifests:/workspace/golden-data/manifests:ro" `
+  backend python -m app.utils.golden_regression `
+  /workspace/golden-data/manifests/sales-pilot-v1.json --repo-root /workspace
 ```
+
+## 当前执行证据（2026-07-27）
+
+- Agnes：默认不发送上游未声明支持的 native `response_format`，但仍由应用层执行 strict
+  Structured Brief Schema、一次 repair 与稳定错误分类；离线 focused 为 `23 passed`，
+  使用本地未跟踪 Credential 的真实 Contract 为 `4 passed`。
+- Docker：重建 backend 镜像后，integration 为 `5 passed`，Agnes 容器 Contract 为
+  `2 passed, 2 skipped`（live 默认未 opt-in），黄金回归为 20 次 XLSX generation 与
+  20 次 PPTX reference `passed`；LibreOffice 为 `25.2.3.2`。第二个隔离 utf8mb4 MySQL
+  database 从 revision 0 完整升级到 head，`alembic check` 无 drift。
+- 故障演练：隔离 run `86d22c8a-bd5c-4254-96d7-9ad990a8325f` 的 4 个阶段均通过，
+  覆盖真实 MySQL/Redis、Redis stop/start、Outbox pending/recovery、新 worker、重复投递、
+  取消、部分成功、`provider_uncertain`、stale recovery 与 ledger 幂等。
+- WPS：`12.1.0.26899` 已实际打开 4 页 PPTX 与 2 Sheet XLSX；逐页/逐 Sheet 检查无
+  repair prompt，表格、关键指标和图表可见。
+- Microsoft Office：PowerPoint/Excel `16.0.20131.20154` 已实际打开同一验证副本。
+  PowerPoint 放映模式逐页检查 4 页；Excel 切换检查“经营数据”和“经营看板”2 Sheet，
+  中文、表格、关键数字、公式结果、百分比格式和图表均正常，无 repair、Protected View、
+  登录或激活提示。OfficePLUS 模板推广层未授权，只通过放映模式完成 PPTX 检查；Excel
+  “隐私设置已应用”只读通知未交互。
+- 双应用验证后，PPTX 工作副本与 tracked expected SHA-256 均为
+  `c8359cc339ac8467c8430e6e2cb02da529397446769d531a42ab6c03d82a9d77`，XLSX 均为
+  `0b9fcb65552b13bfa72a40323658a5763c86c314cc42734fcac95822ec2d414d`；应用未改写文件。
 
 人工检查：逐个打开黄金 PPTX/XLSX，核对修复提示、页/Sheet 数、关键数字、公式值、图表、字体和布局，并在 `docs/PROGRESS.md` 留证。
 

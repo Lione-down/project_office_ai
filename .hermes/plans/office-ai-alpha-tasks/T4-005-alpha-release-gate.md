@@ -1,6 +1,6 @@
 # T4-005 安全检查与 Alpha 封版
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`T4-004`
 - 来源：总计划第 3、15–19、22、23 节与 Day 20
 - 建议 commit：`chore(release): prepare internal office ai alpha`

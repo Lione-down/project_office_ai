@@ -1,11 +1,9 @@
 # Office AI Alpha 进度记录
 
-- 最后更新：`2026-07-26`
-- 最近完成：`T4-003 黄金数据回归`
-- 下一任务：无 dependency-ready 任务
-- 当前状态：`T4-004 BLOCKED`（Microsoft Office 16.0 已验证；Docker Desktop 已安装但
-  Windows/WSL2 待重启；真实 Agnes Key 可连通但 Structured Output Contract 返回 400；
-  用户明确不安装 WPS）
+- 最后更新：`2026-07-27`
+- 最近完成：`T4-004 Office/WPS 与故障演练`
+- 下一任务：`T4-005 安全检查与 Alpha 封版`
+- 当前状态：`T4-005 READY`（只完成 dependency 状态交接，尚未开始实现）
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -44,8 +42,8 @@
 | T4-001 | DONE | T3-005 | `feat(frontend): expose alpha user and admin workflows`；UI V1 与浏览器证据见下文 |
 | T4-002 | DONE | T4-001 | `feat(admin): add audited global asset access`；权限、审计与浏览器证据见下文 |
 | T4-003 | DONE | T4-002 | `test(golden): validate office generation corpus`；1/10 pilot 与实际 Office 证据见下文 |
-| T4-004 | BLOCKED | T4-003 | Office/WPS 与故障演练 |
-| T4-005 | BLOCKED | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
+| T4-004 | DONE | T4-003 | `test(alpha): record compatibility and recovery drills`；真实 Agnes、Docker/恢复演练与 Office/WPS 证据见下文 |
+| T4-005 | READY | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
 
 ## T1-001 执行记录
 
@@ -1189,3 +1187,113 @@
   通过；这不是缺 Key，也不得用 prompt-only JSON `200` 冒充 strict structured-output
   兼容。T4-004 在 Windows restart 后仍需 Docker 故障演练，并需对 Provider contract
   作出有测试和安全边界的处理；本次环境准备未修改业务 adapter。
+
+### 重启后 runtime 复验与任务激活（2026-07-27）
+
+- 从 Microsoft WSL `2.7.11` 官方 release 下载 x64 MSI；文件大小 `258990080`、SHA-256
+  `A611DDACEE689D2FB1FB5319E58AF7F3998864D86CDCE632EADD8E61614A0F9D` 与 release
+  metadata 一致，Authenticode 为 `Valid`，签名者为 Microsoft Corporation。安装后
+  `wsl --version` 为 `2.7.11.0`，kernel 为 `6.18.33.2`。
+- Docker Desktop `4.83.0` 状态为 `running`；`docker version` 返回 Client/Server
+  `29.6.2`，WSL2 的 `docker-desktop` distribution 为 running，`docker run --rm
+  hello-world` 通过。Compose 为 `v5.3.1`，项目 `docker compose config --quiet`
+  exit `0`；data root 实际创建在 `D:\works\tool\DockerData`。
+- WPS Office `12.1.0.26899` 的 `wps.exe`、`et.exe`、`wpp.exe` 已定位；Microsoft
+  PowerPoint/Excel 为 `16.0.20131.20154`。版本与 executable discovery 只证明 runtime
+  可用，真正的黄金文件无修复提示、视觉和交互仍须在 T4-004 内逐项验证。
+- T4-003 已 `DONE`，上述外部 runtime gate 均满足，因此 T4-004 激活为唯一 `READY`
+  任务。真实 Agnes `response_format` 400 保留为任务内 RED；先写 capability Contract，
+  再做最小 compatibility 实现，并继续保持严格 Schema、一次 repair、错误分类和
+  credential/prompt/response 不落日志边界。
+
+### T4-004 执行计划
+
+1. RED/GREEN：固定并实现 Agnes native structured-output capability fallback，先跑离线
+   focused，再显式 opt-in 真实 Contract。
+2. 在真实 Compose MySQL/Redis/Worker 中完成 Provider 错误、restart/recovery、
+   idempotency、取消、部分成功、`provider_uncertain` 与积分恢复演练。
+3. 对 tracked 黄金输出制作 ignored 工作副本，分别在 Microsoft Office 与 WPS 中实际
+   打开并核对修复提示、结构、指标、公式、图表、字体与布局；原文件 hash 必须不变。
+4. 完成任务卡 Docker 命令、broad/quality/security、当前主会话 sequential deep review，
+   同步任务卡、索引、专题文档、`pitfalls.md` 与本记录；只精确暂存 T4-004 文件并形成
+   一个 `test(alpha): ...` commit 后 push。
+
+### T4-004 当前执行记录（2026-07-27）
+
+#### RED/GREEN 与实现
+
+- Agnes RED 固定真实上游不支持 native `response_format` 时的传输合同；GREEN 增加严格
+  布尔 `native_response_format` capability，默认省略该字段，只有显式 `true` 才发送。
+  Structured Brief 仍由应用层 strict Schema、Evidence 引用、一次 repair 和既有错误分类
+  约束；没有改为宽松 JSON 或静默切换 Provider。
+- 黄金 XLSX 在 Windows/Linux 生成的 OOXML entry 内容一致，但 XML newline 与 ZIP
+  `create_system/external_attr` 元数据不同，导致 raw hash 跨 OS 漂移。新增 structural digest
+  只忽略这两类非语义差异；tracked 期望 artifact 仍先按 Manifest 的 raw SHA-256/size
+  fail closed 校验，实际 XML/relationship/entry name 或内容变化仍会失败。
+- backend 镜像原先隐式依赖测试环境中的 `defusedxml`；已补为 production dependency，
+  并用 security regression 固定。
+- 真实 utf8mb4 MySQL 从空库首次暴露 `0005` storage locator 联合唯一键超过 InnoDB
+  3072-byte 上限。由于 provider/key 均为服务端 ASCII locator，模型与 migration 同步使用
+  `ascii_bin`；第一次成功升级后 `alembic check` 又暴露 `0011` 改 nullable 时丢失既有
+  COMMENT，已在 upgrade/downgrade 显式保留并加回归。第二个隔离 utf8mb4 database 从
+  revision 0 升级到 `20260723_0013 (head)`，`alembic check` 无 drift；旧失败 database
+  均未删除。
+
+#### 真实 Provider 与恢复演练
+
+- 本地未跟踪 Credential 只通过一次性加密 SQLite/runtime 注入，未打印、复制或持久化
+  Key、Prompt、response body；真实 Agnes Contract：`4 passed in 3.86s`。离线 Provider
+  focused：`23 passed`；Provider/Brief/Outbox/Generation/Credits 容器 focused：
+  `53 passed in 5.60s`。
+- 隔离 failure-drill run ID `86d22c8a-bd5c-4254-96d7-9ad990a8325f`，四阶段各
+  `1 passed`：创建 task/outbox/reserve 并验证 Idempotency-Key；真实停止 Redis 时 Outbox
+  保持 pending、retry_count 增加且 reserve 不丢；Redis 恢复与新 worker 后只消费一次，
+  duplicate delivery 不重复执行/结算；取消释放、部分成功 finalize/release、
+  `provider_uncertain` 保留 reserve，safe/unsafe stale checkpoint 分别 requeue/uncertain。
+- 故障测试默认 skip，只有显式 `OFFICE_AI_RUN_T4_FAILURE_DRILL=1` 和唯一 UUID 才运行；
+  使用合成 identity、假 Credential，不访问用户文件或真实 Provider。
+
+#### Docker、Office/WPS 与黄金回归
+
+- Docker Desktop `4.83.0`、Linux Engine `29.6.2`、Compose `v5.3.1` 运行正常；
+  MySQL `8.4.5`、Redis `7.4.5`、PPT Renderer、LibreOffice 均 healthy。重建 backend
+  image 后：integration `5 passed`；Agnes 容器 Contract `2 passed, 2 skipped`
+  （真实 live 默认不 opt-in）；黄金回归报告为 XLSX generation `20`、PPTX reference
+  `20`、status `passed`；`soffice --version` 为 `25.2.3.2`。
+- WPS Office `12.1.0.26899` 实际打开 ignored 工作副本：PPTX 共 4 页，逐页核对标题、
+  指标表、业务员对比和结论页；XLSX 共 2 Sheet，经营数据表、完成率/同比、排名、经营
+  看板和出货对比图均可见，无 repair prompt 或公式错误。弹出的“设为默认办公软件并开启
+  防篡改保护”提示只按 `Escape` 关闭，没有启用系统级设置。
+- 用户完成激活后，Microsoft PowerPoint/Excel `16.0.20131.20154` 实际打开同一 ignored
+  副本。PowerPoint 放映模式逐页检查 4 页，Excel 切换检查“经营数据”和“经营看板”
+  2 Sheet；中文、字体、表格、关键数字、公式结果、百分比格式、柱状图和布局均正常，
+  无 repair、Protected View、登录或激活提示。OfficePLUS 模板推广层未授权，Excel
+  “隐私设置已应用”只读通知未交互。
+- 关闭 WPS/Excel 后复验：PPTX tracked expected 与工作副本 SHA-256 均为
+  `c8359cc339ac8467c8430e6e2cb02da529397446769d531a42ab6c03d82a9d77`；XLSX 均为
+  `0b9fcb65552b13bfa72a40323658a5763c86c314cc42734fcac95822ec2d414d`。真实桌面应用
+  未改写验证文件。
+
+#### 当前验证
+
+- Backend broad：`567 passed, 6 skipped`；6 个 skip 均为默认关闭的真实 Agnes/failure
+  opt-in。Ruff check/format check、`pip check`、`pip-audit` 通过且无已知漏洞。
+- Frontend：`22` test files、`59 passed`，production build 通过，`npm audit --omit=dev`
+  为 `0 vulnerabilities`。
+- PPT Renderer：`5` test files、`22 passed`，build 通过，
+  `npm audit --omit=dev` 为 `0 vulnerabilities`。
+- T4-004 focused、Docker、broad、quality/security、真实桌面兼容和恢复演练 Gate 均
+  已通过；任务卡/索引同步为 `DONE`，T4-005 仅激活为唯一 `READY`，未提前实现。
+
+#### 当前 changed files
+
+- Provider/Golden/Data：`backend/app/providers/agnes.py`、
+  `backend/app/services/golden/runner.py`、`backend/app/models/file_assets.py`、
+  `backend/alembic/versions/20260722_0005_projects_and_file_assets.py`、
+  `backend/alembic/versions/20260723_0011_generation_outbox_credits.py`、
+  `backend/pyproject.toml`。
+- Tests：`backend/tests/providers/`、`backend/tests/golden/`、
+  `backend/tests/assets/test_models.py`、`backend/tests/generation/test_models_migration.py`、
+  `backend/tests/failure_drills/`。
+- Records：T4-004 task card/index、T4-005 READY 状态、`docs/API.md`、`docs/DATA_MODEL.md`、
+  `docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。

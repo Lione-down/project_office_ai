@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import JSON, BigInteger, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UuidBinary, new_uuid7, utc_datetime_type, utc_now
@@ -48,8 +49,20 @@ class FileAsset(Base):
     mime_type: Mapped[str] = mapped_column(String(128), comment="初检MIME类型")
     byte_size: Mapped[int] = mapped_column(BigInteger, comment="文件字节数")
     sha256: Mapped[str] = mapped_column(String(64), index=True, comment="SHA-256摘要")
-    storage_provider: Mapped[str] = mapped_column(String(32), comment="存储Provider")
-    storage_key: Mapped[str] = mapped_column(String(768), comment="存储定位键")
+    storage_provider: Mapped[str] = mapped_column(
+        String(32).with_variant(
+            mysql.VARCHAR(32, charset="ascii", collation="ascii_bin"),
+            "mysql",
+        ),
+        comment="存储Provider",
+    )
+    storage_key: Mapped[str] = mapped_column(
+        String(768).with_variant(
+            mysql.VARCHAR(768, charset="ascii", collation="ascii_bin"),
+            "mysql",
+        ),
+        comment="存储定位键",
+    )
     processing_status: Mapped[str] = mapped_column(
         String(32), index=True, comment="资产处理状态"
     )

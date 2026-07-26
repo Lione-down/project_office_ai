@@ -27,6 +27,10 @@ def test_generation_migration_is_single_additive_head() -> None:
 
     assert scripts.get_heads() == ["20260723_0013"]
     assert scripts.get_revision("20260723_0011").down_revision == "20260723_0010"
+    migration_source = (
+        BACKEND_ROOT / "alembic/versions/20260723_0011_generation_outbox_credits.py"
+    ).read_text(encoding="utf-8")
+    assert migration_source.count('existing_comment="关联Brief稳定组ID"') == 2
 
 
 def test_generation_models_expose_durable_contract() -> None:

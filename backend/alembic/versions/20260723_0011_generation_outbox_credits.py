@@ -297,6 +297,7 @@ def upgrade() -> None:
             existing_type=sa.BINARY(16),
             nullable=True,
             existing_nullable=False,
+            existing_comment="关联Brief稳定组ID",
         )
         batch.add_column(
             sa.Column("task_id", sa.BINARY(16), nullable=True, comment="关联生成任务ID")
@@ -337,6 +338,7 @@ def downgrade() -> None:
             existing_type=sa.BINARY(16),
             nullable=False,
             existing_nullable=True,
+            existing_comment="关联Brief稳定组ID",
         )
     with op.batch_alter_table("credit_ledger") as batch:
         batch.drop_constraint("fk_credit_ledger_task", type_="foreignkey")

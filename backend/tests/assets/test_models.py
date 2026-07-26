@@ -53,6 +53,15 @@ def test_asset_constraints_fix_ownership_storage_and_upload_idempotency() -> Non
     assert "uq_file_assets_user_idempotency" in asset_constraints
 
 
+def test_mysql_storage_locator_unique_key_uses_ascii_binary_columns() -> None:
+    for column_name in ("storage_provider", "storage_key"):
+        column_type = FileAsset.__table__.c[column_name].type.dialect_impl(
+            mysql.dialect()
+        )
+        assert column_type.charset == "ascii"
+        assert column_type.collation == "ascii_bin"
+
+
 def test_project_constraints_allow_only_one_active_default_per_user() -> None:
     project_constraints = {
         constraint.name for constraint in Project.__table__.constraints

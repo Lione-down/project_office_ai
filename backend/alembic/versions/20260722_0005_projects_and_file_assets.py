@@ -20,6 +20,13 @@ def _utc_datetime():
     return sa.DateTime().with_variant(mysql.DATETIME(fsp=6), "mysql")
 
 
+def _storage_locator(length: int):
+    return sa.String(length).with_variant(
+        mysql.VARCHAR(length, charset="ascii", collation="ascii_bin"),
+        "mysql",
+    )
+
+
 def upgrade() -> None:
     op.create_table(
         "projects",
@@ -75,9 +82,17 @@ def upgrade() -> None:
         sa.Column("byte_size", sa.BigInteger(), nullable=False, comment="文件字节数"),
         sa.Column("sha256", sa.String(64), nullable=False, comment="SHA-256摘要"),
         sa.Column(
-            "storage_provider", sa.String(32), nullable=False, comment="存储Provider"
+            "storage_provider",
+            _storage_locator(32),
+            nullable=False,
+            comment="存储Provider",
         ),
-        sa.Column("storage_key", sa.String(768), nullable=False, comment="存储定位键"),
+        sa.Column(
+            "storage_key",
+            _storage_locator(768),
+            nullable=False,
+            comment="存储定位键",
+        ),
         sa.Column(
             "processing_status", sa.String(32), nullable=False, comment="资产处理状态"
         ),

@@ -26,6 +26,7 @@ class AgnesConfiguration:
     model: str
     context_window: int
     timeout_seconds: int
+    native_response_format: bool
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ class AgnesAdapter:
         model = str(config.get("model", DEFAULT_MODEL)).strip()
         context_window = int(config.get("context_window", DEFAULT_CONTEXT_WINDOW))
         timeout_seconds = int(config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+        native_response_format = config.get("native_response_format", False)
         if urlparse(base_url).scheme != "https":
             raise ProviderConfigurationError(
                 "provider_base_url_invalid", "Agnes Base URL 必须使用 HTTPS"
@@ -95,11 +97,17 @@ class AgnesAdapter:
             raise ProviderConfigurationError(
                 "provider_timeout_invalid", "Agnes timeout 必须大于 0"
             )
+        if not isinstance(native_response_format, bool):
+            raise ProviderConfigurationError(
+                "provider_capability_invalid",
+                "Agnes native_response_format 必须是布尔值",
+            )
         return AgnesConfiguration(
             base_url=base_url,
             model=model,
             context_window=context_window,
             timeout_seconds=timeout_seconds,
+            native_response_format=native_response_format,
         )
 
     async def test_authentication(self, api_key: str) -> bool:
@@ -173,7 +181,10 @@ class AgnesAdapter:
         }
         if request.tools:
             payload["tools"] = request.tools
-        if request.response_format is not None:
+        if (
+            request.response_format is not None
+            and self.configuration.native_response_format
+        ):
             payload["response_format"] = request.response_format
         response = await self._post(
             "/chat/completions",

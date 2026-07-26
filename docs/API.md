@@ -245,7 +245,15 @@ checkpoint/ledger 唯一约束保证重复 quality 或 settlement event 不会�
 
 `T1-003` 已实现 `/admin/invite-codes` 的创建与查询：创建响应只返回一次完整 code 且禁止缓存，列表只返回 prefix、次数、有效期、状态和赠送积分。管理员密码 reset 的 service-level 撤销与 `must_change_password` 行为已实现；需要重新认证、reason 和 `audit_logs` 的 HTTP 闭环仍由 `T4-002` 交付，不在 T1-003 暴露不完整的敏感端点。
 
-`T1-004` 已实现 Provider/Credential/Model Registry。Agnes 配置在写入前验证 HTTPS、保守 `256K` Context 和正 timeout；Credential 创建响应只返回掩码并使用 `Cache-Control: no-store`。Reveal 要求管理员 Session、当前密码和 reason，成功/失败均审计，响应禁止缓存。Credential test 要求 reason、受 Redis 限速，`401/403` 会暂停 Credential，timeout 返回不确定状态而不自动重试。用户 `/models` 只返回 Provider、Credential、Model 都为 active 且 `user_visible=true` 的记录。
+`T1-004` 已实现 Provider/Credential/Model Registry。Agnes 配置在写入前验证 HTTPS、保守
+`256K` Context、正 timeout，以及可选的布尔 capability
+`native_response_format`（默认 `false`）；只有上游明确支持时才发送 native
+`response_format`。该 capability 只改变传输字段，Structured Brief 仍由应用层 strict
+Schema、一次 repair 和 Evidence 引用校验约束。Credential 创建响应只返回掩码并使用
+`Cache-Control: no-store`。Reveal 要求管理员 Session、当前密码和 reason，成功/失败均审计，
+响应禁止缓存。Credential test 要求 reason、受 Redis 限速，`401/403` 会暂停 Credential，
+timeout 返回不确定状态而不自动重试。用户 `/models` 只返回 Provider、Credential、Model
+都为 active 且 `user_visible=true` 的记录。
 
 `T1-005` 已实现用户 Projects/Assets HTTP contract，并为后续管理员全局资产读取保留独立
 admin role + reason + audit service 边界；该历史阶段没有暴露缺少重新认证的半成品端点。

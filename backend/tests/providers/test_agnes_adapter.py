@@ -34,6 +34,7 @@ async def test_adapter_exposes_fixed_contract_and_conservative_defaults() -> Non
     assert configuration.model == "agnes-2.0-flash"
     assert configuration.context_window == 262_144
     assert configuration.timeout_seconds == 120
+    assert configuration.native_response_format is False
     for method_name in (
         "validate_configuration",
         "test_authentication",
@@ -77,6 +78,78 @@ async def test_chat_completion_uses_agnes_contract_and_extracts_usage() -> None:
     assert result.content == '{"status":"ok"}'
     assert result.usage.total_tokens == 18
     assert result.finish_reason == "stop"
+
+
+async def test_chat_completion_omits_unsupported_native_response_format() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.read().decode()
+        return httpx.Response(200, json=completion_response())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = AgnesAdapter(
+            configuration={"native_response_format": False},
+            client=client,
+        )
+        await adapter.create_chat_completion(
+            api_key="agnes-adapter-test-key",
+            request=ChatCompletionRequest(
+                model="agnes-2.0-flash",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": 'Return only JSON: {"status":"ok"}',
+                    }
+                ],
+                tools=[],
+                timeout_seconds=120,
+                max_output_tokens=128,
+                temperature=0,
+                trace_id="trace-agnes-prompt-json",
+                response_format={"type": "json_object"},
+            ),
+        )
+
+    assert '"response_format"' not in captured["body"]
+
+
+async def test_chat_completion_sends_explicitly_supported_native_response_format() -> (
+    None
+):
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.read().decode()
+        return httpx.Response(200, json=completion_response())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        adapter = AgnesAdapter(
+            configuration={"native_response_format": True},
+            client=client,
+        )
+        await adapter.create_chat_completion(
+            api_key="agnes-adapter-test-key",
+            request=ChatCompletionRequest(
+                model="agnes-2.0-flash",
+                messages=[{"role": "user", "content": "Return JSON."}],
+                tools=[],
+                timeout_seconds=120,
+                max_output_tokens=128,
+                temperature=0,
+                trace_id="trace-agnes-native-json",
+                response_format={"type": "json_object"},
+            ),
+        )
+
+    assert '"response_format":{"type":"json_object"}' in captured["body"]
+
+
+def test_native_response_format_capability_rejects_non_boolean_values() -> None:
+    with pytest.raises(ProviderConfigurationError) as error:
+        AgnesAdapter(configuration={"native_response_format": "false"})
+
+    assert error.value.error_code == "provider_capability_invalid"
 
 
 async def test_contract_tests_use_mock_http_and_reject_local_image_url() -> None:
