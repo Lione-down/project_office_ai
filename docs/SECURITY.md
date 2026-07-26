@@ -158,6 +158,14 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 容器默认 non-root，文件卷使用最小写权限；数据库和内部工具不映射 Host 端口。
 - `worker`、ClamAV、PaddleOCR、LibreOffice、MySQL、Redis 和 renderer 使用 internal network；只有 FastAPI 具备受控 external egress。
 - 镜像版本需锁定，新增 dependency 在任务内运行 vulnerability/license 检查。
+- T4-005 将 ClamAV 固定为可解析的 `1.4.5`，以 UID/GID `100:101` 直接运行
+  `clamd --foreground`，root filesystem read-only，只有 signature volume 和三个
+  tmpfs 可写；EICAR INSTREAM 检测通过。固定 signature 可支撑本地 Alpha，但不替代
+  可审计的在线更新或定期重建镜像。
+- 为执行任务卡中的无附加参数容器 tests，Backend/PPT Renderer 只读挂载 tracked
+  Compose、source contract、docs 与脱敏 golden inputs/expected/manifests；禁止挂载
+  仓库根、`.env`、`golden-data/private` 或用户文件。默认 Renderer production stage
+  仍只安装 production dependencies，并已在 non-root/read-only 容器单独验证。
 
 ## Git 与交付 Gate
 

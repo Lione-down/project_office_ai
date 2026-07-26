@@ -163,7 +163,17 @@ MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credent
 - T2-001 worker 将 `app-files` 只读挂载到 `/app/files`，将独立 `parsed-files` 可写挂载到 `/app/parsed`；结构化结果固定为 `users/{user_id}/parsed/{asset_id}/content.json`，单结果默认不超过 10 MB。
 - T2-002 worker 将独立 `evidence-files` 可写挂载到 `/app/evidence`；Manifest key 固定为 `users/{user_id}/assets/{asset_id}/extracted/evidence-manifest.json`，单结果默认不超过 10 MB。`app-files` 仍只读，Evidence 输出不能改写原始 quarantine。
 - 解析 worker 使用 backend 镜像与真实 polling entrypoint，只连接 internal `private` network，不挂载 Master/Provider Key；root filesystem 只读，`/tmp` 使用 tmpfs，并限制为 `768m` memory、`1.0` CPU 和 `128` PIDs。Office XML member、parser 总结构项、OCR response 和两类结构化输出分别有独立预算；parser 在可终止子进程中执行并受 timeout 约束。
-- PaddleOCR 使用独立 `office-ai-paddleocr:local` image、PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`，构建阶段固定下载 `PP-OCRv5_mobile_det/rec` 到 non-root 可读的 `/opt/paddle-home`。runtime 只连 internal `private` network、无 Host port、无 Provider credential、root filesystem 只读，使用 `/tmp` tmpfs，并限制为 `2g` memory、`2.0` CPU 和 `128` PIDs。
+- PaddleOCR 使用独立 `office-ai-paddleocr:local` image。为避免不可解析的旧 image tag，
+  以可解析的 `paddlepaddle/paddle:3.3.1` 为基础，再固定安装经真实 inference 验证的
+  PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`；构建阶段固定下载
+  `PP-OCRv5_mobile_det/rec` 到 non-root 可读的 `/opt/paddle-home`。runtime 只连
+  internal `private` network、无 Host port、无 Provider credential、root filesystem
+  只读，使用 `/tmp` tmpfs，并限制为 `2g` memory、`2.0` CPU 和 `128` PIDs。
+- T4-005 最终 Compose 冷启动实际构建并启动 9/9 healthy services；合成图片 OCR 返回
+  `paddleocr-response.v1` 并识别 `OFFICE AI 12345`。ClamAV 固定 `1.4.5`，绕过需要
+  root 的官方 init wrapper，以 non-root direct `clamd`、read-only rootfs 和 tmpfs
+  运行；固定镜像 signature database 实际检测 EICAR。FreshClam 上游 CDN
+  403/cooldown 使在线更新未验证，生产前必须接入受控更新来源。
 
 | 路径/卷 | 内容 | Git |
 |---|---|---|

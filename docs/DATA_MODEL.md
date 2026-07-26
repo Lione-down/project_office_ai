@@ -2,7 +2,8 @@
 
 - 数据库：MySQL 8.0
 - 表数量：固定 21 张
-- 状态：逻辑契约；`T3-002` migration `20260723_0012` 已为生成输出补齐命名 task 外键，当前共实现 19/21 张表
+- 状态：已封版；`T4-005` migration `20260727_0014` 已补齐 `templates` 与
+  `system_settings`，当前实现 21/21 张业务表
 
 ## 全局约定
 
@@ -183,3 +184,6 @@
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
 - Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。
+- `T4-005` 新增 additive `20260727_0014`，补齐 `templates` 与 `system_settings`。
+  独立 utf8mb4 MySQL 验证库从 base 完整升级至唯一 Head；实测 21 张业务表、40 个外键、
+  22 个唯一约束，`alembic check` 无 drift。验证库保留为现场证据。

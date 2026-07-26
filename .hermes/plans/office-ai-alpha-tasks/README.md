@@ -28,12 +28,12 @@
 
 ## 任务顺序
 
-| ID | 任务 | Depends on | 初始状态 | 阶段 Gate |
+| ID | 任务 | Depends on | 当前状态 | 阶段 Gate |
 |---|---|---|---|---|
-| `T1-001` | 工程与文档基线 | 无 | `READY` | |
-| `T1-002` | FastAPI、Vue 与数据库骨架 | `T1-001` | `BLOCKED` | |
-| `T1-003` | 用户、Session 与邀请码 | `T1-002` | `BLOCKED` | |
-| `T1-004` | Provider、Credential 与模型后台 | `T1-003` | `BLOCKED` | |
+| `T1-001` | 工程与文档基线 | 无 | `DONE` | |
+| `T1-002` | FastAPI、Vue 与数据库骨架 | `T1-001` | `DONE` | |
+| `T1-003` | 用户、Session 与邀请码 | `T1-002` | `DONE` | |
+| `T1-004` | Provider、Credential 与模型后台 | `T1-003` | `DONE` | |
 | `T1-005` | 项目与资产上传 | `T1-004` | `DONE` | Week 1 |
 | `T2-001` | 文件扫描与解析沙箱 | `T1-005` | `DONE` | |
 | `T2-002` | OCR 与 Evidence Manifest | `T2-001` | `DONE` | |
@@ -49,7 +49,7 @@
 | `T4-002` | 管理员最高权限与审计 | `T4-001` | `DONE` | |
 | `T4-003` | 黄金数据回归 | `T4-002` | `DONE` | |
 | `T4-004` | Office/WPS 与故障演练 | `T4-003` | `DONE` | |
-| `T4-005` | 安全检查与 Alpha 封版 | `T4-004` | `READY` | Week 4 / Alpha |
+| `T4-005` | 安全检查与 Alpha 封版 | `T4-004` | `DONE` | Week 4 / Alpha |
 
 ## 阶段 Gate
 
@@ -57,6 +57,8 @@
 - Week 2：用户可从材料得到带证据的 Structured Brief，并完成修改、冲突处理和确认。
 - Week 3：同一份材料可异步生成 PPTX 与 XLSX，通过基础质量门禁并下载。
 - Week 4：Windows 本地冷启动、真实 Agnes、黄金回归、Microsoft Office/WPS 人工验收和敏感信息检查全部完成。
+- Alpha：T4-005 以 `ACCEPT_WITH_DECLARED_BOUNDARIES` 封版；完整证据见
+  `docs/ALPHA_RELEASE.md`，`1/10 pilot` 仍是明确覆盖边界。
 
 ## 外部前置条件
 

@@ -55,7 +55,8 @@ def test_compose_runs_pinned_offline_ocr_service_on_private_network() -> None:
     dockerfile = (PROJECT_ROOT / "backend" / "ocr-service" / "Dockerfile").read_text(
         encoding="utf-8"
     )
-    assert "paddlepaddle/paddle:3.1.1" in dockerfile
+    assert "paddlepaddle/paddle:3.3.1" in dockerfile
+    assert "paddlepaddle==3.1.1" in dockerfile
     assert "paddleocr==3.7.0" in dockerfile
     assert "HOME=/opt/paddle-home" in dockerfile
     assert "PADDLE_OCR_BASE_DIR" in dockerfile

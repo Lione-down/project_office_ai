@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "vitest run",
-    "build": "vue-tsc -b && vite build"
+    "test": "vitest run --configLoader runner",
+    "build": "vue-tsc -b && vite build --configLoader runner"
   },
   "dependencies": {
     "pinia": "^3.0.3",

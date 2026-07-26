@@ -74,6 +74,23 @@ def test_worker_compose_has_read_only_input_bounded_output_and_no_provider_secre
     assert compose["networks"]["private"]["internal"] is True
 
 
+def test_clamav_compose_uses_resolvable_pinned_patch_release() -> None:
+    compose = yaml.safe_load(
+        (PROJECT_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    )
+    clamav = compose["services"]["clamav"]
+
+    assert clamav["image"] == "clamav/clamav:1.4.5"
+    assert clamav["user"] == "100:101"
+    assert clamav["init"] is False
+    assert clamav["read_only"] is True
+    assert clamav["entrypoint"] == ["/sbin/tini", "--"]
+    assert clamav["command"] == ["clamd", "--foreground"]
+    assert "/run/clamav:uid=100,gid=101,mode=0750" in clamav["tmpfs"]
+    assert "/tmp:uid=100,gid=101,mode=0750" in clamav["tmpfs"]
+    assert "/var/log/clamav:uid=100,gid=101,mode=0750" in clamav["tmpfs"]
+
+
 def test_worker_module_entrypoint_is_safe_for_spawned_parser_children() -> None:
     module = ast.parse(
         (
@@ -89,7 +106,8 @@ def test_worker_module_entrypoint_is_safe_for_spawned_parser_children() -> None:
     guards = [node for node in module.body if isinstance(node, ast.If)]
     assert any(
         isinstance(guard.test, ast.Compare)
-        and ast.dump(guard.test.left) == ast.dump(ast.Name(id="__name__"))
+        and isinstance(guard.test.left, ast.Name)
+        and guard.test.left.id == "__name__"
         and any(
             isinstance(comparator, ast.Constant) and comparator.value == "__main__"
             for comparator in guard.test.comparators

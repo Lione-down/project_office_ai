@@ -1,19 +1,21 @@
-FROM node:22.17.0-alpine AS build
+FROM node:22.22.2-alpine AS build
 
 WORKDIR /app
+ENV PPT_RENDERER_BUILD_OUT_DIR=/tmp/ppt-renderer-dist
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json tsconfig.build.json ./
+COPY tsconfig.json tsconfig.build.json vitest.config.ts ./
 COPY scripts ./scripts
 COPY src ./src
-RUN npm run build && npm prune --omit=dev
+COPY tests ./tests
+RUN npm run build && cp -R /tmp/ppt-renderer-dist /app/dist
 
-FROM node:22.17.0-alpine
+FROM node:22.22.2-alpine AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=10001:10001 /app/package.json /app/package-lock.json ./
-COPY --from=build --chown=10001:10001 /app/node_modules ./node_modules
-COPY --from=build --chown=10001:10001 /app/dist ./dist
+RUN npm ci --omit=dev
+COPY --from=build --chown=10001:10001 /tmp/ppt-renderer-dist ./dist
 USER 10001:10001
 CMD ["node", "dist/server.js"]

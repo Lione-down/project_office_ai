@@ -1,0 +1,82 @@
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, inspect
+
+from app.models import Base
+from app.settings.config import get_settings
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+EXPECTED_ALPHA_TABLES = {
+    "ai_models",
+    "ai_providers",
+    "audit_logs",
+    "briefs",
+    "credit_ledger",
+    "file_assets",
+    "generation_task_inputs",
+    "generation_task_steps",
+    "generation_tasks",
+    "invite_codes",
+    "outbox_events",
+    "projects",
+    "provider_calls",
+    "provider_credentials",
+    "skills",
+    "system_settings",
+    "templates",
+    "term_items",
+    "term_libraries",
+    "user_sessions",
+    "users",
+}
+
+
+def alembic_config() -> Config:
+    config = Config(str(BACKEND_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    return config
+
+
+def test_alpha_metadata_contains_all_twenty_one_business_tables() -> None:
+    assert set(Base.metadata.tables) == EXPECTED_ALPHA_TABLES
+
+
+def test_alpha_head_upgrades_empty_database_to_twenty_one_tables(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    database_path = tmp_path / "alpha-schema-gate.sqlite3"
+    monkeypatch.setenv(
+        "OFFICE_AI_DATABASE_URL",
+        f"sqlite+aiosqlite:///{database_path.as_posix()}",
+    )
+    get_settings.cache_clear()
+
+    try:
+        command.upgrade(alembic_config(), "head")
+    finally:
+        get_settings.cache_clear()
+
+    inspector = inspect(create_engine(f"sqlite:///{database_path}"))
+    tables = set(inspector.get_table_names())
+    template_uniques = {
+        item["name"] for item in inspector.get_unique_constraints("templates")
+    }
+    setting_uniques = {
+        item["name"] for item in inspector.get_unique_constraints("system_settings")
+    }
+
+    assert tables == EXPECTED_ALPHA_TABLES | {"alembic_version"}
+    assert "uq_templates_source_code_version" in template_uniques
+    assert "uq_system_settings_key" in setting_uniques
+
+
+def test_alpha_schema_remains_a_single_head_chain() -> None:
+    scripts = ScriptDirectory.from_config(alembic_config())
+
+    assert scripts.get_heads() == ["20260727_0014"]
+    assert scripts.get_revision("20260727_0014").down_revision == "20260723_0013"

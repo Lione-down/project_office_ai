@@ -1,4 +1,4 @@
-FROM node:22.17.0-alpine
+FROM node:22.22.2-alpine
 
 ENV NODE_ENV=development
 WORKDIR /app

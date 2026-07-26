@@ -47,7 +47,7 @@ def test_resolve_accepts_only_the_fixed_generated_presentation_key(tmp_path) -> 
     storage = LocalStorageAdapter(tmp_path)
     key = f"users/{USER_ID}/outputs/{ASSET_ID}/presentation.pptx"
 
-    assert storage.resolve_key(key) == tmp_path / key.replace("/", "\\")
+    assert storage.resolve_key(key) == tmp_path.joinpath(*key.split("/"))
     with pytest.raises(StorageOperationError, match="存储路径无效"):
         storage.resolve_key(f"users/{USER_ID}/outputs/{ASSET_ID}/other.pptx")
 

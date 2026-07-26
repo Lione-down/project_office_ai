@@ -22,7 +22,17 @@ services:
     image: office-ai-frontend:local
     user: "10001:10001"
     working_dir: /app
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    command:
+      [
+        "npm",
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "0.0.0.0",
+        "--configLoader",
+        "runner",
+      ]
     environment:
       VITE_API_BASE_URL: ${OFFICE_AI_API_BASE_URL:-http://localhost:8000/api/v1}
     ports:
@@ -90,6 +100,17 @@ services:
         source: shared-work
         target: /app/rendered
         read_only: true
+      - ./docker-compose.yml:/docker-compose.yml:ro
+      - ./frontend:/frontend:ro
+      - ./ppt-renderer:/ppt-renderer:ro
+      - ./backend/libreoffice-service:/backend/libreoffice-service:ro
+      - ./backend/ocr-service:/backend/ocr-service:ro
+      - ./backend/app:/backend/app:ro
+      - ./backend/pyproject.toml:/backend/pyproject.toml:ro
+      - ./golden-data/inputs:/golden-data/inputs:ro
+      - ./golden-data/expected:/golden-data/expected:ro
+      - ./golden-data/manifests:/golden-data/manifests:ro
+      - ./docs:/docs:ro
     tmpfs:
       - /tmp
     networks:
@@ -192,6 +213,7 @@ services:
     <<: *app-service
     build:
       context: ./ppt-renderer
+      target: build
     image: office-ai-ppt-renderer:local
     user: "10001:10001"
     working_dir: /app
@@ -204,9 +226,13 @@ services:
       NODE_ENV: ${OFFICE_AI_ENV:-local}
       PORT: "3000"
       WORK_ROOT: /app/work
+      PPT_RENDERER_BUILD_OUT_DIR: /tmp/ppt-renderer-dist
       MAX_REQUEST_BYTES: ${OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES:-10485760}
     volumes:
       - shared-work:/app/work
+      - ./golden-data/inputs:/golden-data/inputs:ro
+      - ./golden-data/expected:/golden-data/expected:ro
+      - ./golden-data/manifests:/golden-data/manifests:ro
     tmpfs:
       - /tmp
     healthcheck:
@@ -244,8 +270,16 @@ services:
 
   clamav:
     <<: *app-service
-    image: clamav/clamav:1.4.2
+    image: clamav/clamav:1.4.5
+    init: false
     user: "100:101"
+    entrypoint: ["/sbin/tini", "--"]
+    command: ["clamd", "--foreground"]
+    read_only: true
+    tmpfs:
+      - /run/clamav:uid=100,gid=101,mode=0750
+      - /tmp:uid=100,gid=101,mode=0750
+      - /var/log/clamav:uid=100,gid=101,mode=0750
     volumes:
       - clamav-data:/var/lib/clamav
     healthcheck:

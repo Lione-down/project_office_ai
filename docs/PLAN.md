@@ -1,6 +1,6 @@
 # Office AI Alpha 执行基线
 
-- 状态：`APPROVED`
+- 状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 范围基线：`.hermes/plans/2026-07-22_000414-office-ai-alpha.md`
 - 任务索引：`.hermes/plans/office-ai-alpha-tasks/README.md`
 - UI 基线：`docs/ui-v1/README.md`（`APPROVED-V1`）
@@ -124,3 +124,13 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - 真实 Agnes Contract Test 和 Git 敏感信息检查通过。
 - `docs/PLAN.md`、`docs/PROGRESS.md`、实现、测试、Git 与推送状态一致。
 - 没有未解释的阻断错误、证据伪造路径或重复扣费路径。
+
+## Alpha 封版
+
+- `2026-07-27`，T4-005 完成 Windows 本地 Internal Alpha Gate；封版报告见
+  `docs/ALPHA_RELEASE.md`。
+- 真实 Docker 冷启动为 9/9 healthy，MySQL 空库从 base 升至唯一
+  `20260727_0014 (head)` 并完成 21 张业务表；真实 Agnes、黄金回归、Office/WPS
+  证据复核与 Git/security Gate 均通过。
+- 封版不改变 `1/10 pilot` 边界；它不能证明原计划 10 组 corpus 的多样性。ClamAV
+  在线 signature refresh 与生产部署同样保留为已声明边界，不冒充完成。

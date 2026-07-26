@@ -465,6 +465,50 @@
 - 预防/验证：长索引必须按真实 charset 的字节上限设计；Alpha 封版前至少在 utf8mb4
   MySQL 空库跑完整 migration chain，不能只看 SQLite 或 dialect compile。
 
+### 2026-07-27 · T4-005 · 冻结表数必须由空库实测而不是文档推断
+
+- 现象：历史 migration chain 到 `0013` 可正常升级且无 drift，但实际只有 19 张业务表；
+  冻结的 21 表契约中的 `templates` 与 `system_settings` 从未进入 migration。
+- 影响：只检查唯一 Head 或 `alembic check` 会把完整性缺口误判为封版通过。
+- 本任务处理：先以 exact table-set RED contract 固定 21 张业务表，再用 additive `0014`
+  补齐两表；真实 utf8mb4 空库实测 21 表、40 外键、22 unique constraints。
+- 预防/验证：封版 migration Gate 必须同时核对 revision、业务表 exact set、关键约束和
+  drift；schema 文档中的固定数量必须成为可执行 contract。
+
+### 2026-07-27 · T4-005 · 镜像 health 不能替代首次真实推理
+
+- 现象：可解析的 Paddle `3.3.1` image 能通过 healthcheck，但首次 OCR inference 因
+  oneDNN/PIR runtime incompatibility 返回 503；原固定 `3.1.1` image tag 又不可解析。
+- 影响：冷启动显示 healthy，真实图片任务仍会在首次请求失败。
+- 本任务处理：使用可解析 `3.3.1` base，固定安装经项目验证的 PaddlePaddle `3.1.1`；
+  最终不仅检查 health，还发送带 SHA-256 integrity header 的合成 PNG 并核对识别文本。
+- 预防/验证：ML sidecar Gate 必须覆盖 model preload、首个真实 inference、response
+  schema 和输入 integrity；不能把 HTTP health 当作引擎兼容证据。
+
+### 2026-07-27 · T4-005 · 官方容器 init 可能与 non-root/read-only 合同冲突
+
+- 现象：ClamAV 官方 `/init` 会对 `/run`、lock 与配置执行 root-only chown/sed；强制
+  non-root/read-only 后无法启动。FreshClam 又受到上游 CDN 403/cooldown。
+- 影响：为了启动而放宽 root/rootfs 会破坏安全基线；忽略 signature 更新则会夸大病毒
+  检测能力。
+- 本任务处理：固定可解析 `1.4.5`，以 non-root direct `clamd`、signature volume 与
+  最小 tmpfs 运行；EICAR INSTREAM 通过。在线更新失败作为明确 release boundary 保留。
+- 预防/验证：安全 sidecar 应分别验证 daemon privilege、signature provenance/update
+  和真实检测；固定内置 signature 只能支撑本地 Alpha，不能冒充持续更新。
+
+### 2026-07-27 · T4-005 · read-only runtime 的测试与 build 也需要写路径合同
+
+- 现象：Vite/Vitest 默认 config bundler 写 `node_modules/.vite-temp`，TypeScript build
+  写 `/app/dist`；在 read-only rootfs 中任务卡命令分别失败。Renderer production stage
+  也不含 Vitest，精确命令最初退出 127。
+- 影响：应用 runtime healthy 不代表 release verification 可重复；为测试临时关闭
+  read-only 又会隐藏真实权限问题。
+- 本任务处理：Vite/Vitest 使用 runner config loader；Renderer build 输出写 `/tmp`
+  tmpfs。Compose 使用含测试工具的 build target，默认 production stage 仍只含 production
+  dependencies并单独在 non-root/read-only 容器验证。
+- 预防/验证：容器化 release command 必须在与服务一致的 user/rootfs/network 边界下跑；
+  build cache、test config 与产物目录都需显式可写位置。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

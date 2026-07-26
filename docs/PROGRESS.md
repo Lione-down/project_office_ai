@@ -1,9 +1,9 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-27`
-- 最近完成：`T4-004 Office/WPS 与故障演练`
-- 下一任务：`T4-005 安全检查与 Alpha 封版`
-- 当前状态：`T4-005 READY`（只完成 dependency 状态交接，尚未开始实现）
+- 最近完成：`T4-005 安全检查与 Alpha 封版`
+- 下一任务：`无（Office AI Internal Alpha 已封版）`
+- 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
 - 远端：`origin/main`
 
@@ -43,7 +43,7 @@
 | T4-002 | DONE | T4-001 | `feat(admin): add audited global asset access`；权限、审计与浏览器证据见下文 |
 | T4-003 | DONE | T4-002 | `test(golden): validate office generation corpus`；1/10 pilot 与实际 Office 证据见下文 |
 | T4-004 | DONE | T4-003 | `test(alpha): record compatibility and recovery drills`；真实 Agnes、Docker/恢复演练与 Office/WPS 证据见下文 |
-| T4-005 | READY | T4-004 | 安全检查与 Alpha 封版；Week 4 Gate |
+| T4-005 | DONE | T4-004 | `chore(release): prepare internal office ai alpha`；Week 4 / Alpha Gate |
 
 ## T1-001 执行记录
 
@@ -1297,3 +1297,64 @@
   `backend/tests/failure_drills/`。
 - Records：T4-004 task card/index、T4-005 READY 状态、`docs/API.md`、`docs/DATA_MODEL.md`、
   `docs/ENVIRONMENT.md`、`docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+
+## T4-005 执行记录
+
+### 范围与 RED contract
+
+- 严格只完成安全检查与 Alpha 封版；没有实现生产部署、支付、团队协作、用户模板或后续
+  功能。启动时从 live repo 重新读取规则/状态/任务/专题文档，HEAD 与 `origin/main`
+  均为 `c3d6b927423f042713a54301fbe39508d416f396`，ahead/behind `0/0`。
+- Release report contract 在 `docs/ALPHA_RELEASE.md` 不存在时为 `3 failed`；21 表
+  Alpha schema contract 在缺 `templates/system_settings` 时为 `3 failed`。最终两组
+  focused 分别为 `3 passed` 和 `3 passed`。
+
+### Runtime、migration 与外部证据
+
+- 最终执行 `docker compose down --remove-orphans`（不删除 volumes）与
+  `docker compose up -d --build --wait --wait-timeout 300`：9/9 services healthy；
+  `/health/ready` 为 ready，MySQL/Redis 为 up。实际 PaddleOCR inference 识别
+  `OFFICE AI 12345`，EICAR INSTREAM 被 ClamAV 检测。
+- registry 中不存在原 ClamAV `1.4.2` 与 Paddle base `3.1.1` tag。Compose 固定
+  ClamAV `1.4.5`；OCR 使用可解析的 Paddle `3.3.1` base，再固定安装经真实 inference
+  验证的 PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`。
+- 独立 utf8mb4 MySQL validation database 从 base 升至 `20260727_0014 (head)`，
+  `alembic check` 无 drift；实测 21 张业务表、40 个外键、22 个唯一约束。验证库未删除。
+- 真实 Agnes 使用一次性加密 Credential/SQLite 与临时进程变量，`4 passed in 2.37s`；
+  Key、Prompt、response body 未打印或持久化。Backend golden 为 20 次 XLSX generation
+  + 20 次 PPTX reference；Node suite 为 20 次 PPTX generation，均 passed。
+- Microsoft Office `16.0.20131.20154` 与 WPS `12.1.0.26899` 仍可定位；当前 tracked
+  golden PPTX/XLSX hash 与 T4-004 人工打开前后记录完全一致。
+
+### Focused、broad、security 与 deep review
+
+- Backend full：`575 passed, 6 skipped in 40.13s`；6 个 skip 只包含默认关闭的 live
+  Agnes/failure drill，本任务真实 Agnes 已独立通过。Integration：`5 passed`。
+- Frontend：22 test files / `59 passed`，build 通过；PPT Renderer：5 test files /
+  `22 passed`，build 通过。Renderer 默认 production stage 另行构建，并在
+  non-root/read-only 容器成功 import。
+- Backend `pip check`、`pip-audit`、Ruff check/format，Frontend/Renderer full
+  `npm audit --audit-level=high` 均通过；248 个 source files 无超过 500 行文件。
+- 当前主会话逐文件 deep review；没有使用 subagent。修复 21 表冻结契约缺口、容器
+  test package/path portability、Vite read-only config loader、Renderer read-only build
+  output 与 Node engine patch；最终无剩余 blocking logic/security finding。
+- Git 预检：`.env` ignore 命中，nested negation 为 0，tracked/history forbidden path
+  为 0，candidate added-line finding 为 0；全历史两个强特征启发式命中均为 task 文件名
+  片段或明确 synthetic fixture。exact-path staging 共 37 个本任务文件；staged path、
+  added-line、binary 与 `git diff --cached --check` Gate 均通过，用户已有未跟踪路径未进入
+  staging。
+
+### Changed files 与结论
+
+- Schema：`backend/app/models/templates.py`、`system_settings.py`、model exports、
+  `20260727_0014_alpha_schema_completion.py` 与 migration/schema regressions。
+- Runtime：`docker-compose.yml`、OCR/Frontend/PPT Renderer Dockerfiles、Frontend/
+  Renderer scripts/package contracts。
+- Tests：Backend test package marker、release contracts、Compose/runtime portability
+  regressions及历史 Head/表数断言同步。
+- Records：T4-005 task card/index、`docs/ALPHA_RELEASE.md`、`docs/PLAN.md`、
+  `docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、
+  `docs/PROGRESS.md` 与 `pitfalls.md`。
+- 结论：`ACCEPT_WITH_DECLARED_BOUNDARIES`。Internal Alpha 已封版且无下一
+  dependency-ready task；`1/10 pilot`、ClamAV online signature refresh 和生产部署
+  边界不被提升为已验证。

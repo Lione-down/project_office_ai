@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import re
 
 from app.settings.config import Settings
@@ -21,10 +22,11 @@ def test_compose_uses_the_real_isolated_renderer_image_and_read_only_handoff() -
     renderer = compose.split("\n  ppt-renderer:\n", 1)[1].split("\n  mysql:\n", 1)[0]
     backend = compose.split("\n  backend:\n", 1)[1].split("\n  worker:\n", 1)[0]
 
-    assert "build:\n      context: ./ppt-renderer" in renderer
+    assert "build:\n      context: ./ppt-renderer\n      target: build" in renderer
     assert 'command: ["node", "dist/server.js"]' in renderer
     assert "read_only: true" in renderer
     assert "WORK_ROOT: /app/work" in renderer
+    assert "PPT_RENDERER_BUILD_OUT_DIR: /tmp/ppt-renderer-dist" in renderer
     assert "OFFICE_AI_MASTER_KEY" not in renderer
     assert "OFFICE_AI_SESSION_SECRET" not in renderer
     assert re.search(
@@ -36,7 +38,14 @@ def test_compose_uses_the_real_isolated_renderer_image_and_read_only_handoff() -
 
 def test_renderer_dockerfile_is_pinned_non_root_and_uses_npm_ci() -> None:
     dockerfile = (ROOT / "ppt-renderer" / "Dockerfile").read_text(encoding="utf-8")
+    package = json.loads(
+        (ROOT / "ppt-renderer" / "package.json").read_text(encoding="utf-8")
+    )
 
-    assert dockerfile.count("node:22.17.0-alpine") == 2
+    assert dockerfile.count("node:22.22.2-alpine") == 2
     assert "RUN npm ci" in dockerfile
     assert "USER 10001:10001" in dockerfile
+    assert "/tmp/ppt-renderer-dist" in dockerfile
+    assert package["engines"]["node"] == ">=22.22.2 <25"
+    assert package["scripts"]["build"] == "node scripts/build.mjs"
+    assert package["scripts"]["test"].endswith("--configLoader runner")

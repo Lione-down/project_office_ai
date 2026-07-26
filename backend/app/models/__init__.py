@@ -14,6 +14,8 @@ from app.models.projects import Project
 from app.models.provider_calls import ProviderCall
 from app.models.provider_credentials import ProviderCredential
 from app.models.skills import Skill
+from app.models.system_settings import SystemSetting
+from app.models.templates import Template
 from app.models.term_items import TermItem
 from app.models.term_libraries import TermLibrary
 from app.models.user_sessions import UserSession
@@ -36,6 +38,8 @@ __all__ = [
     "ProviderCall",
     "ProviderCredential",
     "Skill",
+    "SystemSetting",
+    "Template",
     "TermItem",
     "TermLibrary",
     "User",
