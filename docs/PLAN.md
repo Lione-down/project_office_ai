@@ -170,3 +170,10 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - 该校准不修改 10 MB Manifest、100 Sheet、30 万非空单元格、Archive、parser
   structural、timeout、memory、ClamAV、owner scope、immutable Evidence 或单位未知
   blocker；private workbook 不进入 Git、fixture、日志或文档正文。
+- `2026-07-27` 修复 Structured Brief Context 表示层放大：旧实现为每条 Evidence
+  重复完整 asset identity/version 和 location JSON，导致 10,465 条黄金 Evidence
+  被估算为 1,418,854 token。`brief-evidence-context.v2` 改为按 asset、location kind、
+  Sheet 和 Evidence type 分组，并为每条证据分配确定性短引用。
+- Agnes 只接收本次 Context 中的短引用；应用在 strict Schema/snapshot/evidence 校验前
+  将其映射回原始不可变 Evidence ID，未知引用继续 fail closed。全部 Evidence 均保留，
+  不抽样、不截断、不虚增 256K 模型能力，也不改变 5,193 个单位未知 blocker。

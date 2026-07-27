@@ -5,6 +5,7 @@ import pytest
 from app.services.briefs.validation import (
     BriefValidationError,
     ExpectedBriefSnapshot,
+    resolve_brief_evidence_references,
     validate_brief_response,
 )
 from tests.briefs.helpers import (
@@ -92,3 +93,43 @@ def test_validated_brief_response_rejects_output_kind_drift() -> None:
         )
 
     assert error.value.error_code == "brief_snapshot_mismatch"
+
+
+def test_brief_evidence_references_resolve_to_immutable_ids() -> None:
+    payload = valid_brief_payload()
+    payload["facts"][0]["evidence_ids"] = ["r0"]
+    payload["inferences"][0]["evidence_ids"] = ["r0"]
+
+    resolved = resolve_brief_evidence_references(
+        json.dumps(payload, ensure_ascii=False),
+        {"r0": EVIDENCE_ID},
+    )
+    brief = validate_brief_response(resolved, expected_snapshot())
+
+    assert brief.facts[0].evidence_ids == (EVIDENCE_ID,)
+    assert brief.inferences[0].evidence_ids == (EVIDENCE_ID,)
+
+
+def test_brief_evidence_references_reject_unknown_alias() -> None:
+    payload = valid_brief_payload()
+    payload["facts"][0]["evidence_ids"] = ["r-not-in-context"]
+
+    with pytest.raises(BriefValidationError) as error:
+        resolve_brief_evidence_references(
+            json.dumps(payload, ensure_ascii=False),
+            {"r0": EVIDENCE_ID},
+        )
+
+    assert error.value.error_code == "brief_evidence_invalid"
+
+
+def test_brief_evidence_references_reject_unexposed_raw_id() -> None:
+    payload = valid_brief_payload()
+
+    with pytest.raises(BriefValidationError) as error:
+        resolve_brief_evidence_references(
+            json.dumps(payload, ensure_ascii=False),
+            {"r0": EVIDENCE_ID},
+        )
+
+    assert error.value.error_code == "brief_evidence_invalid"

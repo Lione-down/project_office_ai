@@ -32,6 +32,55 @@ class ExpectedBriefSnapshot:
     evidence_ids: frozenset[str]
 
 
+def resolve_brief_evidence_references(
+    response_content: str,
+    reference_map: dict[str, str],
+) -> str:
+    try:
+        payload = json.loads(response_content)
+    except (json.JSONDecodeError, TypeError):
+        return response_content
+    if not isinstance(payload, dict):
+        return response_content
+
+    def resolve_items(items: object) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            evidence_ids = item.get("evidence_ids")
+            if not isinstance(evidence_ids, list) or not all(
+                isinstance(value, str) for value in evidence_ids
+            ):
+                continue
+            resolved = []
+            for value in evidence_ids:
+                if value in reference_map:
+                    resolved.append(reference_map[value])
+                else:
+                    raise BriefValidationError(
+                        "brief_evidence_invalid",
+                        "Structured Brief 引用了不在本次 Context 的 evidence",
+                    )
+            item["evidence_ids"] = resolved
+
+    output_plan = payload.get("output_plan")
+    if isinstance(output_plan, dict):
+        resolve_items(output_plan.get("deliverables"))
+    for field in (
+        "facts",
+        "inferences",
+        "unresolved_items",
+        "must_include",
+        "must_exclude",
+    ):
+        resolve_items(payload.get(field))
+    return json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
 def validate_brief_response(
     response_content: str, expected: ExpectedBriefSnapshot
 ) -> StructuredBrief:

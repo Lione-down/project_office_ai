@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from uuid import UUID
 
 import httpx
@@ -49,9 +50,25 @@ def command() -> BriefGenerationCommand:
 
 
 def completion(payload: dict, request_id: str) -> ProviderCompletion:
+    provider_payload = deepcopy(payload)
+    output_plan = provider_payload.get("output_plan")
+    item_groups = [
+        *(output_plan.get("deliverables", []) if isinstance(output_plan, dict) else []),
+        *provider_payload.get("facts", []),
+        *provider_payload.get("inferences", []),
+        *provider_payload.get("unresolved_items", []),
+        *provider_payload.get("must_include", []),
+        *provider_payload.get("must_exclude", []),
+    ]
+    for item in item_groups:
+        if isinstance(item, dict) and isinstance(item.get("evidence_ids"), list):
+            item["evidence_ids"] = [
+                "r0" if evidence_id == EVIDENCE_ID else evidence_id
+                for evidence_id in item["evidence_ids"]
+            ]
     return ProviderCompletion(
         provider_request_id=request_id,
-        content=json.dumps(payload, ensure_ascii=False),
+        content=json.dumps(provider_payload, ensure_ascii=False),
         usage=ProviderUsage(
             prompt_tokens=100,
             completion_tokens=50,
@@ -107,8 +124,30 @@ async def test_generation_persists_immutable_brief_and_redacted_call_metadata(
     request = brief_harness.adapter.calls[0][1]
     serialized_messages = json.dumps(request.messages, ensure_ascii=False)
     assert "evidence_id" in serialized_messages
+    assert EVIDENCE_ID not in serialized_messages
     assert "local_path" not in serialized_messages
     assert "mock-key" not in serialized_messages
+
+
+async def test_generation_resolves_provider_evidence_aliases_before_persisting(
+    brief_harness,
+) -> None:
+    payload = valid_brief_payload()
+    payload["facts"][0]["evidence_ids"] = ["r0"]
+    payload["inferences"][0]["evidence_ids"] = ["r0"]
+    brief_harness.adapter.outcomes = [
+        completion(payload, "agnes-request-evidence-alias")
+    ]
+
+    result = await brief_harness.service.generate(
+        "access-token", command(), trace_id="trace-evidence-alias"
+    )
+
+    assert result.content.facts[0].evidence_ids == (EVIDENCE_ID,)
+    assert result.content.inferences[0].evidence_ids == (EVIDENCE_ID,)
+    async with brief_harness.session_factory() as session:
+        brief = await session.scalar(select(Brief))
+    assert brief.content["facts"][0]["evidence_ids"] == [EVIDENCE_ID]
 
 
 async def test_invalid_schema_is_repaired_exactly_once(brief_harness) -> None:

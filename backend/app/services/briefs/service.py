@@ -33,6 +33,7 @@ from app.services.briefs.prompting import (
 )
 from app.services.briefs.validation import (
     BriefValidationError,
+    resolve_brief_evidence_references,
     validate_brief_response,
 )
 from app.services.evidence.store import EvidenceManifestStore
@@ -118,7 +119,11 @@ class BriefGenerationService:
                 attempt=attempt,
             )
             try:
-                brief = validate_brief_response(completion.content, expected)
+                resolved_content = resolve_brief_evidence_references(
+                    completion.content,
+                    dict(context.reference_map),
+                )
+                brief = validate_brief_response(resolved_content, expected)
             except BriefValidationError as exception:
                 last_validation_error = exception
                 call_ids.append(

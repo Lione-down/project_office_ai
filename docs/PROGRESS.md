@@ -1631,3 +1631,59 @@
 - 未读取 `.env` 或 Secret，未修改/暂存 private workbook、`.playwright-cli/`、
   `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。黄金覆盖仍为
   `1/10 pilot`，下一 dependency-ready task 仍为无。
+
+## Post-Alpha Structured Brief Context 压缩修复
+
+### 根因、RED 与实现
+
+- 当前 MySQL 中唯一 active 材料为 `ready/valid`，包含 10,465 条 Evidence、5,193 个
+  blocker；发布模型为真实登记的 `262144` Context 与 `8192` max output。
+- 旧 `build_evidence_context` 为每条 Evidence 重复完整 asset UUID、asset version 和
+  location JSON，并直接携带 66 字符 Evidence ID；同一材料形成 4,256,561 bytes /
+  1,418,854 估算 token，超过扣除 output/fixed reserve 后的 251,904 token。
+- RED 新增黄金规模 10,465 条 synthetic Evidence、短引用映射、未知引用拒绝和 service
+  落库 contract；首次 local collection 以缺少
+  `resolve_brief_evidence_references` 的 `ImportError` 失败。
+- GREEN 新增 `brief-evidence-context.v2`：asset identity/version 只出现一次，Evidence
+  按 asset、location kind、Sheet 和 type 分组，使用确定性 `r<base36>` 短引用。
+  Agnes 响应只允许本次短引用；应用在 strict Schema/snapshot/evidence 校验前映射回
+  原始 Evidence ID，未知引用及未暴露 raw ID 均 fail closed。
+- 没有抽样、截断、改写 raw/normalized value 或虚增模型能力；calculated provenance、
+  owner scope、Manifest integrity、一次 repair 与 Provider error policy 保持不变。
+
+### Focused、真实 Runtime 与 Agnes
+
+- Backend Brief focused 最终为 `33 passed`；Ruff focused check/format 均通过。
+- 用当前 `ready/valid` 材料和生产 Evidence Manifest store 只读复核：
+  `10,465/10,465` Evidence 与引用全部保留，v2 Context 为 `521,684` bytes /
+  `173,895` 估算 token，剩余 evidence budget 为 `78,009` token。
+- 使用 combined Skill、当前模型快照和同一材料构造完整 production messages，
+  `enforce_message_budget` 通过：Prompt `597,421` bytes / `199,141` 估算 token，
+  加 `8,192` output 后总计 `207,333 < 262,144`。
+- 真实 Agnes Contract 使用 runtime 中已加密 Credential 显式 opt-in，结果为
+  `4 passed`（最终镜像复验 `10.28s`）；没有打印或持久化 Key、Prompt、response body
+  或用户材料。
+- 重建并重启 Backend 后，Host `9999/health/ready` 返回 `ready`，MySQL/Redis 均为
+  `up`；真实 Chrome 页面保留已选黄金材料、两个 Skill 和模型，继续按钮 enabled。
+- 未代替用户点击继续按钮，避免在未获得当下明确确认时把包含个人信息的完整材料再次
+  发送给外部 Provider；用户可在保留的页面亲自触发真实材料生成。
+
+### Broad、Security 与边界
+
+- Backend full 最终为 `584 passed, 6 skipped`；6 个 skip 仍仅为默认关闭的
+  4 个 failure drill 与 2 个 live Agnes case，live Agnes 已在独立 opt-in run 通过。
+- 一次在带 runtime Secret 的 Compose service environment 中运行全量 suite 时，
+  2 个“Secret 未提供时应为 None”的配置隔离测试按预期失败，其他为
+  `581 passed, 6 skipped`；改用无 Secret 的本地 test runtime 后全量通过，不将该环境
+  污染误报为产品回归。
+- Ruff 全量 check 通过，format 最终无差异；`pip check` 无 broken requirements，
+  `pip-audit` 为 0 known vulnerabilities，仅跳过 editable local package。
+- Plan：`.hermes/plans/2026-07-27-office-ai-brief-context-compaction.md`。
+- Backend：`backend/app/services/briefs/{context.py,prompting.py,service.py,validation.py}`
+  与对应 `backend/tests/briefs/` contract。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/SECURITY.md`、
+  `docs/PROGRESS.md` 与 `pitfalls.md`；数据库 Schema、环境配置和前端 API shape 不变。
+- 未读取 `.env` 或 Secret，未修改/暂存 private workbook、`.playwright-cli/`、
+  `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`；5,193 个
+  `numeric_unit_unknown` blocker、`1/10 pilot` 边界和“无下一 dependency-ready task”
+  均保持不变。

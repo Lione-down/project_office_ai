@@ -587,6 +587,20 @@
   contract test 同时锁定 accepted boundary 和下一项拒绝；不得用后处理输出数量替代
   前置 memory budget。
 
+### 2026-07-27 · Post-Alpha · Context 超限可能来自表示层重复而非材料规模
+
+- 现象：10,465 条黄金 Evidence 的 Manifest 约 7.48 MB；Brief Context 为每条重复
+  asset UUID、asset version、完整 location JSON 和 66 字符 Evidence ID，最终膨胀为
+  约 4.26 MB / 1,418,854 估算 token，远超模型 256K Context。
+- 影响：安全解析和 Evidence 数量门禁已经通过，用户仍无法进入 Brief；若直接提高模型
+  登记值或截断列表，会分别造成虚假能力声明或静默丢证据。
+- 本次处理：使用版本化分组 Context 消除重复元数据，以 `r<base36>` 短引用传给 Agnes，
+  并在 Schema/evidence 校验前映射回原始 ID；未知引用继续拒绝。黄金规模完整 Prompt
+  降至 207,333 估算 token（含 8,192 output budget）。
+- 预防/验证：Context Gate 必须分别记录 Evidence 数、表示层 bytes、Prompt token estimate
+  和真实模型窗口；优先消除可逆冗余，禁止用抽样、静默截断或虚增 capability 把 RED
+  伪装成 GREEN。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
