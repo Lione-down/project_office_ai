@@ -110,7 +110,7 @@ class PreflightEvaluator:
             if (
                 asset is None
                 or asset.processing_status != "ready"
-                or asset.manifest_status != "ready"
+                or asset.manifest_status != "valid"
                 or f"sha256:{asset.sha256}" != reference["asset_version"]
                 or not asset.manifest_key
                 or not asset.manifest_sha256

@@ -151,3 +151,10 @@ generation_reserve -> generation_finalize | generation_release -> refund
   后以既有 non-root 用户启动。
 - 该修复不改变上传 API、数据库 Schema、文件 key、解析/Evidence/Renderer contract
   或 Alpha scope；root 只存在于一次性 volume ownership 初始化阶段。
+- `2026-07-27` 修复材料处理反馈与 Evidence 状态消费错配：工作流显示 selected project
+  的全部 active 材料，对处理中状态每 `1.5s` 自动刷新，并对拒绝状态展示脱敏、可操作原因；
+  只有 Worker 的权威成功组合 `processing_status=ready` +
+  `manifest_status=valid` 可被选择。
+- Brief 与 Preflight 同步采用 `ready/valid`，不再把 Worker 已验证的 `valid` Manifest
+  误判为未就绪；`excel_sheet_limit_exceeded` 等安全拒绝仍 fail closed，30-Sheet 上限、
+  owner scope、数据库 Schema、用户文件和 Alpha scope 均不变。

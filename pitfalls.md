@@ -545,6 +545,20 @@
   一次最小 upload/processing runtime probe；image 内 `chown` 与 health 状态都不能替代
   mount 后写权限证据。
 
+### 2026-07-27 · Post-Alpha · 上传 201 不代表材料已可用于生成
+
+- 现象：真实上传已返回 `201` 且 4 条资产落库，但 Worker 因工作表数量超限将其置为
+  `rejected/invalid`；前端只渲染 ready 材料且不轮询，用户看到的结果与上传失败相同。
+  同时 Worker 成功写 `ready/valid`，Brief/Preflight/Frontend 却仍要求 `ready/ready`。
+- 影响：安全拒绝没有恢复提示；即使重新上传合规材料，成功 Manifest 仍可能被三个消费端
+  误判为未就绪，形成无法继续生成的链路断点。
+- 本次处理：用真实数据库状态和 Worker contract 建立 RED；全部材料可见但仅
+  `processing_status=ready / manifest_status=valid` 可选择，处理中自动刷新，拒绝原因
+  使用脱敏稳定错误码映射；Brief/Preflight 同步权威状态。
+- 预防/验证：异步上传验收必须覆盖 `HTTP acceptance -> persisted state -> terminal
+  processing result -> UI feedback -> downstream readiness` 全链路；生产状态枚举只能有
+  一个权威定义，测试 fixture 必须使用 Worker 实际写入值，不能各层自造近义状态。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

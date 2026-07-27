@@ -179,7 +179,7 @@ async def brief_harness(tmp_path: Path) -> AsyncIterator[BriefServiceHarness]:
                     storage_key=f"users/{USER_ID}/quarantine/{ASSET_ID}/original.xlsx",
                     processing_status="ready",
                     manifest_key=stored.storage_key,
-                    manifest_status="ready",
+                    manifest_status="valid",
                     manifest_sha256=stored.sha256,
                     manifest_schema_version="evidence-manifest.v1",
                     evidence_engine_version="1.0.0",

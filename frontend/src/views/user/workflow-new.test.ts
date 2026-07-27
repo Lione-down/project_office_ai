@@ -1,6 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 
 import { useSessionStore } from "@/store/session";
@@ -44,7 +44,7 @@ const options: WorkspaceOptions = {
       processing_warnings: [],
       processing_error_code: null,
       processing_error_message: null,
-      manifest_status: "ready",
+      manifest_status: "valid",
       manifest_schema_version: "evidence-manifest.v1",
       evidence_engine_version: "1",
       evidence_warning_count: 0,
@@ -95,8 +95,8 @@ const options: WorkspaceOptions = {
   termLibraries: [],
 };
 
-async function mountWorkflow(loadedOptions = options) {
-  workspaceMocks.loadOptions.mockResolvedValue(loadedOptions);
+async function mountWorkflow(loadedOptions?: WorkspaceOptions) {
+  if (loadedOptions) workspaceMocks.loadOptions.mockResolvedValue(loadedOptions);
   const pinia = createPinia();
   setActivePinia(pinia);
   useSessionStore().setTokens({
@@ -131,7 +131,12 @@ async function mountWorkflow(loadedOptions = options) {
 
 describe("New workflow", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    workspaceMocks.loadOptions.mockResolvedValue(options);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("creates a combined Brief from ready owner-scoped selections", async () => {
@@ -170,6 +175,52 @@ describe("New workflow", () => {
     expect(
       wrapper.get("[data-testid='workflow-primary-action']").attributes("disabled"),
     ).toBeDefined();
+  });
+
+  it("shows rejected materials with an actionable processing reason", async () => {
+    const rejectedOptions = {
+      ...options,
+      assets: [
+        {
+          ...options.assets[0],
+          processing_status: "rejected",
+          manifest_status: "invalid",
+          processing_error_code: "excel_sheet_limit_exceeded",
+          processing_error_message: "Excel 工作表数量超过安全上限",
+        },
+      ],
+    };
+    const { wrapper } = await mountWorkflow(rejectedOptions);
+
+    expect(wrapper.text()).toContain("华东销售数据.xlsx");
+    expect(wrapper.text()).toContain("Excel 工作表数量超过 30 个");
+    expect(wrapper.findAll(".asset-list input")).toHaveLength(0);
+    expect(
+      wrapper.get("[data-testid='workflow-primary-action']").attributes("disabled"),
+    ).toBeDefined();
+  });
+
+  it("refreshes pending materials until they become ready and selectable", async () => {
+    vi.useFakeTimers();
+    const pendingOptions = {
+      ...options,
+      assets: [{ ...options.assets[0], processing_status: "quarantined" }],
+    };
+    workspaceMocks.loadOptions
+      .mockResolvedValueOnce(pendingOptions)
+      .mockResolvedValueOnce(options);
+
+    const { wrapper } = await mountWorkflow();
+    expect(wrapper.text()).toContain("华东销售数据.xlsx");
+    expect(wrapper.text()).toContain("安全处理中");
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await flushPromises();
+
+    expect(workspaceMocks.loadOptions).toHaveBeenCalledTimes(2);
+    expect(
+      wrapper.get("[data-testid='workflow-primary-action']").attributes("disabled"),
+    ).toBeUndefined();
   });
 
   it("keeps the first-material upload available when no project exists", async () => {

@@ -1484,3 +1484,50 @@
   `design-system/` 与旧 `docs/ui-mockups/`；临时 ignored synthetic 文件已删除。
 - 结论：应用 volume 首次写入缺口已修复；Internal Alpha 与 `1/10 pilot` 等既有声明
   边界不变，下一 dependency-ready task 仍为无。
+
+## Post-Alpha 材料处理反馈与 Evidence 状态修复
+
+### 根因与 RED contract
+
+- 真实 Browser/API/Worker/MySQL 证据确认上传接口已返回 `201`，当前 4 条 active 资产均已
+  落库，但因 `excel_sheet_limit_exceeded` 被安全拒绝；前端只渲染 ready 材料，造成“上传
+  成功后消失”，且立即 reload 后没有继续轮询。
+- 同链路发现 Worker 与 T2-002 测试的成功组合为
+  `processing_status=ready / manifest_status=valid`，而 Workflow、Brief 和 Preflight
+  仍要求旧的 `ready/ready`，会把后续合规材料误判为不可用。
+- RED：Workflow focused 为 `4 failed, 3 passed`；Brief/Preflight 使用真实 Worker
+  fixture 后为 `13 failed, 7 passed`。测试固定拒绝原因展示、处理中自动刷新、
+  `ready/valid` 可选择以及无效材料继续 fail closed。
+
+### 实现与验证
+
+- Workflow 显示 selected project 的全部 active 材料；拒绝材料显示脱敏原因，
+  `excel_sheet_limit_exceeded` 明确提示精简至不超过 30 张工作表后重新上传；非 ready
+  材料不提供选择框且不能启用生成。
+- 处理中材料每 `1.5s` 背景刷新，离开页面或进入终态后停止；刷新不切走表单，处理成功后
+  按既有 defaults flow 自动选择首条 `ready/valid` 材料。
+- Brief input loader 与 Preflight evaluator 统一接受 Worker 权威的 `ready/valid` 组合；
+  Manifest key/SHA、owner/project/version、invalid/retryable/rejected 等既有门禁不变。
+- Focused：Workflow `7 passed`，Brief/Preflight `57 passed`。Broad：Frontend
+  22 files / `64 passed`，production build `98 modules transformed`；Backend
+  `577 passed, 6 skipped`，6 个 skip 仍为默认关闭的 live Agnes/failure drills；Ruff
+  changed-file check 通过。
+- 只重新构建并 `--no-deps --force-recreate` Backend/Frontend；MySQL/Redis 与用户资产
+  未重建或清理。实际映射为 `8888->5173`、`9999->8000`，两服务均 healthy。
+- 真实 Chrome 显示 4 条拒绝资产及统一安全原因，项目选择框存在，继续按钮 disabled，
+  Console 无 warning/error；未读取资产内容、未上传或删除用户文件。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-asset-processing-feedback-fix.md`。
+- Backend：`backend/app/services/{briefs/inputs.py,preflight/evaluator.py}` 与对应
+  `tests/{briefs,preflight}/conftest.py`。
+- Frontend：`frontend/src/views/user/{workflow-new.vue,workflow-new.test.ts}`。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/DATA_MODEL.md`、
+  `docs/PROGRESS.md`、`pitfalls.md`。
+- 30-Sheet 安全上限、数据库 Schema、API shape、owner scope、4 条拒绝记录和用户文件
+  保持不变；未读取 `.env`，未触碰受保护的 `.playwright-cli/`、`design-system/`、
+  旧 `docs/ui-mockups/` 或 ignored `output/`。
+- 结论：上传状态现在可见且可恢复，合规材料可沿 `ready/valid` 进入 Brief/Preflight；
+  当前 4 条超限材料仍需精简后重新上传。Internal Alpha 及既有声明边界不变，无下一
+  dependency-ready task。

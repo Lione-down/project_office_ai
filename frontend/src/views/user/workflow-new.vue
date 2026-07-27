@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { ApiError } from "@/api/request";
 import { workspaceApi } from "@/modules/workspace/api";
 import type {
+  AssetSummary,
   BriefGenerationSelection,
   WorkspaceOptions,
 } from "@/modules/workspace/types";
 import { useSessionStore } from "@/store/session";
+
+const PROCESSING_POLL_INTERVAL_MS = 1500;
 
 const route = useRoute();
 const router = useRouter();
@@ -25,33 +28,62 @@ const isLoading = ref(true);
 const isSubmitting = ref(false);
 const isUploading = ref(false);
 const errorMessage = ref("");
+let processingPollTimer: ReturnType<typeof setTimeout> | undefined;
 
 const mode = computed(() => String(route.query.mode ?? "combined"));
-const readyAssets = computed(
+const projectAssets = computed(
   () =>
     options.value?.assets.filter(
-      (asset) =>
-        asset.project_id === projectId.value &&
-        asset.processing_status === "ready" &&
-        asset.manifest_status === "ready",
+      (asset) => asset.project_id === projectId.value,
     ) ?? [],
 );
+const readyAssets = computed(() => projectAssets.value.filter(isAssetReady));
 const hasPendingAssets = computed(
-  () =>
-    options.value?.assets.some(
-      (asset) =>
-        asset.project_id === projectId.value &&
-        !["ready", "rejected", "deleted"].includes(asset.processing_status),
-    ) ?? false,
+  () => projectAssets.value.some((asset) =>
+    !["ready", "rejected", "deleted"].includes(asset.processing_status),
+  ),
+);
+const hasRejectedAssets = computed(() =>
+  projectAssets.value.some(
+    (asset) =>
+      asset.processing_status === "rejected" ||
+      asset.manifest_status === "invalid",
+  ),
 );
 const canSubmit = computed(
   () =>
     !isLoading.value &&
     !isSubmitting.value &&
     selectedAssetIds.value.length > 0 &&
+    selectedAssetIds.value.every((assetId) =>
+      readyAssets.value.some((asset) => asset.asset_id === assetId),
+    ) &&
     selectedSkillCodes.value.length > 0 &&
     Boolean(projectId.value && modelId.value && goal.value.trim() && audience.value.trim()),
 );
+
+function isAssetReady(asset: AssetSummary) {
+  return (
+    asset.processing_status === "ready" &&
+    asset.manifest_status === "valid"
+  );
+}
+
+function assetStatusMessage(asset: AssetSummary) {
+  if (isAssetReady(asset)) {
+    return `${(asset.byte_size / 1024).toFixed(1)} KB · 可用于生成`;
+  }
+  if (asset.processing_error_code === "excel_sheet_limit_exceeded") {
+    return "未通过：Excel 工作表数量超过 30 个，请精简后重新上传。";
+  }
+  if (asset.processing_status === "rejected" || asset.manifest_status === "invalid") {
+    return `未通过：${asset.processing_error_message || "文件未通过安全处理，请修正后重新上传。"}`;
+  }
+  if (asset.processing_error_message) {
+    return `暂时无法完成处理：${asset.processing_error_message}`;
+  }
+  return "安全处理中，完成后会自动刷新。";
+}
 
 function requireToken() {
   if (!session.accessToken) throw new Error("登录状态已失效，请重新登录");
@@ -86,15 +118,30 @@ function applyDefaults(loaded: WorkspaceOptions) {
     .filter(
       (asset) =>
         asset.project_id === projectId.value &&
-        asset.processing_status === "ready" &&
-        asset.manifest_status === "ready",
+        isAssetReady(asset),
     )
     .slice(0, 1)
     .map((asset) => asset.asset_id);
 }
 
+function clearProcessingPoll() {
+  if (processingPollTimer !== undefined) {
+    clearTimeout(processingPollTimer);
+    processingPollTimer = undefined;
+  }
+}
+
+function scheduleProcessingRefresh() {
+  clearProcessingPoll();
+  if (!hasPendingAssets.value) return;
+  processingPollTimer = setTimeout(() => {
+    processingPollTimer = undefined;
+    void loadOptions();
+  }, PROCESSING_POLL_INTERVAL_MS);
+}
+
 async function loadOptions() {
-  isLoading.value = true;
+  isLoading.value = options.value === null;
   errorMessage.value = "";
   try {
     const loaded = await workspaceApi.loadOptions(requireToken());
@@ -104,6 +151,7 @@ async function loadOptions() {
     errorMessage.value = readableError(error);
   } finally {
     isLoading.value = false;
+    scheduleProcessingRefresh();
   }
 }
 
@@ -168,6 +216,7 @@ async function submit() {
 }
 
 onMounted(loadOptions);
+onBeforeUnmount(clearProcessingPoll);
 </script>
 
 <template>
@@ -211,17 +260,31 @@ onMounted(loadOptions);
           </select>
         </label>
         <div class="asset-list">
-          <label v-for="asset in readyAssets" :key="asset.asset_id">
-            <input v-model="selectedAssetIds" type="checkbox" :value="asset.asset_id" />
+          <div
+            v-for="asset in projectAssets"
+            :key="asset.asset_id"
+            class="asset-list__item"
+            :class="{ 'asset-list__item--disabled': !isAssetReady(asset) }"
+          >
+            <input
+              v-if="isAssetReady(asset)"
+              v-model="selectedAssetIds"
+              type="checkbox"
+              :value="asset.asset_id"
+            />
+            <span v-else class="asset-list__status-marker" aria-hidden="true">!</span>
             <span>
               <strong>{{ asset.original_filename }}</strong>
-              <small>{{ (asset.byte_size / 1024).toFixed(1) }} KB · 可用于生成</small>
+              <small>{{ assetStatusMessage(asset) }}</small>
             </span>
-          </label>
+          </div>
         </div>
         <p v-if="!readyAssets.length" class="status-note" role="status">
           材料完成安全处理后才能继续。
-          <span v-if="hasPendingAssets">当前材料仍在处理，请稍后刷新。</span>
+          <span v-if="hasPendingAssets">材料正在安全处理中，完成后会自动刷新。</span>
+          <span v-else-if="hasRejectedAssets">
+            当前材料未通过安全处理，请按上方原因修正后重新上传。
+          </span>
         </p>
         <label class="upload-button">
           <input
@@ -401,7 +464,7 @@ h2 {
   gap: 10px;
 }
 
-.asset-list label,
+.asset-list__item,
 .skill-grid label {
   display: flex;
   min-height: 64px;
@@ -411,6 +474,24 @@ h2 {
   border-radius: 10px;
   padding: 12px 14px;
   background: #fff;
+}
+
+.asset-list__item--disabled {
+  border-color: #fed7aa;
+  background: #fffaf3;
+}
+
+.asset-list__status-marker {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--oa-warning);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .skill-grid {
@@ -434,7 +515,7 @@ h2 {
   accent-color: var(--oa-accent);
 }
 
-.asset-list label > span,
+.asset-list__item > span:last-child,
 .skill-grid strong,
 .skill-grid small {
   display: block;

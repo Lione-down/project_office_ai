@@ -112,7 +112,7 @@ class GenerationInputLoader:
                 raise BriefOperationError("asset_not_found", "资产不存在", 404)
             if (
                 asset.processing_status != "ready"
-                or asset.manifest_status != "ready"
+                or asset.manifest_status != "valid"
                 or not asset.manifest_key
                 or not asset.manifest_sha256
             ):
