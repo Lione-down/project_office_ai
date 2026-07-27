@@ -82,4 +82,21 @@ describe("Workspace API", () => {
     expect(headers).toEqual({ "Idempotency-Key": "upload-key" });
     expect(options).toEqual({ accessToken: "access" });
   });
+
+  it("omits project_id when uploading the first file without a project", async () => {
+    const client = {
+      get: vi.fn(),
+      post: vi.fn(),
+      postForm: vi.fn().mockResolvedValue({ asset_id: "asset-id" }),
+      download: vi.fn(),
+    };
+    const api = createWorkspaceApi(client);
+    const file = new File(["sales"], "sales.csv", { type: "text/csv" });
+
+    await api.uploadAsset(file, undefined, "upload-key", "access");
+
+    const [, form] = client.postForm.mock.calls[0];
+    expect(form.get("file")).toBe(file);
+    expect(form.has("project_id")).toBe(false);
+  });
 });

@@ -520,6 +520,17 @@
 - 预防/验证：启动后同时核对 `docker compose ps` 的 Host mapping、Host HTTP 页面和
   `/health/ready`，不能只验证容器内部 healthcheck。
 
+### 2026-07-27 · Post-Alpha · 后端可选字段不能被前端必填状态锁死
+
+- 现象：后端上传允许省略 `project_id` 并自动创建默认项目，但前端在项目列表为空时禁用
+  文件输入，同时始终写入 `project_id`，导致新账号无法完成首份上传。
+- 影响：API 单测和有项目 UI fixture 全部通过，真实空库首用路径仍形成不可恢复死锁；
+  用户点击按钮没有反应，项目下拉也没有可选项。
+- 本次处理：先用空项目 RED contract 固定 multipart、省略字段和文件输入行为；前端仅在
+  实际存在项目时发送 `project_id`，并为首份上传显示明确占位提示。
+- 预防/验证：可选 API 字段必须覆盖“未提供”UI fixture；首用/空数据 browser gate 不能
+  只复用已有项目和已有资产的 happy-path fixture。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

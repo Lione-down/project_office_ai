@@ -110,13 +110,13 @@ async function loadOptions() {
 async function upload(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file || !projectId.value) return;
+  if (!file) return;
   isUploading.value = true;
   errorMessage.value = "";
   try {
     await workspaceApi.uploadAsset(
       file,
-      projectId.value,
+      projectId.value || undefined,
       crypto.randomUUID(),
       requireToken(),
     );
@@ -202,6 +202,9 @@ onMounted(loadOptions);
         <label class="oa-field">
           <span>项目</span>
           <select v-model="projectId" class="oa-input">
+            <option v-if="!options.projects.length" disabled value="">
+              上传首份材料后自动创建默认项目
+            </option>
             <option v-for="project in options.projects" :key="project.project_id" :value="project.project_id">
               {{ project.name }}
             </option>
@@ -221,7 +224,12 @@ onMounted(loadOptions);
           <span v-if="hasPendingAssets">当前材料仍在处理，请稍后刷新。</span>
         </p>
         <label class="upload-button">
-          <input type="file" :disabled="isUploading || !projectId" @change="upload" />
+          <input
+            data-testid="workflow-file-input"
+            type="file"
+            :disabled="isUploading"
+            @change="upload"
+          />
           {{ isUploading ? "上传中…" : "上传一份材料" }}
         </label>
       </section>

@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-27`
-- 最近完成：`Post-Alpha 默认运行端口迁移（Frontend 8888 / Backend 9999）`
+- 最近完成：`Post-Alpha 空项目首份材料上传修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1397,4 +1397,39 @@
 - 未修改或读取根 `.env`；未触碰/未暂存 `.playwright-cli/`、`design-system/`、
   旧 `docs/ui-mockups/`、ignored `output/`、Secret 或用户文件。
 - 结论：默认端口迁移完成，Internal Alpha 状态和既有声明边界不变，下一
+  dependency-ready task 仍为无。
+
+## Post-Alpha 空项目首份材料上传修复
+
+### 根因与 TDD
+
+- 真实浏览器与 API 数据流确认：空库管理员的 `GET /projects` 返回空数组，Skill、模型、
+  Backend readiness 与 Console 均正常；前端却因 `projectId` 为空禁用文件输入。
+- 后端既有 contract 支持上传时省略 `project_id` 并幂等创建唯一默认项目；前端强制
+  `project_id` 造成项目选择与首份上传互相等待。
+- RED：workspace multipart、空项目提示/文件输入、首份上传调用共 `3 failed`；最小修复后
+  focused 为 2 files / `8 passed`。
+
+### 实现与验证
+
+- `workspaceApi.uploadAsset` 接受未指定项目，并只在存在项目时写 multipart
+  `project_id`；已有项目流程不变。
+- 空项目选择框显示“上传首份材料后自动创建默认项目”，文件输入只在实际上传期间禁用；
+  上传完成后重新加载既有 workspace options。
+- Frontend full：22 files / `62 passed`；`vue-tsc -b` 与 Vite build 通过。
+- Backend 既有默认项目 contract：
+  `test_upload_creates_default_project_and_quarantined_asset` 为 `1 passed`。
+- 重建 Frontend 后 `http://localhost:8888` 返回 200，Backend `/health/ready` 为
+  `ready`。真实 Chrome 空项目页面显示占位 option，上传按钮 enabled，点击成功触发单文件
+  chooser，未选择或上传任何文件，Console 无 warning/error。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-empty-project-upload-fix.md`。
+- Frontend：`frontend/src/modules/workspace/{api.ts,api.test.ts}`、
+  `frontend/src/views/user/{workflow-new.vue,workflow-new.test.ts}`。
+- Records：`docs/PLAN.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未修改后端、数据库或 API contract；未上传用户文件，未触碰 `.env`、
+  `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。
+- 结论：空项目首用死锁已修复；Internal Alpha 状态和既有声明边界不变，下一
   dependency-ready task 仍为无。

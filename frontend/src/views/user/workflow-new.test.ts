@@ -172,6 +172,44 @@ describe("New workflow", () => {
     ).toBeDefined();
   });
 
+  it("keeps the first-material upload available when no project exists", async () => {
+    const { wrapper } = await mountWorkflow({
+      ...options,
+      projects: [],
+      assets: [],
+    });
+
+    expect(wrapper.text()).toContain("上传首份材料后自动创建默认项目");
+    expect(
+      wrapper.get("[data-testid='workflow-file-input']").attributes("disabled"),
+    ).toBeUndefined();
+  });
+
+  it("uploads the first material without an explicit project", async () => {
+    workspaceMocks.uploadAsset.mockResolvedValue({ asset_id: "asset-id" });
+    const { wrapper } = await mountWorkflow({
+      ...options,
+      projects: [],
+      assets: [],
+    });
+    const input = wrapper.get("[data-testid='workflow-file-input']");
+    const file = new File(["sales"], "sales.csv", { type: "text/csv" });
+    Object.defineProperty(input.element, "files", {
+      configurable: true,
+      value: [file],
+    });
+
+    await input.trigger("change");
+    await flushPromises();
+
+    expect(workspaceMocks.uploadAsset).toHaveBeenCalledWith(
+      file,
+      undefined,
+      expect.any(String),
+      "access",
+    );
+  });
+
   it("pins selected term library versions into the immutable Brief", async () => {
     workspaceMocks.generateBrief.mockResolvedValue({ brief_id: "brief-id" });
     const loadedOptions = {

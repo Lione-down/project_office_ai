@@ -136,3 +136,11 @@ generation_reserve -> generation_finalize | generation_release -> refund
   在线 signature refresh 与生产部署同样保留为已声明边界，不冒充完成。
 - `2026-07-27` post-Alpha 运维配置将本地默认 Host ports 固定为 Frontend `8888`、
   Backend `9999`；容器内部 `5173/8000`、API contract 和 Alpha scope 不变。
+
+## Post-Alpha 运行时修复
+
+- `2026-07-27` 修复空项目账号无法上传首份材料的前端死锁：页面在项目列表为空时显示
+  明确占位提示并允许选择文件；multipart 省略 `project_id`，继续复用后端既有的幂等默认
+  项目创建 contract。
+- 已有项目上传、owner scope、文件安全处理、Evidence Manifest、Brief 与生成 contract
+  均不变；页面加载不新增写操作，也不扩展 Alpha scope。

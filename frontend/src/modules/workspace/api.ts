@@ -80,13 +80,13 @@ export function createWorkspaceApi(client: WorkspaceApiClient) {
     },
     uploadAsset(
       file: File,
-      projectId: string,
+      projectId: string | undefined,
       idempotencyKey: string,
       accessToken: string,
     ) {
       const form = new FormData();
       form.set("file", file);
-      form.set("project_id", projectId);
+      if (projectId) form.set("project_id", projectId);
       return client.postForm<AssetSummary>(
         "/assets/uploads",
         form,
