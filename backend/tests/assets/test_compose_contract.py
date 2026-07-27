@@ -32,6 +32,40 @@ def test_backend_compose_exposes_asset_volume_and_size_limits() -> None:
     assert "OFFICE_AI_MAX_TASK_BYTES:" in compose
 
 
+def test_application_volume_initializer_precedes_every_non_root_writer() -> None:
+    compose = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
+    services = compose["services"]
+    initializer = services["storage-init"]
+
+    assert initializer["user"] == "0:0"
+    assert initializer["restart"] == "no"
+    assert initializer["read_only"] is True
+    assert initializer["network_mode"] == "none"
+    assert initializer["security_opt"] == ["no-new-privileges:true"]
+    assert "environment" not in initializer
+    assert initializer["command"] == [
+        "sh",
+        "-c",
+        (
+            "chown 10001:10001 /app/files /app/parsed /app/evidence /app/work"
+            " && chmod 0750 /app/files /app/parsed /app/evidence /app/work"
+        ),
+    ]
+    assert initializer["volumes"] == [
+        "app-files:/app/files",
+        "parsed-files:/app/parsed",
+        "evidence-files:/app/evidence",
+        "shared-work:/app/work",
+    ]
+
+    for service_name in ("backend", "worker", "ppt-renderer", "libreoffice"):
+        service = services[service_name]
+        assert service["user"] == "10001:10001"
+        assert service["depends_on"]["storage-init"]["condition"] == (
+            "service_completed_successfully"
+        )
+
+
 def test_frontend_read_only_runtime_uses_non_bundling_vite_config_loader() -> None:
     compose = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
     vite_config = (COMPOSE_FILE.parent / "frontend" / "vite.config.ts").read_text(

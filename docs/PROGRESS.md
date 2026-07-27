@@ -1433,3 +1433,54 @@
   `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。
 - 结论：空项目首用死锁已修复；Internal Alpha 状态和既有声明边界不变，下一
   dependency-ready task 仍为无。
+
+## Post-Alpha 应用卷权限上传修复
+
+### 根因、RED 与实现
+
+- 真实 Chrome 上传请求已到达 `POST /api/v1/assets/uploads`；Backend traceback 明确为
+  non-root UID/GID `10001:10001` 创建 `/app/files/users` 时触发
+  `PermissionError`，因此浏览器只显示 `Failed to fetch`。
+- `app-files`、`parsed-files`、`evidence-files` 与 `shared-work` 四个 Compose named
+  volume 冷创建后均为 `root:root / 0755`。镜像内目录 ownership 会被 volume mount
+  覆盖；已有 healthcheck 未执行首次写入，未发现该缺口。
+- RED contract 先因缺少 `storage-init` 以 `KeyError` 失败；新增一次性、无网络、无
+  environment/Secret、read-only rootfs initializer 后转为 `1 passed`。四个长期 writer
+  均继续使用 `10001:10001`，并等待 `service_completed_successfully`。
+- initializer 只对四个应用卷根目录执行 ownership/mode 初始化，不删除或扫描文件；
+  MySQL/Redis/ClamAV volume、上传 API、Schema、storage key 与业务服务均未修改。
+
+### Runtime 与验证
+
+- 四个临时 fresh Docker volume 实测初始化后均为 `10001:10001 / 0750`，non-root
+  写入四个 probe 目录成功；临时 volumes 在同一验证流程中全部删除，没有创建新数据库。
+- `docker compose up -d --build --wait --wait-timeout 240` 成功：
+  `storage-init` exit `0`，其余 9 个长期服务全部 healthy；Host Frontend `8888` 与
+  Backend `9999/health/ready` 均返回 200。Backend/Worker/Renderer 中四个挂载点实际
+  ownership/mode 全部为 `10001:10001 / 0750`。
+- 真实 runtime 合成 TXT probe 调用同一 `AssetUploadService`，使用现有 admin owner，
+  经过真实 MySQL、`app-files`、Worker、ClamAV、parsed/evidence volume，状态为
+  `quarantined -> ready -> deleted`。当前 active asset 为 0，四个应用卷文件数为 0；
+  数据库仅保留 1 条符合既有删除 contract 的 soft-deleted tombstone。
+- Chrome 刷新后显示“默认项目”和 enabled“上传一份材料”，无 `Failed to fetch`、
+  console warning/error。自动化安全策略不允许将 Agent 创建的合成文件注入 Chrome；
+  runtime probe 因而绕过登录层，但没有绕过本次失败的上传/存储/处理层。管理员既有密码
+  未被重置或绕过。
+
+### 回归、文件与边界
+
+- Focused Compose/volume：`14 passed`；Backend full：
+  `577 passed, 6 skipped`，skip 仅为未 opt-in 的既有真实 Agnes/故障演练。
+- Ruff check、Ruff format `341 files already formatted`、`pip check` 与
+  `pip-audit` 通过；`pip-audit` 为 0 known vulnerabilities，仅跳过本地非 PyPI package。
+  Frontend full：22 files / `62 passed`；production build `98 modules transformed`，
+  `npm audit --audit-level=high` 为 0 vulnerabilities。
+- Plan/test/runtime：`.hermes/plans/2026-07-27-office-ai-volume-permission-upload-fix.md`、
+  `backend/tests/assets/test_compose_contract.py`、`docker-compose.yml`。
+- Records：`docs/PLAN.md`、`docs/PROGRESS.md`、`docs/ENVIRONMENT.md`、
+  `docs/SECURITY.md`、`pitfalls.md`。
+- 仅最小读取根 `.env` 中两个 bootstrap admin 变量是否存在，结果均为未配置；没有输出、
+  复制、暂存或提交任何值。未读取/上传用户文件，未触碰受保护的 `.playwright-cli/`、
+  `design-system/` 与旧 `docs/ui-mockups/`；临时 ignored synthetic 文件已删除。
+- 结论：应用 volume 首次写入缺口已修复；Internal Alpha 与 `1/10 pilot` 等既有声明
+  边界不变，下一 dependency-ready task 仍为无。

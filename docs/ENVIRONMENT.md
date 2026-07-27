@@ -164,6 +164,12 @@ MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credent
 ## 本地文件与卷
 
 - Compose backend 固定挂载 `app-files:/app/files`，并显式映射 50 MB 单文件、20 MB 图片和 200 MB 单任务默认值。
+- Compose 使用一次性 `storage-init` 初始化 `app-files`、`parsed-files`、
+  `evidence-files` 与 `shared-work` 根目录。该 service 以 root 仅执行
+  `chown 10001:10001` 与 `chmod 0750`，`network_mode: none`、无 environment/Secret、
+  root filesystem read-only，成功退出后 Backend、Worker、PPT Renderer 与 LibreOffice
+  才会启动；长期服务仍全部以 `10001:10001` 运行。`docker compose ps --all` 中
+  `storage-init` 显示 `exited (0)` 是预期完成态，不是服务故障。
 - ASGI upload body gate 自动使用 `OFFICE_AI_MAX_FILE_BYTES + 64 KiB`；64 KiB 只用于单文件 multipart header、清理后文件名、UUID field、boundary/framing，不是额外文件容量。新请求 body 先进入 middleware 自己的 `SpooledTemporaryFile`（1 MiB memory threshold），完整验证后才 replay 给 multipart parser；该 preflight spool 与 parser/file spool 都不写入公开目录，并在请求结束或拒绝时关闭。
 - Local Storage key 固定为 `users/{user_id}/quarantine/{asset_id}/original.{ext}`；原始文件名、手机号和客户端路径不参与磁盘定位。
 - T1-005 API 每次只流式接收一个文件；T2-001 worker service 的 batch contract 在 claim/scan 前一次性校验最多 20 个文件和 200 MB 总量，当前不新增用户 batch HTTP API。

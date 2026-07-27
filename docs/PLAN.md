@@ -144,3 +144,10 @@ generation_reserve -> generation_finalize | generation_release -> refund
   项目创建 contract。
 - 已有项目上传、owner scope、文件安全处理、Evidence Manifest、Brief 与生成 contract
   均不变；页面加载不新增写操作，也不扩展 Alpha scope。
+- `2026-07-27` 修复 Compose named volume 冷创建后的所有权缺口：一次性
+  `storage-init` 在无网络、无 Secret、read-only rootfs 下将 `app-files`、
+  `parsed-files`、`evidence-files` 与 `shared-work` 根目录初始化为
+  `10001:10001 / 0750`；Backend、Worker、PPT Renderer 与 LibreOffice 仅在初始化成功
+  后以既有 non-root 用户启动。
+- 该修复不改变上传 API、数据库 Schema、文件 key、解析/Evidence/Renderer contract
+  或 Alpha scope；root 只存在于一次性 volume ownership 初始化阶段。

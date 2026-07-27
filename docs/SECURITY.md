@@ -156,6 +156,10 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - CORS 仅允许 `OFFICE_AI_FRONTEND_ORIGIN`；生产配置不得使用 `*`。
 - 错误响应不暴露 stack trace、SQL、绝对路径、内部 host 或 Secret。
 - 容器默认 non-root，文件卷使用最小写权限；数据库和内部工具不映射 Host 端口。
+- 唯一 root 例外是一次性 `storage-init`：无网络、无 environment/Secret、read-only
+  rootfs、`no-new-privileges`，只将四个应用 named volume 根目录设为
+  `10001:10001 / 0750` 后退出。所有读取或写入业务数据的长期服务仍为 non-root，且必须
+  等待 initializer 成功。
 - `worker`、ClamAV、PaddleOCR、LibreOffice、MySQL、Redis 和 renderer 使用 internal network；只有 FastAPI 具备受控 external egress。
 - 镜像版本需锁定，新增 dependency 在任务内运行 vulnerability/license 检查。
 - T4-005 将 ClamAV 固定为可解析的 `1.4.5`，以 UID/GID `100:101` 直接运行

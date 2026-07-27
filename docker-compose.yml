@@ -51,6 +51,28 @@ services:
       <<: *healthcheck
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
+  storage-init:
+    build:
+      context: ./backend
+    image: office-ai-backend:local
+    user: "0:0"
+    command:
+      [
+        "sh",
+        "-c",
+        "chown 10001:10001 /app/files /app/parsed /app/evidence /app/work && chmod 0750 /app/files /app/parsed /app/evidence /app/work",
+      ]
+    restart: "no"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - app-files:/app/files
+      - parsed-files:/app/parsed
+      - evidence-files:/app/evidence
+      - shared-work:/app/work
+
   backend:
     <<: *app-service
     build:
@@ -117,6 +139,8 @@ services:
       - edge
       - private
     depends_on:
+      storage-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       redis:
@@ -195,6 +219,8 @@ services:
     tmpfs:
       - /tmp
     depends_on:
+      storage-init:
+        condition: service_completed_successfully
       backend:
         condition: service_healthy
       mysql:
@@ -235,6 +261,9 @@ services:
       - ./golden-data/manifests:/golden-data/manifests:ro
     tmpfs:
       - /tmp
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -337,6 +366,9 @@ services:
       - /tmp
     networks:
       - private
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
     healthcheck:
       <<: *healthcheck
       start_period: 30s

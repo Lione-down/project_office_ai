@@ -531,6 +531,20 @@
 - 预防/验证：可选 API 字段必须覆盖“未提供”UI fixture；首用/空数据 browser gate 不能
   只复用已有项目和已有资产的 happy-path fixture。
 
+### 2026-07-27 · Post-Alpha · 镜像目录 ownership 会被 named volume mount 覆盖
+
+- 现象：Backend 镜像和长期服务均使用 `10001:10001`，但 fresh named volume 挂载点为
+  `root:root / 0755`；healthcheck 只读 MySQL/Redis，没有触发首次文件写入。真实上传到达
+  Backend 后在创建 `/app/files/users` 时抛出 `PermissionError`。
+- 影响：容器 9/9 healthy、API GET 与文件选择器都正常，首次上传、后续解析/Evidence 和
+  Renderer 写入仍会在不同卷上依次失败。
+- 本次处理：新增无网络、无 Secret、read-only rootfs 的一次性 `storage-init`，只初始化
+  四个应用卷根目录为 `10001:10001 / 0750`；所有长期 writer 等待它成功后以 non-root
+  启动。
+- 预防/验证：冷启动 Gate 必须同时覆盖 fresh volume ownership、目标 UID 的真实写入和
+  一次最小 upload/processing runtime probe；image 内 `chown` 与 health 状态都不能替代
+  mount 后写权限证据。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
