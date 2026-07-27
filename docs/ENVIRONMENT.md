@@ -82,7 +82,11 @@ Windows Host 映射、Frontend 默认 API base 与 Backend CORS origin；容器�
 `5173/8000` 及 private-network service URL 不变。需要临时覆盖时可使用上表普通变量，
 但仓库默认值仍以 `8888/9999` 为准。
 
-T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
+T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。
+FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue
+可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收
+不含 Secret/文件正文/storage key 的任务 ID 与事件合同。Post-Alpha
+`generation-worker` 已注入真实 PPTX/XLSX step executor。
 
 T3-002 的 `ppt-renderer` 使用独立 pinned Node image，只在 private network 暴露 internal HTTP，root filesystem read-only，以 non-root 用户写入 `shared-work`。Backend 将同一 volume 只读挂载到 `OFFICE_AI_RENDERED_ROOT`，验证 contract/hash/size 后再复制到受控资产存储；Renderer 不接收 Secret、Provider credential、用户路径或 Host port。
 
@@ -184,7 +188,17 @@ MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credent
   `10001:10001` 运行。原解析 `worker` 继续只连 private、无 Master/Provider credential。
 - Backend Outbox publisher 按 event type 分流：`brief.*` 只进入 workflow queue，
   `generation.*` 只进入 `office_ai:generation:queue`，不同 consumer 不混取。真实 Compose
-  已构建并启动 `workflow-worker`，当前 10 个长期服务 healthy。
+  已构建并启动 `workflow-worker` 与 `generation-worker`，当前 11 个长期服务 healthy。
+- Post-Alpha 新增 `generation-worker`，使用 backend 镜像和
+  `python -m app.workers.generation` entrypoint。它只连接 private network，不映射
+  Host port，不挂载 Master/Provider credential、parsed/evidence volume 或用户源文件；
+  root filesystem read-only，以 `10001:10001` 运行。它可写 owner-scoped
+  `app-files` 输出，只读共享 Renderer work volume，并通过 internal PPT Renderer 与
+  LibreOffice sidecar 完成生成和 QA。
+- generation runner 只从 MySQL 读取 confirmed Structured Brief 与 task 的冻结 model/
+  skill/template snapshot；任务 ID queue message 不携带正文。claim 后写入 10%，每完成
+  一个输出 step 按比例持久化进度，settle 写入 100%。空/非法 Brief 在调用 Renderer 前
+  permanent failure，不进入重试风暴。
 - PaddleOCR 使用独立 `office-ai-paddleocr:local` image。为避免不可解析的旧 image tag，
   以可解析的 `paddlepaddle/paddle:3.3.1` 为基础，再固定安装经真实 inference 验证的
   PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`；构建阶段固定下载

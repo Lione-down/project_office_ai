@@ -281,6 +281,64 @@ services:
       <<: *healthcheck
       test: ["CMD", "python", "-c", "import app.workers.workflow"]
 
+  generation-worker:
+    <<: *app-service
+    build:
+      context: ./backend
+    image: office-ai-backend:local
+    user: "10001:10001"
+    working_dir: /app
+    command: ["python", "-m", "app.workers.generation"]
+    read_only: true
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    environment:
+      OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
+      OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
+      OFFICE_AI_MYSQL_DATABASE: ${OFFICE_AI_MYSQL_DATABASE:-office_ai}
+      OFFICE_AI_MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
+      OFFICE_AI_MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
+      OFFICE_AI_DATABASE_HOST: mysql
+      OFFICE_AI_REDIS_URL: redis://redis:6379/0
+      OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_PPT_RENDERER_URL: http://ppt-renderer:3000
+      OFFICE_AI_LIBREOFFICE_URL: http://libreoffice:8081
+      OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS: ${OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS:-120}
+      OFFICE_AI_RENDERED_ROOT: /app/rendered
+      OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS: ${OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS:-120}
+      OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES: ${OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES:-10485760}
+      OFFICE_AI_TASK_TIMEOUT_SECONDS: ${OFFICE_AI_TASK_TIMEOUT_SECONDS:-2700}
+    volumes:
+      - type: volume
+        source: app-files
+        target: /app/files
+        read_only: false
+      - type: volume
+        source: shared-work
+        target: /app/rendered
+        read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - private
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ppt-renderer:
+        condition: service_healthy
+      libreoffice:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import app.workers.generation.runner"]
+
   ppt-renderer:
     <<: *app-service
     build:

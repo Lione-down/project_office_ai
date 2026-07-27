@@ -668,6 +668,20 @@
   scrollTop、底部动作可见性、375px 横向 overflow 和 Console，不能用 CSS 静态值或
   `scrollTo` 代替输入手势证据。
 
+### 2026-07-28 · Post-Alpha · 有队列发布器和 consumer class 不等于生产会消费
+
+- 现象：生成任务、step、积分 reserve 与 Outbox 都已正确落入 MySQL，Redis queue 也
+  持有消息，但 Compose 没有启动 generation consumer，仓库中的 worker class 从未被
+  production entrypoint 实例化，页面因此永久停在 `queued / 0%`。
+- 影响：API、Outbox 和单元测试都可能通过，却没有任何进程推进 task；积压任务最终只会
+  在 stale timeout 后失败。若手工改数据库或删除 queue message，会破坏账务和审计事实。
+- 本次处理：新增隔离 `generation-worker` runtime 与真实 PPTX/XLSX executor，复用既有
+  Renderer、QA、checkpoint 和结算；阶段进度持久化到 MySQL。空/非法 Brief 在
+  renderer 前 permanent failure，避免无效重试。
+- 预防/验证：每个 durable queue 必须同时验证 producer、routing、production
+  entrypoint、Compose service、健康状态、真实 queue drain 和 terminal settlement；
+  “class 存在”或 Mock executor 通过不能替代进程级消费证据。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

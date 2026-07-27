@@ -229,6 +229,7 @@ class GenerationWorkerService:
             if not allowed:
                 return await self._snapshot(session, task)
             task.status = "running"
+            task.progress = max(task.progress, 10)
             task.error_category = None
             task.error_message = None
             task.started_at = task.started_at or utc_now()
@@ -301,10 +302,12 @@ class GenerationWorkerService:
             }
             if result.status == "succeeded":
                 step.status = "succeeded"
+                await self._update_stage_progress(session, task)
                 return await self._snapshot(session, task)
             if result.status == "provider_uncertain":
                 step.status = "provider_uncertain"
                 task.status = "provider_uncertain"
+                task.progress = 100
                 task.error_category = result.error_category
                 task.completed_at = utc_now()
                 return await self._snapshot(session, task)
@@ -320,6 +323,7 @@ class GenerationWorkerService:
                 session.add(build_generation_outbox_event(task, "generation.retry"))
                 return await self._snapshot(session, task)
             step.status = "failed"
+            await self._update_stage_progress(session, task)
             return await self._snapshot(session, task)
 
     async def _settle(self, task_id: UUID) -> GenerationSnapshot:
@@ -373,6 +377,20 @@ class GenerationWorkerService:
             if step.status == "pending":
                 step.status = "cancelled"
                 step.completed_at = utc_now()
+
+    async def _update_stage_progress(
+        self, session: AsyncSession, task: GenerationTask
+    ) -> None:
+        steps = await self._steps(session, task.id)
+        completed = sum(
+            step.status in {"succeeded", "failed", "cancelled", "provider_uncertain"}
+            for step in steps
+        )
+        if steps:
+            task.progress = max(
+                task.progress,
+                min(100, 10 + round(completed / len(steps) * 90)),
+            )
 
     @staticmethod
     async def _steps(

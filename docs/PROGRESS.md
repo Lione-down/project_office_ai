@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
-- 最后更新：`2026-07-27`
-- 最近完成：`Post-Alpha Structured Brief Schema guidance 修复`
+- 最后更新：`2026-07-28`
+- 最近完成：`Post-Alpha 文件生成 Worker Runtime 修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1899,3 +1899,51 @@
 - Admin/Public Shell、业务页面、API、数据库 Schema、任务、用户文件和历史记录均不变；
   未触碰/暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored
   `output/`。
+
+## Post-Alpha 文件生成 Worker Runtime 修复
+
+### Runtime 根因与修复
+
+- 用户 generation task `019fa43d-c6a8-7461-acea-9985dc8e6145` 在 MySQL 中保持
+  `queued / 0%`，对应 `generation.queued` Outbox 已发布且 Redis generation queue
+  存在消息；Compose 却没有 production generation consumer。仓库已有
+  `GenerationQueueConsumer`、worker 状态机、Renderer 与 QA service，但没有 runner
+  注入真实 step executor，形成只有 producer、没有 consumer 的运行时断链。
+- 新增独立 `generation-worker`，消费既有 `office_ai:generation:queue`，将冻结的
+  confirmed Structured Brief 确定性编译为 strict `PresentationPlan` /
+  `WorkbookPlan`，复用现有 PPT/Excel Renderer、LibreOffice QA、output checkpoint
+  与积分结算。worker 不调用 Provider、不读取源文件，也不猜测缺失数字或单位。
+- 任务 claim 后持久化 `10%`；多输出任务每完成一个 step 按已完成比例推进，最终由既有
+  settle 状态机写入 `100%`。进度来源仍是 MySQL durable state，不使用前端假动画。
+- 合法但没有任何 facts/inferences/must-include 的 Brief 会在 renderer 前返回
+  `generation_brief_content_required` 的 permanent failure；非法 Brief 返回
+  `generation_brief_invalid`，避免无效重试和空白文件。
+
+### TDD、Broad 与 Runtime
+
+- RED 依次锁定缺少 runtime module、pipeline、Compose service、stage progress 和空
+  Brief permanent failure；GREEN focused runtime 为 `6 passed`，generation/outbox/
+  quality/workflow 相关回归为 `118 passed`。
+- Backend full 为 `609 passed, 7 skipped`；7 个 skip 仍仅为默认关闭的 4 个 live
+  failure drill 与 3 个 real Agnes case。Ruff `381 files` check/format 通过。
+- Frontend full 为 23 files / `72 passed`；production build 为
+  `104 modules transformed`。本任务没有修改前端代码。
+- Compose config 通过；Backend image 重建后 `generation-worker`、Backend、MySQL、
+  Redis、PPT Renderer 与 LibreOffice 均 healthy。worker 容器 focused 为 `6 passed`，
+  `pip check` 无 broken requirements，generation queue 深度为 `0`，
+  Host `/health/ready=ready`，Frontend 返回 `200`。
+- 真实 Chrome 只读刷新旧任务后显示 `任务未完成 / 100% / task_timeout`、文件不可下载、
+  已结算 `0`，用户积分从预留后的 `7,600` 恢复为 `10,000`，Console 无 warning/error。
+  旧任务在 worker 启动前已超过 timeout，且其冻结 Brief 没有可生成 Evidence，因此没有
+  手工改写状态、重放任务或自动创建会再次扣费的新任务。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-28-office-ai-generation-worker-runtime.md`。
+- Backend：`services/generation_runtime.py`、generation worker runner/entrypoint、阶段进度
+  持久化与对应 tests。
+- Runtime/Records：`docker-compose.yml`、`docs/PLAN.md`、`docs/ENVIRONMENT.md`、
+  `docs/SECURITY.md`、`docs/PROGRESS.md` 与 `pitfalls.md`。
+- 不修改 HTTP API、数据库 Schema、Frontend、Provider Contract、用户文件或旧任务审计
+  事实；未触碰/暂存 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/` 或 ignored `output/`。

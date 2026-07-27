@@ -116,6 +116,13 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - 失败或可取消任务释放 reserve；partial success 只 finalize 成功子输出并 release 余量；质量自动修复不额外收费。`provider_uncertain` 保留 reserve，不自动重试或重复结算，需要后续受审计决策。
 - `credit_ledger` 与 `audit_logs` 只追加，不提供修改/删除业务接口。
 - Generation、Credits、Outbox/queue payload 和日志不得包含 Credential Secret、Prompt、文件正文、storage key 或本地路径；用户 task/credits 响应使用 `private, no-store`。
+- `generation-worker` 只连 private network，无 Host port、Master/Provider credential、
+  parsed/evidence volume 或外部 egress。它只读取已确认的结构化 Brief 和冻结 snapshot，
+  确定性构造 strict PPTX/XLSX Plan；没有可追溯内容、Evidence 或合法 Schema 时在
+  Renderer 前 fail closed，不能生成空白或猜测性文件。
+- generation progress 必须来自 MySQL claim/step/settle checkpoint：claim 写入 10%，
+  每个输出完成后按比例推进，终态写入 100%。不得用 client timer、孤立 Redis message
+  或日志推断来修改任务/积分事实。
 - T4-004 真实恢复演练只使用隔离 UUID、合成用户、假 Credential 和真实 MySQL/Redis，
   不访问 Provider 或用户文件。Redis outage 必须保留 pending Outbox/reserve；恢复后新 worker
   只执行一次，duplicate delivery 不重复执行或结算；`provider_uncertain` 继续保留 reserve。

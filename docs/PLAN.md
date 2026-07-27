@@ -216,3 +216,12 @@ generation_reserve -> generation_finalize | generation_release -> refund
   scrolling。
 - 该修复不添加全局 wheel listener 或 JS 模拟滚动，不调用 `preventDefault`，也不修改
   Admin/Public Shell、页面表单、API、数据库或业务状态。
+- `2026-07-28` 修复 generation queue 只有 producer、没有 production consumer
+  导致任务长期 `queued / 0%` 的运行时断链：Compose 新增独立
+  `generation-worker`，通过 `python -m app.workers.generation` 消费既有 queue。
+- worker 从 confirmed Structured Brief 与冻结 template snapshot 确定性编译 strict
+  PPTX/XLSX Plan，复用既有 Renderer、LibreOffice QA、checkpoint 与 credit
+  settlement；不调用 Provider、不读源文件、不猜测数字或单位。
+- claim、step completion 与 settle 均将进度写入 MySQL；空或非法 Brief 在 renderer
+  前永久失败并释放 reserve。HTTP API、数据库 Schema、Frontend、Evidence、
+  Preflight 与质量 Gate 均不降低。
