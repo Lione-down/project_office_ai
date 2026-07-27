@@ -400,13 +400,13 @@ def test_encrypted_pdf_is_rejected(tmp_path) -> None:
     assert captured.value.error_code == "file_encrypted"
 
 
-@pytest.mark.parametrize(("sheets", "accepted"), [(30, True), (31, False)])
+@pytest.mark.parametrize(("sheets", "accepted"), [(100, True), (101, False)])
 def test_excel_sheet_limit(tmp_path, sheets, accepted) -> None:
     path = write_xlsx(tmp_path / "book.xlsx", sheet_count=sheets)
 
     if accepted:
         result = parse(path)
-        assert len(result.content["sheets"]) == 30
+        assert len(result.content["sheets"]) == 100
     else:
         with pytest.raises(FileSafetyError) as captured:
             parse(path)

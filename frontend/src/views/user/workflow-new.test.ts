@@ -11,6 +11,7 @@ import WorkflowNewView from "./workflow-new.vue";
 const workspaceMocks = vi.hoisted(() => ({
   loadOptions: vi.fn(),
   uploadAsset: vi.fn(),
+  deleteAsset: vi.fn(),
   generateBrief: vi.fn(),
 }));
 
@@ -175,9 +176,12 @@ describe("New workflow", () => {
     expect(
       wrapper.get("[data-testid='workflow-primary-action']").attributes("disabled"),
     ).toBeDefined();
+    expect(
+      wrapper.find("[aria-label^='删除未通过材料']").exists(),
+    ).toBe(false);
   });
 
-  it("shows rejected materials with an actionable processing reason", async () => {
+  it("shows rejected materials with the 100-Sheet limit and a delete action", async () => {
     const rejectedOptions = {
       ...options,
       assets: [
@@ -193,11 +197,92 @@ describe("New workflow", () => {
     const { wrapper } = await mountWorkflow(rejectedOptions);
 
     expect(wrapper.text()).toContain("华东销售数据.xlsx");
-    expect(wrapper.text()).toContain("Excel 工作表数量超过 30 个");
+    expect(wrapper.text()).toContain("Excel 工作表数量超过 100 个");
     expect(wrapper.findAll(".asset-list input")).toHaveLength(0);
+    expect(
+      wrapper.get("[aria-label='删除未通过材料 华东销售数据.xlsx']"),
+    ).toBeDefined();
     expect(
       wrapper.get("[data-testid='workflow-primary-action']").attributes("disabled"),
     ).toBeDefined();
+  });
+
+  it("does not delete a rejected material when confirmation is cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const rejectedOptions = {
+      ...options,
+      assets: [
+        {
+          ...options.assets[0],
+          processing_status: "rejected",
+          manifest_status: "invalid",
+        },
+      ],
+    };
+    const { wrapper } = await mountWorkflow(rejectedOptions);
+
+    await wrapper
+      .get("[aria-label='删除未通过材料 华东销售数据.xlsx']")
+      .trigger("click");
+
+    expect(workspaceMocks.deleteAsset).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("华东销售数据.xlsx");
+  });
+
+  it("deletes only the confirmed rejected material and removes its row", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    workspaceMocks.deleteAsset.mockResolvedValue(undefined);
+    const rejectedOptions = {
+      ...options,
+      assets: [
+        {
+          ...options.assets[0],
+          processing_status: "rejected",
+          manifest_status: "invalid",
+        },
+        {
+          ...options.assets[0],
+          asset_id: "other-asset-id",
+          original_filename: "保留材料.xlsx",
+          processing_status: "rejected",
+          manifest_status: "invalid",
+        },
+      ],
+    };
+    const { wrapper } = await mountWorkflow(rejectedOptions);
+
+    await wrapper
+      .get("[aria-label='删除未通过材料 华东销售数据.xlsx']")
+      .trigger("click");
+    await flushPromises();
+
+    expect(workspaceMocks.deleteAsset).toHaveBeenCalledWith("asset-id", "access");
+    expect(wrapper.text()).not.toContain("华东销售数据.xlsx");
+    expect(wrapper.text()).toContain("保留材料.xlsx");
+  });
+
+  it("keeps a rejected material visible when deletion fails", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    workspaceMocks.deleteAsset.mockRejectedValue(new Error("删除失败，请稍后重试"));
+    const rejectedOptions = {
+      ...options,
+      assets: [
+        {
+          ...options.assets[0],
+          processing_status: "rejected",
+          manifest_status: "invalid",
+        },
+      ],
+    };
+    const { wrapper } = await mountWorkflow(rejectedOptions);
+
+    await wrapper
+      .get("[aria-label='删除未通过材料 华东销售数据.xlsx']")
+      .trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("华东销售数据.xlsx");
+    expect(wrapper.text()).toContain("删除失败，请稍后重试");
   });
 
   it("refreshes pending materials until they become ready and selectable", async () => {

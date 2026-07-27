@@ -82,7 +82,7 @@ def test_exact_pdf_excel_and_output_contract_limits_are_locked() -> None:
     limits = ProcessingLimits()
 
     assert limits.max_pdf_pages == 200
-    assert limits.max_excel_sheets == 30
+    assert limits.max_excel_sheets == 100
     assert limits.max_excel_non_empty_cells == 300_000
     assert limits.max_output_bytes > 0
 
@@ -90,9 +90,9 @@ def test_exact_pdf_excel_and_output_contract_limits_are_locked() -> None:
 @pytest.mark.parametrize(
     ("sheet_count", "cell_count", "error_code"),
     [
-        (30, 300_000, None),
-        (31, 300_000, "excel_sheet_limit_exceeded"),
-        (30, 300_001, "excel_cell_limit_exceeded"),
+        (100, 300_000, None),
+        (101, 300_000, "excel_sheet_limit_exceeded"),
+        (100, 300_001, "excel_cell_limit_exceeded"),
     ],
 )
 def test_exact_excel_shape_boundaries(sheet_count, cell_count, error_code) -> None:

@@ -23,7 +23,7 @@ class ProcessingLimits:
     max_task_files: int = 20
     max_task_bytes: int = 200 * MEBIBYTE
     max_pdf_pages: int = 200
-    max_excel_sheets: int = 30
+    max_excel_sheets: int = 100
     max_excel_non_empty_cells: int = 300_000
     max_archive_entries: int = 10_000
     max_archive_uncompressed_bytes: int = 250 * MEBIBYTE

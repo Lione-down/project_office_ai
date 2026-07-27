@@ -559,6 +559,20 @@
   processing result -> UI feedback -> downstream readiness` 全链路；生产状态枚举只能有
   一个权威定义，测试 fixture 必须使用 Worker 实际写入值，不能各层自造近义状态。
 
+### 2026-07-27 · Post-Alpha · 安全上限与拒绝材料清理必须端到端一致
+
+- 现象：Excel Sheet 默认上限同时存在于 Settings、纯 contract 与 Compose worker；
+  只改 UI 文案或某一默认值会让 Browser、单测和真实 Worker 得出不同结果。拒绝材料若
+  没有主动清理入口，用户只能重复上传并积累无效行。
+- 影响：看似提高上限但生产仍按旧值拒绝，或 UI 隐藏后端记录；若自动清理或在请求完成前
+  移除行，又可能造成不可恢复的数据丢失和错误成功反馈。
+- 本次处理：先以 100 接受、101 拒绝的 RED contract 同步 Settings、`ProcessingLimits`
+  和 Compose；前端只对 `rejected/invalid` 暴露 `×`，按准确文件名确认，复用
+  owner-scoped exact-key 删除，成功后才移除单行，失败时原位保留。
+- 预防/验证：每次调整运行时安全阈值都必须覆盖配置、纯 contract、容器 environment、
+  边界测试、文案与专题文档；破坏性行级操作必须确认具体对象、禁止自动执行，并以服务端
+  成功响应作为 UI 移除的唯一依据。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

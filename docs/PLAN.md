@@ -156,5 +156,10 @@ generation_reserve -> generation_finalize | generation_release -> refund
   只有 Worker 的权威成功组合 `processing_status=ready` +
   `manifest_status=valid` 可被选择。
 - Brief 与 Preflight 同步采用 `ready/valid`，不再把 Worker 已验证的 `valid` Manifest
-  误判为未就绪；`excel_sheet_limit_exceeded` 等安全拒绝仍 fail closed，30-Sheet 上限、
+  误判为未就绪；`excel_sheet_limit_exceeded` 等安全拒绝仍 fail closed。
+- 2026-07-27 经用户批准，Post-Alpha Excel 输入上限从 30 Sheet 调整为 100 Sheet；
+  第 100 张仍可处理，第 101 张稳定拒绝。其他文件/任务/单元格/Archive/解析资源门禁、
   owner scope、数据库 Schema、用户文件和 Alpha scope 均不变。
+- Workflow 仅对 `rejected/invalid` 材料显示右侧删除操作，复用 owner-scoped
+  `DELETE /assets/{asset_id}`；用户按文件名确认且服务端返回成功后才移除当前行，
+  取消或失败时保留材料，不自动清理任何用户资产。

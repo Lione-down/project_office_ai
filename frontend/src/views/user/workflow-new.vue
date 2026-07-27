@@ -28,6 +28,8 @@ const isLoading = ref(true);
 const isSubmitting = ref(false);
 const isUploading = ref(false);
 const errorMessage = ref("");
+const deletingAssetIds = ref<Set<string>>(new Set());
+const assetDeleteErrors = ref<Record<string, string>>({});
 let processingPollTimer: ReturnType<typeof setTimeout> | undefined;
 
 const mode = computed(() => String(route.query.mode ?? "combined"));
@@ -44,11 +46,7 @@ const hasPendingAssets = computed(
   ),
 );
 const hasRejectedAssets = computed(() =>
-  projectAssets.value.some(
-    (asset) =>
-      asset.processing_status === "rejected" ||
-      asset.manifest_status === "invalid",
-  ),
+  projectAssets.value.some(isAssetRejected),
 );
 const canSubmit = computed(
   () =>
@@ -69,14 +67,25 @@ function isAssetReady(asset: AssetSummary) {
   );
 }
 
+function isAssetRejected(asset: AssetSummary) {
+  return (
+    asset.processing_status === "rejected" ||
+    asset.manifest_status === "invalid"
+  );
+}
+
+function isDeletingAsset(assetId: string) {
+  return deletingAssetIds.value.has(assetId);
+}
+
 function assetStatusMessage(asset: AssetSummary) {
   if (isAssetReady(asset)) {
     return `${(asset.byte_size / 1024).toFixed(1)} KB · 可用于生成`;
   }
   if (asset.processing_error_code === "excel_sheet_limit_exceeded") {
-    return "未通过：Excel 工作表数量超过 30 个，请精简后重新上传。";
+    return "未通过：Excel 工作表数量超过 100 个，请精简后重新上传。";
   }
-  if (asset.processing_status === "rejected" || asset.manifest_status === "invalid") {
+  if (isAssetRejected(asset)) {
     return `未通过：${asset.processing_error_message || "文件未通过安全处理，请修正后重新上传。"}`;
   }
   if (asset.processing_error_message) {
@@ -177,6 +186,42 @@ async function upload(event: Event) {
   }
 }
 
+async function deleteRejectedAsset(asset: AssetSummary) {
+  if (!isAssetRejected(asset) || isDeletingAsset(asset.asset_id)) return;
+  const confirmed = window.confirm(
+    `确定删除未通过的材料“${asset.original_filename}”？删除后无法恢复。`,
+  );
+  if (!confirmed) return;
+
+  deletingAssetIds.value = new Set([
+    ...deletingAssetIds.value,
+    asset.asset_id,
+  ]);
+  const nextErrors = { ...assetDeleteErrors.value };
+  delete nextErrors[asset.asset_id];
+  assetDeleteErrors.value = nextErrors;
+  try {
+    await workspaceApi.deleteAsset(asset.asset_id, requireToken());
+    if (options.value) {
+      options.value = {
+        ...options.value,
+        assets: options.value.assets.filter(
+          (item) => item.asset_id !== asset.asset_id,
+        ),
+      };
+    }
+  } catch (error) {
+    assetDeleteErrors.value = {
+      ...assetDeleteErrors.value,
+      [asset.asset_id]: readableError(error),
+    };
+  } finally {
+    const nextDeletingIds = new Set(deletingAssetIds.value);
+    nextDeletingIds.delete(asset.asset_id);
+    deletingAssetIds.value = nextDeletingIds;
+  }
+}
+
 async function submit() {
   if (!canSubmit.value) return;
   const selection: BriefGenerationSelection = {
@@ -273,10 +318,36 @@ onBeforeUnmount(clearProcessingPoll);
               :value="asset.asset_id"
             />
             <span v-else class="asset-list__status-marker" aria-hidden="true">!</span>
-            <span>
+            <span class="asset-list__content">
               <strong>{{ asset.original_filename }}</strong>
               <small>{{ assetStatusMessage(asset) }}</small>
+              <small
+                v-if="assetDeleteErrors[asset.asset_id]"
+                class="asset-list__delete-error"
+                role="alert"
+              >
+                {{ assetDeleteErrors[asset.asset_id] }}
+              </small>
             </span>
+            <button
+              v-if="isAssetRejected(asset)"
+              class="asset-list__delete"
+              type="button"
+              :disabled="isDeletingAsset(asset.asset_id)"
+              :aria-label="
+                isDeletingAsset(asset.asset_id)
+                  ? `正在删除材料 ${asset.original_filename}`
+                  : `删除未通过材料 ${asset.original_filename}`
+              "
+              :title="
+                isDeletingAsset(asset.asset_id)
+                  ? '正在删除'
+                  : '删除这条未通过材料'
+              "
+              @click="deleteRejectedAsset(asset)"
+            >
+              ×
+            </button>
           </div>
         </div>
         <p v-if="!readyAssets.length" class="status-note" role="status">
@@ -494,6 +565,42 @@ h2 {
   font-weight: 750;
 }
 
+.asset-list__content {
+  min-width: 0;
+  flex: 1;
+}
+
+.asset-list__delete {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: 8px;
+  color: #64748b;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.asset-list__delete:hover {
+  color: #b42318;
+  background: #fff0ed;
+}
+
+.asset-list__delete:focus-visible {
+  outline: 2px solid #b42318;
+  outline-offset: 2px;
+}
+
+.asset-list__delete:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
 .skill-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -515,7 +622,7 @@ h2 {
   accent-color: var(--oa-accent);
 }
 
-.asset-list__item > span:last-child,
+.asset-list__content,
 .skill-grid strong,
 .skill-grid small {
   display: block;
@@ -526,6 +633,10 @@ h2 {
   display: block;
   margin-top: 4px;
   color: var(--oa-muted);
+}
+
+.asset-list .asset-list__delete-error {
+  color: #b42318;
 }
 
 .skill-grid small {

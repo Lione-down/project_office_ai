@@ -1531,3 +1531,52 @@
 - 结论：上传状态现在可见且可恢复，合规材料可沿 `ready/valid` 进入 Brief/Preflight；
   当前 4 条超限材料仍需精简后重新上传。Internal Alpha 及既有声明边界不变，无下一
   dependency-ready task。
+
+## Post-Alpha Excel 100-Sheet 上限与拒绝材料删除
+
+### 计划、RED 与实现
+
+- 用户批准将 Excel 输入上限从 30 Sheet 调整为 100 Sheet，并要求未通过材料可在行右侧
+  主动删除；本次按唯一 Post-Alpha 任务执行，不启动下一 Alpha 任务。
+- RED contract 固定三处运行时默认值一致、100 Sheet 接受且第 101 Sheet 稳定拒绝，以及
+  前端只对 `rejected/invalid` 显示删除操作。Frontend 首次为 `5 failed, 8 passed`，
+  Backend 首次为 `6 failed, 12 passed`。
+- Settings、`ProcessingLimits` 与 Compose worker 默认值统一为 100；30 万非空单元格、
+  20 文件/200 MB、Archive、内存、timeout、ClamAV 与 owner scope 等门禁保持不变。
+- Workflow 复用既有 owner-scoped `DELETE /assets/{asset_id}`；`×` 采用可访问名称，
+  按文件名确认后调用一次删除。只有成功响应才移除对应行，取消或失败时保留材料并在行内
+  显示安全错误；处理中或 ready 材料不显示该操作，且没有自动删除。
+
+### 验证与 Runtime 证据
+
+- Focused GREEN：Frontend `13 passed`；Backend `18 passed`。
+- Broad：Frontend 22 files / `67 passed`，production build
+  `98 modules transformed`；Backend `577 passed, 6 skipped`，skip 仍仅为默认关闭的
+  live Agnes/failure drills；Ruff changed-file check 通过。
+- Security/dependency：Frontend `npm audit --audit-level=high` 为 0 vulnerabilities；
+  Backend `pip check` 无 broken requirements，`pip-audit` 为 0 known vulnerabilities，
+  仅跳过本地非 PyPI package `office-ai-backend`。
+- `docker compose build worker frontend` 成功；只用 `--no-deps --force-recreate`
+  重启 worker/frontend，未重建 Backend、MySQL、Redis 或用户数据。worker 实际读取
+  `OFFICE_AI_MAX_EXCEL_SHEETS=100`，Frontend `8888`、Backend `9999` 与依赖均 healthy，
+  `/health/ready` 和前端首页均返回 200。
+- 真实 Chrome 2048 px desktop 页面显示 4 条拒绝材料、4 个右侧 `×`、4 条
+  “超过 100 个”提示，继续按钮 disabled；Console 无 warning/error，仅有重启期间 Vite
+  连接日志。没有点击删除、读取材料内容或改变现有 4 条用户记录。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-excel-limit-rejected-asset-delete.md`。
+- Backend/Runtime：`backend/app/settings/config.py`、
+  `backend/app/services/file_safety/contracts.py`、`docker-compose.yml` 与对应 parsing/
+  file-safety tests。
+- Frontend：`frontend/src/modules/workspace/{api.ts,api.test.ts}`、
+  `frontend/src/views/user/{workflow-new.vue,workflow-new.test.ts}`。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/ENVIRONMENT.md`、
+  `docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 历史 T2-001 任务卡保留当时的 30-Sheet Alpha contract；本节、当前计划和现行专题文档
+  记录用户批准的 Post-Alpha 100-Sheet 覆盖。数据库 Schema、API shape、现有 4 条资产、
+  `1/10 pilot` 与 Alpha 封版证据边界不变。
+- 未读取 `.env`、Secret 或用户文件；未触碰/未暂存 `.playwright-cli/`、
+  `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。下一
+  dependency-ready task 仍为无。

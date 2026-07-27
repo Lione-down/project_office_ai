@@ -43,7 +43,7 @@
 | `OFFICE_AI_PARSED_ROOT` | 结构化解析结果根目录，默认 `/app/parsed` | 否 | T2-001 | 独立受控 volume/path |
 | `OFFICE_AI_MAX_PARSED_OUTPUT_BYTES` | 单资产结构化解析输出上限，默认 10 MB | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_MAX_PDF_PAGES` | PDF 页数上限，默认 200 | 否 | T2-001 | Compose 普通变量 |
-| `OFFICE_AI_MAX_EXCEL_SHEETS` | Excel Sheet 上限，默认 30 | 否 | T2-001 | Compose 普通变量 |
+| `OFFICE_AI_MAX_EXCEL_SHEETS` | Excel Sheet 上限，Post-Alpha 默认 100 | 否 | T2-001 / Post-Alpha | Compose 普通变量 |
 | `OFFICE_AI_MAX_EXCEL_NON_EMPTY_CELLS` | Excel 非空单元格上限，默认 300000 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_MAX_ARCHIVE_ENTRIES` | Office Archive member 上限，默认 10000 | 否 | T2-001 | Compose 普通变量 |
 | `OFFICE_AI_MAX_ARCHIVE_UNCOMPRESSED_BYTES` | Office Archive 解压后总量上限，默认 250 MB | 否 | T2-001 | Compose 普通变量 |

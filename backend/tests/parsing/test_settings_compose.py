@@ -19,7 +19,7 @@ def test_file_processing_settings_are_bounded(monkeypatch, tmp_path) -> None:
     assert settings.clamav_port == 3310
     assert settings.clamav_timeout_seconds > 0
     assert settings.max_pdf_pages == 200
-    assert settings.max_excel_sheets == 30
+    assert settings.max_excel_sheets == 100
     assert settings.max_excel_non_empty_cells == 300_000
     assert settings.max_archive_uncompressed_bytes > settings.max_file_bytes
     assert settings.max_image_decoded_bytes > settings.max_image_bytes
@@ -63,6 +63,10 @@ def test_worker_compose_has_read_only_input_bounded_output_and_no_provider_secre
     assert worker["environment"]["OFFICE_AI_MAX_PARSED_OUTPUT_BYTES"]
     assert worker["environment"]["OFFICE_AI_MAX_IMAGE_DECODED_BYTES"]
     assert worker["environment"]["OFFICE_AI_MAX_TASK_FILES"]
+    assert (
+        worker["environment"]["OFFICE_AI_MAX_EXCEL_SHEETS"]
+        == "${OFFICE_AI_MAX_EXCEL_SHEETS:-100}"
+    )
     assert worker["environment"]["OFFICE_AI_MAX_OFFICE_XML_MEMBER_BYTES"]
     assert worker["environment"]["OFFICE_AI_MAX_PARSER_STRUCTURAL_ITEMS"]
     assert worker["environment"]["OFFICE_AI_PARSER_TIMEOUT_SECONDS"]

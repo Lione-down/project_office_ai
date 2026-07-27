@@ -28,6 +28,7 @@ interface WorkspaceApiClient {
     headers: HeadersInit,
     options?: { accessToken?: string },
   ): Promise<T>;
+  delete(path: string, options?: { accessToken?: string }): Promise<void>;
   download(path: string, options?: { accessToken?: string }): Promise<Blob>;
 }
 
@@ -96,6 +97,9 @@ export function createWorkspaceApi(client: WorkspaceApiClient) {
     },
     downloadAsset(assetId: string, accessToken: string) {
       return client.download(`/assets/${assetId}/download`, { accessToken });
+    },
+    deleteAsset(assetId: string, accessToken: string) {
+      return client.delete(`/assets/${assetId}`, { accessToken });
     },
   };
 }

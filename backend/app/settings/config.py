@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     )
     max_pdf_pages: int = Field(200, validation_alias="OFFICE_AI_MAX_PDF_PAGES", ge=1)
     max_excel_sheets: int = Field(
-        30, validation_alias="OFFICE_AI_MAX_EXCEL_SHEETS", ge=1
+        100, validation_alias="OFFICE_AI_MAX_EXCEL_SHEETS", ge=1
     )
     max_excel_non_empty_cells: int = Field(
         300_000,

@@ -38,7 +38,7 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 ```
 
 - 上传最多 20 个文件；单文件 50 MB、单任务 200 MB、图片 20 MB、PDF 200 页。
-- Excel 最多 30 Sheet/30 万非空单元格；加密、密码保护、损坏文件在积分预留前拒绝。
+- Excel 最多 100 Sheet/30 万非空单元格；加密、密码保护、损坏文件在积分预留前拒绝。
 - 解析 worker 和 PaddleOCR 只连 internal network，不挂载 Provider credential；输入只读，解析/Manifest 输出使用独立限额 volume。
 - XLSM 只提取安全数据且不执行宏；拒绝 XLS；不跟随文档 URL或外部连接。
 - 文档文本始终是 untrusted data，不拼入 System Prompt，不改变工具权限。
@@ -52,7 +52,7 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - T1-005 只做扩展名/MIME/minimal signature 初检；ClamAV、Zip Bomb、加密/损坏 Office、页数/Sheet/单元格与 20 文件/200 MB 组合门禁属于 T2-001，未扫描资产保持 `quarantined`，不得标记 `ready`。
 - T2-001 在 ClamAV 前重新计算 quarantine 文件 byte size 与 SHA-256，防止上传后到扫描前的磁盘替换；ClamAV 使用 `INSTREAM`，感染、协议错误、timeout 或连接失败全部 fail closed。Worker service 的 batch contract 在任何 claim/scan 前一次性校验最多 20 文件和 200 MB 总量。
 - Office 深度门禁只遍历 ZIP metadata/受限 XML，不展开到磁盘；拒绝路径穿越 member、加密 flag、OLE encrypted package、损坏 archive、伪装 OOXML content type、DTD/entity、member 数量/总解压量/压缩率、单 XML member 或 parser 总结构项超限。DOCX 只读取段落文本，XLSX/XLSM 只读取 cell data；公式、VBA、external relationship、embedded object 和文档 URL 均不执行或抓取。
-- PDF 使用 `pypdf` 严格读取并拒绝加密/密码保护与超过 200 页，同时保留页码和 text-matrix 推导的 BBox；Excel 拒绝超过 30 Sheet/30 万非空单元格并保留原始 cell reference。CSV/TXT/MD 只接受 UTF-8；PNG/JPEG/WEBP 必须通过 bounded streaming 结构检查、decoded-size gate 与 Pillow full decode 后才形成 `pending_ocr` 中间记录。
+- PDF 使用 `pypdf` 严格读取并拒绝加密/密码保护与超过 200 页，同时保留页码和 text-matrix 推导的 BBox；Excel 拒绝超过 100 Sheet/30 万非空单元格并保留原始 cell reference。CSV/TXT/MD 只接受 UTF-8；PNG/JPEG/WEBP 必须通过 bounded streaming 结构检查、decoded-size gate 与 Pillow full decode 后才形成 `pending_ocr` 中间记录。
 - Parser 只在可终止子进程中运行并受 wall-clock timeout 约束；worker 每轮 polling 先把超出 stale lease 的 `scanning/parsing` 资产稳定拒绝为 `processing_lease_expired`，避免 crash、OOM、SIGTERM 或暂时 DB outage 后永久滞留。
 - worker 以原子条件更新 claim 单个 `quarantined` 资产，持久化 `scanning -> parsing/evidence -> ready/rejected`；进入 `parsing` 时先提交 deterministic parsed key，Evidence 文件写前再提交 deterministic Manifest key 和 `building`。只有版本化 Pydantic/JSON Schema 校验、原子文件写入与最终 DB 条件更新全部成功才进入 `ready`；hard crash/stale reconciliation 保留精确 recovery keys 并把 Manifest 标为 `invalid`。
 - OCR client 只向 `http://paddleocr:8080/v1/ocr` 发送已完成安全解码的原始图片 bytes、MIME 和 SHA-256；timeout、network、429/502/503/504、响应大小/项数超限、非法 JSON/Schema、非有限 confidence/coordinates 全部 fail closed。暂时性不可用先清理本轮输出并按 30/60 秒 backoff 重试，最多 3 次；其他错误或重试耗尽稳定拒绝，不生成空白或猜测证据。

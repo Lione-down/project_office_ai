@@ -8,6 +8,7 @@ describe("Workspace API", () => {
       get: vi.fn().mockResolvedValue([]),
       post: vi.fn().mockResolvedValue({ brief_id: "brief-id" }),
       postForm: vi.fn().mockResolvedValue({ asset_id: "asset-id" }),
+      delete: vi.fn().mockResolvedValue(undefined),
       download: vi.fn().mockResolvedValue(new Blob(["output"])),
     };
     const api = createWorkspaceApi(client);
@@ -34,6 +35,7 @@ describe("Workspace API", () => {
     await api.getCreditBalance("access");
     await api.getCreditLedger("access");
     await api.downloadAsset("asset-id", "access");
+    await api.deleteAsset("asset-id", "access");
 
     expect(client.post).toHaveBeenCalledWith(
       "/briefs/generate",
@@ -61,6 +63,10 @@ describe("Workspace API", () => {
       "/assets/asset-id/download",
       { accessToken: "access" },
     );
+    expect(client.delete).toHaveBeenCalledWith(
+      "/assets/asset-id",
+      { accessToken: "access" },
+    );
   });
 
   it("uploads one file with the selected project and an idempotency key", async () => {
@@ -68,6 +74,7 @@ describe("Workspace API", () => {
       get: vi.fn(),
       post: vi.fn(),
       postForm: vi.fn().mockResolvedValue({ asset_id: "asset-id" }),
+      delete: vi.fn(),
       download: vi.fn(),
     };
     const api = createWorkspaceApi(client);
@@ -88,6 +95,7 @@ describe("Workspace API", () => {
       get: vi.fn(),
       post: vi.fn(),
       postForm: vi.fn().mockResolvedValue({ asset_id: "asset-id" }),
+      delete: vi.fn(),
       download: vi.fn(),
     };
     const api = createWorkspaceApi(client);
