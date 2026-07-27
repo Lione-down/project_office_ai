@@ -614,6 +614,20 @@
   job 再入队；验收同时覆盖创建可见、幂等重放、重复消息、刷新保留、稳定失败码和
   Provider in-flight crash，不能用 loading 按钮代替任务事实。
 
+### 2026-07-27 · Post-Alpha · 服务端有 strict Schema 不等于模型知道 Schema
+
+- 现象：应用用 Pydantic 严格校验 17 字段 Structured Brief，但 Prompt 只发送顶层字段
+  名；Agnes 连续 6 次成功 response 均无法通过 nested contract，一次 generic repair
+  也没有字段路径或错误类型。
+- 影响：Mock 直接返回合法 fixture 会掩盖 Prompt contract 缺失；任务、Outbox、日志和
+  Provider HTTP 都正常，用户仍只能得到稳定但不可恢复的 `brief_schema_invalid`。
+- 本次处理：初次 prompt 携带完整 JSON Schema；repair 仅反馈 bounded、脱敏的
+  `field.path:error_type`，未知字段名归一化，不记录值。真实 Agnes 合成 Structured
+  Brief Contract 通过，strict validation 未降低。
+- 预防/验证：所有依赖模型输出的 strict nested contract，必须同时测试“服务端能校验”
+  和“模型收到完整可执行 contract”；repair 必须给安全、可定位的机器错误提示，不能只说
+  “格式不对”，也不能把 validation input 或 Provider response 写入日志。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

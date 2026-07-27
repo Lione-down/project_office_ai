@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-27`
-- 最近完成：`Post-Alpha durable 异步工作流任务与失败记录`
+- 最近完成：`Post-Alpha Structured Brief Schema guidance 修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1736,3 +1736,48 @@
 - 同步 `/briefs/generate` 只作为兼容 API 保留；Structured Brief/Evidence/Preflight/
   积分/质量 Gate 均未降低。不保存 Provider 原始响应或 Prompt，不自动重试
   `provider_uncertain`，不回填修复前没有 canonical task 的历史同步失败。
+
+## Post-Alpha Structured Brief Schema guidance 修复
+
+### Runtime 根因
+
+- 最新 workflow task `019fa32b-9a5b-78a6-80a7-8c398a4dc579` 正确持久化
+  `failed / brief_failed / brief_schema_invalid`；其 Agnes attempt 1/2 都成功返回，
+  分别约 47 秒与 90 秒。数据库最近 3 组、共 6 次成功 Provider response 全部在应用层
+  strict Schema 校验失败，证明问题位于 Provider response -> validation 边界。
+- `generation_messages` 只传 17 个顶层字段名，没有传 nested required、Literal、长度、
+  `extra=forbid` 与 validator contract；generic repair 也没有告诉模型失败字段和类型。
+  `temperature=0` 下模型无法可靠推导或定位修复目标。
+
+### TDD 与实现
+
+- RED focused 为 `4 failed, 17 passed`：分别缺少完整 Schema、repair hints 参数、
+  `BriefValidationError.repair_hints` 与 service 透传。
+- GREEN 在 generation payload 加入紧凑的完整 Pydantic JSON Schema；Pydantic error
+  只提取已知字段路径、数组索引和固定 type，未知字段归一为 `unknown_field`。hints
+  限制为最多 24 条、每条 160 字符，仅用于同一次 repair conversation。
+- Provider response、Prompt、字段值与 validation input 仍不持久化/记录；strict
+  Pydantic、snapshot、Evidence allowlist、一次 repair、`provider_uncertain` 与
+  native `response_format=false` 均保持不变。
+
+### 验证与 Runtime
+
+- Brief focused `37 passed`；Backend full 最终 `600 passed, 7 skipped`，7 个 skip
+  为默认关闭的 4 个 failure drill 与 3 个 real Agnes case；Ruff 377 files clean。
+- 显式 opt-in 的新增 real Agnes Contract 使用完全合成销售 Evidence，执行生产
+  `Schema guidance -> generation -> optional repair -> strict validation`，结果
+  `1 passed in 5.64s`。未读取用户文件，未输出 Key、Prompt 或 response。
+- `pip check` 无 broken requirements，`pip-audit` 无已知漏洞。Backend image 重建成功；
+  Backend/workflow-worker 重建后均 healthy，Host `/health/ready=ready`。
+- 旧失败 workflow task 保留为审计事实且不自动重放；新 Schema guidance 对新建任务
+  生效。真实用户大材料的最终验收需要用户重新新建任务，不能用合成 Contract 冒充。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-brief-schema-repair.md`。
+- Backend：`briefs/{prompting.py,validation.py,service.py}` 与 Brief/real Agnes tests。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/SECURITY.md`、
+  `docs/PROGRESS.md` 与 `pitfalls.md`。
+- 不修改数据库 Schema、API shape、Frontend、Environment、用户文件或旧任务状态；
+  不触碰/暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或
+  ignored `output/`。

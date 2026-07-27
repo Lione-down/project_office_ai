@@ -44,6 +44,7 @@ def generation_messages(
         "evidence_context": json.loads(evidence_context),
         "terminology_rules": [rule.model_dump(mode="json") for rule in term_rules],
         "required_top_level_fields": list(StructuredBrief.model_fields),
+        "structured_brief_schema": StructuredBrief.model_json_schema(),
     }
     return [
         {
@@ -76,16 +77,26 @@ def repair_messages(
     evidence_context: str,
     term_rules: tuple[TermRule, ...],
     invalid_content: str,
+    repair_hints: tuple[str, ...],
 ) -> list[dict]:
     messages = generation_messages(command, expected, evidence_context, term_rules)
     messages.append({"role": "assistant", "content": invalid_content})
     messages.append(
         {
             "role": "user",
-            "content": (
-                "The previous JSON failed the required Schema, snapshot, or "
-                "evidence validation. Repair it once. Return only the corrected "
-                "JSON object and do not invent evidence refs."
+            "content": json.dumps(
+                {
+                    "instruction": (
+                        "The previous JSON failed validation. Repair it once "
+                        "against structured_brief_schema. Preserve the "
+                        "authoritative snapshot, return only the corrected JSON "
+                        "object, and do not invent evidence refs."
+                    ),
+                    "validation_hints": list(repair_hints),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
             ),
         }
     )

@@ -157,6 +157,13 @@ T2-004 已实现 `/skills`、`/skills/{skill_code}` 与 `/briefs/generate`。Ski
 
 T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset version、术语库 owner/project/version、Skill 全合同、模型能力及 Provider/Credential 状态。Provider 只收到 bounded evidence 与选定术语规则，所有文档内容作为 untrusted user data；`brief-evidence-context.v2` 将重复的 asset identity/version 提升到 asset table，按 location kind/Sheet/Evidence type 分组，并使用确定性短引用承载全部 Evidence。模型只允许引用本次 Context 中的短引用；应用在 strict Schema/snapshot/evidence 校验前映射回原始不可变 Evidence ID，未知引用以 `brief_evidence_invalid` fail closed。模型返回必须保持 goal/audience/asset/term/Skill/model/include/exclude/output-kind authoritative snapshot，`file/calculation` fact 和 `agnes_inference` 均必须有 evidence。JSON/Schema/snapshot/evidence 失败只修复一次；第二次失败返回对应 `brief_schema_invalid`、`brief_snapshot_mismatch` 或 `brief_evidence_invalid`，不保存 Brief。压缩后完整 message 仍超出 `min(model.context_window, 256K)` 时在调用前返回 `context_budget_exceeded`；不抽样或截断必需 Evidence。timeout 返回 `provider_uncertain` 且不自动重试，`401/403` 暂停所选 Credential，不静默切换 Provider。
 
+Post-Alpha Schema guidance 修复后，generation request 显式携带完整、紧凑的
+`StructuredBrief` JSON Schema，而不只传顶层字段名。第一次 validation 失败时，repair
+只接收最多 24 条、每条最多 160 字符的安全 `field.path:error_type` hints；JSON、
+snapshot 与 Evidence 错误使用稳定类别，不携带输入值。Provider response、Prompt 和
+validation input 仍不落库/日志，用户 API 错误 envelope 仍只返回稳定 code 与安全中文
+message；严格校验和最多一次 repair 的 contract 不变。
+
 ## Brief 与 Generation
 
 | Method | Path | 说明 |

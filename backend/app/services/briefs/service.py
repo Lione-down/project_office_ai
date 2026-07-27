@@ -160,6 +160,7 @@ class BriefGenerationService:
                     context.serialized,
                     inputs.term_rules,
                     completion.content,
+                    exception.repair_hints,
                 )
                 enforce_message_budget(messages, inputs.model)
                 continue

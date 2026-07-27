@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import re
 from typing import Literal
 from uuid import UUID
 
@@ -8,11 +9,73 @@ from pydantic import ValidationError
 from app.services.briefs.contracts import StructuredBrief
 
 
+MAX_REPAIR_HINTS = 24
+MAX_REPAIR_HINT_LENGTH = 160
+_SAFE_ERROR_TYPE = re.compile(r"^[a-z0-9_.-]{1,80}$")
+
+
+def _schema_property_names() -> frozenset[str]:
+    names: set[str] = set()
+    pending: list[object] = [StructuredBrief.model_json_schema()]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, dict):
+            properties = current.get("properties")
+            if isinstance(properties, dict):
+                names.update(str(name) for name in properties)
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
+    return frozenset(names)
+
+
+_SCHEMA_PROPERTY_NAMES = _schema_property_names()
+
+
+def _bounded_repair_hints(hints: tuple[str, ...]) -> tuple[str, ...]:
+    bounded: list[str] = []
+    for hint in hints:
+        safe_hint = hint[:MAX_REPAIR_HINT_LENGTH]
+        if safe_hint not in bounded:
+            bounded.append(safe_hint)
+        if len(bounded) == MAX_REPAIR_HINTS:
+            break
+    return tuple(bounded)
+
+
+def _pydantic_repair_hints(exception: ValidationError) -> tuple[str, ...]:
+    hints: list[str] = []
+    for error in exception.errors(
+        include_url=False,
+        include_context=False,
+        include_input=False,
+    ):
+        path = []
+        for component in error.get("loc", ()):
+            if isinstance(component, int):
+                path.append(str(component))
+            elif str(component) in _SCHEMA_PROPERTY_NAMES:
+                path.append(str(component))
+            else:
+                path.append("unknown_field")
+        error_type = str(error.get("type", "validation_error"))
+        if not _SAFE_ERROR_TYPE.fullmatch(error_type):
+            error_type = "validation_error"
+        hints.append(f"{'.'.join(path) or 'root'}:{error_type}")
+    return _bounded_repair_hints(tuple(hints))
+
+
 class BriefValidationError(Exception):
-    def __init__(self, error_code: str, message: str) -> None:
+    def __init__(
+        self,
+        error_code: str,
+        message: str,
+        repair_hints: tuple[str, ...] = (),
+    ) -> None:
         super().__init__(message)
         self.error_code = error_code
         self.message = message
+        self.repair_hints = _bounded_repair_hints(repair_hints)
 
 
 @dataclass(frozen=True)
@@ -62,6 +125,7 @@ def resolve_brief_evidence_references(
                     raise BriefValidationError(
                         "brief_evidence_invalid",
                         "Structured Brief 引用了不在本次 Context 的 evidence",
+                        ("evidence_ids:unknown_reference",),
                     )
             item["evidence_ids"] = resolved
 
@@ -87,9 +151,23 @@ def validate_brief_response(
     try:
         payload = json.loads(response_content)
         brief = StructuredBrief.model_validate(payload)
-    except (json.JSONDecodeError, ValidationError, TypeError) as exception:
+    except json.JSONDecodeError as exception:
         raise BriefValidationError(
-            "brief_schema_invalid", "Structured Brief Schema 无效"
+            "brief_schema_invalid",
+            "Structured Brief Schema 无效",
+            ("json:invalid",),
+        ) from exception
+    except ValidationError as exception:
+        raise BriefValidationError(
+            "brief_schema_invalid",
+            "Structured Brief Schema 无效",
+            _pydantic_repair_hints(exception),
+        ) from exception
+    except TypeError as exception:
+        raise BriefValidationError(
+            "brief_schema_invalid",
+            "Structured Brief Schema 无效",
+            ("root:invalid_type",),
         ) from exception
     actual_assets = tuple(
         (item.asset_id, item.asset_version) for item in brief.source_asset_versions
@@ -129,7 +207,9 @@ def validate_brief_response(
         or model.model_code != expected.model_code
     ):
         raise BriefValidationError(
-            "brief_snapshot_mismatch", "Structured Brief 输入快照不一致"
+            "brief_snapshot_mismatch",
+            "Structured Brief 输入快照不一致",
+            ("authoritative_snapshot:mismatch",),
         )
     referenced_ids = {
         evidence_id
@@ -145,6 +225,8 @@ def validate_brief_response(
     }
     if not referenced_ids.issubset(expected.evidence_ids):
         raise BriefValidationError(
-            "brief_evidence_invalid", "Structured Brief 引用了不存在的 evidence"
+            "brief_evidence_invalid",
+            "Structured Brief 引用了不存在的 evidence",
+            ("evidence_ids:unknown_reference",),
         )
     return brief

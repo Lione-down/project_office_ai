@@ -79,6 +79,11 @@ upload -> quarantine -> MIME/extension -> size/archive limits
   closed，禁止根据一次 400 静默永久改变全局 Provider 行为。
 - T2-004 只从 owner-scoped、`ready` 且 key/SHA/asset version 完整性复验通过的 Manifest 构建 Context；Manifest read 上限为配置容量加 1 byte，不对被篡改的大文件执行无界读取。Evidence 和术语内容只进入 user message，固定 system contract 明确其为 untrusted data。
 - Context 同时受 evidence budget 和完整 message+max-output budget 约束；不足时在调用前 fail closed，不截断必需 evidence。`brief-evidence-context.v2` 只消除重复编码：asset identity/version 进入一次性 table，Evidence 按 location kind/Sheet/type 分组并使用确定性短引用；不抽样、不改写原值或 provenance。Agnes 只允许返回本次短引用，应用在校验和落库前严格映射回原始不可变 Evidence ID，未知引用 fail closed。选定术语库必须使用显式 owner/project `library_id + version`，只发送该 snapshot 的标准术语、别名、unit、口径与优先级。
+- Structured Brief 完整 JSON Schema 是静态应用 contract，不含用户数据或 Secret，可随
+  generation/repair prompt 发送。repair validation hints 只由 Pydantic 固定字段路径、
+  数组索引和错误类型构造；未知字段名归一为 `unknown_field`，最多 24 条、每条 160
+  字符。禁止把 validation input、字段值、原始 response 或 exception context 放入 hints、
+  日志、数据库或用户响应。
 - Agnes 输出必须精确保持 user goal/audience/include/exclude、asset/term/Skill/model snapshot 与 Skill 对应 output kind；`file/calculation` fact 和 `agnes_inference` 必须引用本次 Context 已知 evidence ID。非法结构或伪造引用只允许一次 repair，仍失败不创建 Brief 或积分。
 - `provider_calls` 只保存 ID、attempt、Request ID、Token、耗时、状态、错误分类和 `is_redacted=true`，禁止持久化 Key、Prompt、响应正文、文件内容、本地路径或 storage key。Brief API 响应使用 `private, no-store`。
 - T2-005 Brief GET/PATCH/Preflight/confirm 全部先认证并按 `briefs.user_id` owner scope 查询；跨用户 ID 与不存在资源统一为 not-found。PATCH 只追加新 Revision，不能由客户端替换来源资产、术语、Skill、模型或 Evidence snapshot；过期 Revision 与已确认 Revision fail closed。

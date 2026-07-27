@@ -188,3 +188,11 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - 现有同步 `POST /briefs/generate` 仅保留兼容，不再由用户工作流页面调用。Structured
   Brief Schema、Evidence、Preflight、积分和质量门禁均不降低；任务记录不保存 Prompt、
   Provider 原始响应、Credential、文件正文或 storage key。
+- `2026-07-27` 修复真实 Agnes 连续返回 `brief_schema_invalid` 的 contract 传递缺口：
+  generation prompt 除 17 个顶层字段外，现同时携带
+  `StructuredBrief.model_json_schema()` 的完整 nested required/Literal/length/
+  `additionalProperties=false` 约束；一次 repair 接收仅含字段路径和错误类型的 bounded
+  hints，不再要求模型在没有错误定位的情况下盲修。
+- 应用仍以原 strict Pydantic、authoritative snapshot 和 Evidence allowlist 判定结果；
+  validation hints 不含字段值，不进入数据库、日志或用户错误响应。真实 Agnes 合成销售
+  Evidence Contract 已通过，native `response_format` 仍保持关闭。

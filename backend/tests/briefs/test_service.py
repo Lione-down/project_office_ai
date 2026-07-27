@@ -186,6 +186,11 @@ async def test_invalid_schema_is_repaired_exactly_once(brief_harness) -> None:
 
     assert result.revision == 1
     assert len(brief_harness.adapter.calls) == 2
+    repair_payload = json.loads(
+        brief_harness.adapter.calls[1][1].messages[-1]["content"]
+    )
+    assert "module:missing" in repair_payload["validation_hints"]
+    assert "unknown_field:extra_forbidden" in repair_payload["validation_hints"]
     async with brief_harness.session_factory() as session:
         calls = list(
             await session.scalars(select(ProviderCall).order_by(ProviderCall.attempt))

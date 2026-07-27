@@ -95,6 +95,26 @@ def test_validated_brief_response_rejects_output_kind_drift() -> None:
     assert error.value.error_code == "brief_snapshot_mismatch"
 
 
+def test_schema_failure_exposes_bounded_paths_and_types_without_values() -> None:
+    payload = valid_brief_payload()
+    del payload["facts"][0]["source"]
+    payload["facts"][0]["unexpected_private_field"] = "private-value"
+
+    with pytest.raises(BriefValidationError) as error:
+        validate_brief_response(
+            json.dumps(payload, ensure_ascii=False), expected_snapshot()
+        )
+
+    assert error.value.error_code == "brief_schema_invalid"
+    assert "facts.0.source:missing" in error.value.repair_hints
+    assert "facts.0.unknown_field:extra_forbidden" in error.value.repair_hints
+    serialized_hints = json.dumps(error.value.repair_hints, ensure_ascii=False)
+    assert "private-value" not in serialized_hints
+    assert "unexpected_private_field" not in serialized_hints
+    assert len(error.value.repair_hints) <= 24
+    assert all(len(hint) <= 160 for hint in error.value.repair_hints)
+
+
 def test_brief_evidence_references_resolve_to_immutable_ids() -> None:
     payload = valid_brief_payload()
     payload["facts"][0]["evidence_ids"] = ["r0"]

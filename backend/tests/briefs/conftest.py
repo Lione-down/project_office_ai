@@ -156,7 +156,7 @@ async def brief_harness(tmp_path: Path) -> AsyncIterator[BriefServiceHarness]:
                         "structured_output": True,
                         "image_input": False,
                     },
-                    context_window=4096,
+                    context_window=8192,
                     max_output_tokens=512,
                     user_visible=True,
                     is_recommended=True,
