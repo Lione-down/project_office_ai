@@ -196,7 +196,15 @@ Brief worker 成功后进入 `awaiting_confirmation`；失败持久化原因，�
 status/progress/credits/failure 以 `generation_tasks` 为权威投影。跨用户或不存在 ID
 统一返回 `workflow_task_not_found`；服务未配置返回 `workflow_not_configured`。
 
-T2-005 已实现 owner-scoped `GET /briefs/{brief_id}`、`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与 `POST /generations/preflight`。GET 可读取 owner 的历史 Revision；PATCH 只允许基于最新 Revision 追加用户可编辑字段、系统模板版本和匹配当前 unresolved item 的显式 resolution，不允许客户端替换来源、术语、Skill、模型或 Evidence 引用。Preflight 每次复验资产版本/Manifest、Evidence blocker、Brief unresolved item、Skill 全合同、系统模板以及当前 Agnes Provider/Credential/模型能力，返回 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible` 四类结果。
+T2-005 已实现 owner-scoped `GET /briefs/{brief_id}`、`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与 `POST /generations/preflight`。GET 可读取 owner 的历史 Revision；PATCH 只允许基于最新 Revision 追加用户可编辑字段、系统模板版本和匹配当前 Preflight blocker 的显式 resolution，不允许客户端替换来源、术语、Skill、模型或 Evidence 引用。Preflight 每次复验资产版本/Manifest、当前 Structured Brief 实际引用的 Evidence blocker、Brief unresolved item、Skill 全合同、系统模板以及当前 Agnes Provider/Credential/模型能力，返回 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible` 四类结果。
+
+Post-Alpha 单位 resolution 将 Manifest 的 `numeric_unit_unknown` 与运行时
+`unit_unknown` 归一为一个 `unit_unknown` finding，并按 Evidence ID 去重。finding 只返回
+Sheet/单元格、页码、段落或行列等安全定位，不返回文件正文；未被本次 Brief 引用的
+Evidence 不阻断本次输出。`assign_unit` 只接受受支持的 canonical unit，必须匹配当前
+blocking finding，成功后追加新 Revision 并固化到 `source_snapshot` 与 generation Brief
+input snapshot。原始 Manifest 和 Evidence 保持不可变，非法 unit、伪造 ID 或过期
+Revision 均 fail closed。
 
 Alpha 每个输出按 `ceil(800 × model.credit_multiplier)` 独立计算，PPTX/XLSX 组合再求和；model multiplier、各子输出费用和模板版本进入不可变 Preflight snapshot。普通模式需要 confirm 接受当前预计积分，一键模式必须在同一请求提交匹配的预计积分。重复确认同一 Revision 与同一费用返回已锁定 snapshot；`brief_revision_stale`、`preflight_blocked`、`estimated_credits_changed`、Skill/template/model incompatibility 均不能进入 `queued`。
 

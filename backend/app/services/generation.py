@@ -405,6 +405,7 @@ class GenerationService:
                     "brief_group_id": str(brief.brief_group_id),
                     "revision": brief.revision,
                     "content_checksum": brief.content_checksum,
+                    "resolutions": brief.source_snapshot.get("resolutions", []),
                 },
             )
         ]

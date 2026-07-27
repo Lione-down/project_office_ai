@@ -196,3 +196,11 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - 应用仍以原 strict Pydantic、authoritative snapshot 和 Evidence allowlist 判定结果；
   validation hints 不含字段值，不进入数据库、日志或用户错误响应。真实 Agnes 合成销售
   Evidence Contract 已通过，native `response_format` 仍保持关闭。
+- `2026-07-27` 修复 Preflight 全量扫描 Manifest 与同义 blocker 重复计数：Preflight
+  现在只检查 Structured Brief 的 facts、inferences、output、must include/exclude 和
+  unresolved item 实际引用的 Evidence；`numeric_unit_unknown` 统一为
+  `unit_unknown`，同一 Evidence 只形成一个阻断。
+- 单位未知继续 fail closed，但页面会显示 Sheet/单元格等安全定位，并要求用户从受支持的
+  canonical unit 中显式选择。选择结果保存到新的不可变 Brief Revision、
+  `source_snapshot.resolutions` 和 generation input snapshot；不修改 Manifest、不猜测
+  单位，也不放宽 OCR、来源、口径、模型或积分门禁。

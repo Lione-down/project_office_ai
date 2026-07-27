@@ -1781,3 +1781,51 @@
 - 不修改数据库 Schema、API shape、Frontend、Environment、用户文件或旧任务状态；
   不触碰/暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或
   ignored `output/`。
+
+## Post-Alpha Preflight 引用范围与单位解决
+
+### Runtime 根因与修复
+
+- 当前真实 Brief 有 4 个 facts、2 个 inferences、2 个 outputs、0 个
+  `unresolved_items`；17 次 Evidence 引用去重后为 12 个唯一 ID，其中 9 个单位未知。
+- 旧 Preflight 对整份 10,465 Evidence Manifest 扫描，5,193 个
+  `numeric_unit_unknown` 又被 Evidence warning 以 `unit_unknown` 重复加入，最终形成
+  `5,193 + 5,193 + 1 auto_merge = 10,387` 个 conflicts，页面显示 10,386 个阻断项。
+- 新实现只检查当前 Brief 实际引用的 Evidence，并将
+  `numeric_unit_unknown -> unit_unknown`、
+  `ocr_numeric_low_confidence -> numeric_low_confidence` 后按
+  `code + level + evidence_ids` 去重。当前 Runtime 结果为 9 个单位阻断和 1 个非阻断
+  `skill_inputs_shared`。
+- 单位阻断消息提供 Sheet/单元格等安全定位；用户从受支持的 canonical unit 下拉框显式
+  选择，`PATCH` 只接受匹配当前 Preflight blocker 的 resolution，并追加新 Revision。
+  Resolution 固化到 `source_snapshot` 和 generation Brief input snapshot；原始 Manifest、
+  Evidence 和历史 Revision 均不改写。
+
+### TDD、Broad 与真实 Browser
+
+- RED：Backend Preflight 3 个失败，分别锁定非法 unit 未拒绝、未引用 Evidence 被阻断与
+  Manifest/Evidence 重复计数，以及 resolution 无法匹配 Evidence blocker；Generation
+  1 个失败锁定 input snapshot 未携带 resolution；Frontend 1 个失败锁定缺少单位选择。
+- GREEN focused：Preflight `25 passed`、Generation `7 passed`、相关模块合计
+  `50 passed`；Frontend Brief `4 passed`。Frontend full 为 23 files / `71 passed`，
+  最终 production build `104 modules transformed`。
+- Backend full 为 `602 passed, 7 skipped`；skip 仍仅为默认关闭的 4 个 live failure
+  drill 与 3 个 real Agnes case。Ruff 360 files check/format 通过。
+- Backend `pip check` 无 broken requirements，`pip-audit` 无已知漏洞，仅跳过本地非
+  PyPI package；Frontend `npm audit --audit-level=high` 为 0 vulnerabilities。
+- 重建 Backend/Frontend 并只强制替换应用容器，MySQL/Redis 与用户数据未重建；
+  Backend/Frontend healthy，Host `/health/ready=ready` 与 Frontend 返回 200。
+- 生产服务直接只读评估当前 Brief：12 个唯一引用、9 个 `unit_unknown`、1 个
+  `skill_inputs_shared`。真实 Chrome 刷新同一已登录页面后显示 9 个带来源位置的单位
+  下拉框，确认按钮 disabled，Console 无 warning/error；未选择单位、未提交 Revision。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-preflight-referenced-unit-resolution.md`。
+- Backend：Preflight contract/evaluator/service、generation input snapshot 与对应 tests。
+- Frontend：Brief types、确认页、action styles 与 component test。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/SECURITY.md`、
+  `docs/PROGRESS.md` 与 `pitfalls.md`；数据库 Schema、Environment、Provider 与用户文件
+  不变。
+- 未打开、输出或修改用户文件正文，未自动猜测单位，未替用户提交页面；未触碰/暂存
+  `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。

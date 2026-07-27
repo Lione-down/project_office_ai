@@ -30,6 +30,15 @@ export interface BriefRevisionUpdate {
   expected_revision: number;
   goal?: string;
   audience?: string;
+  resolutions?: ConflictResolution[];
+}
+
+export interface ConflictResolution {
+  code: string;
+  evidence_ids: string[];
+  action: "assign_unit" | "confirm_numeric" | "choose_source" | "choose_scope";
+  value?: string;
+  selected_evidence_id?: string;
 }
 
 export interface PreflightConflict {

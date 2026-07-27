@@ -64,3 +64,13 @@ def test_resolution_action_must_match_the_blocker_type() -> None:
             action="choose_source",
             selected_evidence_id=f"e-{'1' * 64}",
         )
+
+
+def test_unit_resolution_rejects_unsupported_unit() -> None:
+    with pytest.raises(ValidationError):
+        ConflictResolution(
+            code="unit_unknown",
+            evidence_ids=(f"e-{'1' * 64}",),
+            action="assign_unit",
+            value="approximately-yuan",
+        )

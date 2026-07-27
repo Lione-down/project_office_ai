@@ -11,6 +11,8 @@ import type {
 import { workspaceApi } from "@/modules/workspace/api";
 import { useSessionStore } from "@/store/session";
 
+import UnitResolutionList from "./components/unit-resolution-list.vue";
+
 
 const route = useRoute();
 const router = useRouter();
@@ -24,6 +26,7 @@ const isSaving = ref(false);
 const isConfirming = ref(false);
 const errorMessage = ref("");
 const isConfirmed = ref(false);
+const unitResolutionValues = ref<Record<string, string>>({});
 const generationIdempotencyKey = crypto.randomUUID();
 
 const briefId = computed(() => String(route.params.briefId ?? ""));
@@ -33,6 +36,12 @@ const blockingConflicts = computed(
     preflight.value?.conflicts.filter((item) =>
       ["blocking", "incompatible"].includes(item.level),
     ) ?? [],
+);
+const unitConflicts = computed(() =>
+  blockingConflicts.value.filter((item) => item.code === "unit_unknown"),
+);
+const otherBlockingConflicts = computed(() =>
+  blockingConflicts.value.filter((item) => item.code !== "unit_unknown"),
 );
 const confirmationConflicts = computed(
   () =>
@@ -73,11 +82,23 @@ function templateLabel(templateCode: string, version: string) {
   return `${labels[templateCode] ?? "系统模板"} · v${version}`;
 }
 
+function conflictKey(code: string, evidenceIds: string[]) {
+  return `${code}:${evidenceIds.join(",")}`;
+}
+
 async function refreshPreflight() {
   preflight.value = await briefApi.preflight(
     activeBriefId.value,
     requireAccessToken(),
   );
+  const nextValues: Record<string, string> = {};
+  for (const conflict of preflight.value.conflicts) {
+    if (conflict.code === "unit_unknown") {
+      const key = conflictKey(conflict.code, conflict.evidence_ids);
+      nextValues[key] = unitResolutionValues.value[key] ?? "";
+    }
+  }
+  unitResolutionValues.value = nextValues;
 }
 
 async function loadBrief() {
@@ -104,15 +125,35 @@ async function saveBrief() {
     errorMessage.value = "目标和受众不能为空";
     return;
   }
+  const unresolvedUnit = unitConflicts.value.find(
+    (item) =>
+      !unitResolutionValues.value[
+        conflictKey(item.code, item.evidence_ids)
+      ],
+  );
+  if (unresolvedUnit) {
+    errorMessage.value = "请先为所有引用数值选择明确单位";
+    return;
+  }
   isSaving.value = true;
   errorMessage.value = "";
   try {
+    const resolutions = unitConflicts.value.map((item) => ({
+      code: item.code,
+      evidence_ids: item.evidence_ids,
+      action: "assign_unit" as const,
+      value:
+        unitResolutionValues.value[
+          conflictKey(item.code, item.evidence_ids)
+        ],
+    }));
     brief.value = await briefApi.reviseBrief(
       brief.value.brief_id,
       {
         expected_revision: brief.value.revision,
         goal: goal.value.trim(),
         audience: audience.value.trim(),
+        ...(resolutions.length ? { resolutions } : {}),
       },
       requireAccessToken(),
     );
@@ -241,10 +282,18 @@ onMounted(loadBrief);
           >
             <strong>还有 {{ blockingConflicts.length }} 个阻断项</strong>
             <ul>
-              <li v-for="conflict in blockingConflicts" :key="conflict.code">
+              <li
+                v-for="conflict in otherBlockingConflicts"
+                :key="conflictKey(conflict.code, conflict.evidence_ids)"
+              >
                 {{ conflict.message }}
               </li>
             </ul>
+            <UnitResolutionList
+              v-if="unitConflicts.length"
+              v-model="unitResolutionValues"
+              :conflicts="unitConflicts"
+            />
           </div>
 
           <div
@@ -298,30 +347,6 @@ onMounted(loadBrief);
 </template>
 
 <style scoped>
-.brief-page {
-  --canvas: oklch(0.975 0.006 78);
-  --surface: oklch(0.995 0.003 78);
-  --ink: oklch(0.24 0.035 257);
-  --muted: oklch(0.53 0.02 257);
-  --line: oklch(0.88 0.012 257);
-  --steel: oklch(0.48 0.13 247);
-  --steel-dark: oklch(0.4 0.12 247);
-  --warning-bg: oklch(0.96 0.035 78);
-  --warning-ink: oklch(0.46 0.11 58);
-  min-height: 100vh;
-  padding: 32px clamp(20px, 5vw, 72px) 64px;
-  color: var(--ink);
-  background: var(--canvas);
-}
-
-.back-link {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  color: var(--ink);
-  text-decoration: none;
-}
-
 .page-heading {
   max-width: 720px;
   margin: 38px auto 30px;

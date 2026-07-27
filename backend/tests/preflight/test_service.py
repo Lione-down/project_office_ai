@@ -10,7 +10,12 @@ from app.models.ai_models import AiModel
 from app.models.briefs import Brief
 from app.models.file_assets import FileAsset
 from app.services.briefs.errors import BriefOperationError
-from app.services.evidence.contracts import EngineVersion, EvidenceManifest
+from app.services.evidence.contracts import (
+    EngineVersion,
+    EvidenceManifest,
+    ExcelCellLocation,
+    ManifestIssue,
+)
 from app.services.preflight.catalog import PPT_DEFAULT_TEMPLATE
 from app.services.preflight.contracts import (
     BriefRevisionCommand,
@@ -129,6 +134,58 @@ async def test_clean_preflight_returns_plan_without_reserving_credits(
     assert brief.status == "preflight"
     assert brief.estimated_credits is None
     assert brief.preflight_snapshot["credit_multiplier"] == "1.0000"
+
+
+@pytest.mark.asyncio
+async def test_preflight_only_reports_referenced_unit_blockers_once(
+    preflight_harness,
+) -> None:
+    unreferenced_evidence_id = f"e-{'9' * 64}"
+    referenced = source_evidence().model_copy(
+        update={
+            "unit": None,
+            "currency": None,
+            "calculation_blocked": True,
+            "warnings": ("numeric_unit_unknown",),
+        }
+    )
+    unreferenced = referenced.model_copy(
+        update={
+            "evidence_id": unreferenced_evidence_id,
+            "location": ExcelCellLocation(kind="excel_cell", sheet="销售", cell="B3"),
+        }
+    )
+    manifest = EvidenceManifest(
+        schema_version="evidence-manifest.v1",
+        manifest_id=f"m-{'5' * 64}",
+        asset_id=ASSET_ID,
+        asset_version=ASSET_VERSION,
+        generated_at=datetime(2026, 7, 23, 23, 30, tzinfo=UTC),
+        generator=EngineVersion(name="office-ai-evidence", version="1.0.0"),
+        source_parser=EngineVersion(name="xlsx-safe", version="1.0.0"),
+        evidence=(referenced, unreferenced),
+        blockers=(
+            ManifestIssue(code="numeric_unit_unknown", evidence_id=EVIDENCE_ID),
+            ManifestIssue(
+                code="numeric_unit_unknown",
+                evidence_id=unreferenced_evidence_id,
+            ),
+        ),
+    )
+    stored = preflight_harness.manifest_store.write(USER_ID, ASSET_ID, manifest)
+    async with preflight_harness.session_factory() as session, session.begin():
+        asset = await session.get(FileAsset, ASSET_ID)
+        asset.manifest_sha256 = stored.sha256
+
+    result = await preflight_harness.service.preflight(
+        "access-token", PreflightCommand(brief_id=BRIEF_ID)
+    )
+
+    blocking = [item for item in result.conflicts if item.level == "blocking"]
+    assert [(item.code, item.evidence_ids) for item in blocking] == [
+        ("unit_unknown", (EVIDENCE_ID,))
+    ]
+    assert "工作表“销售”单元格 B2" in blocking[0].message
 
 
 @pytest.mark.asyncio
@@ -319,22 +376,6 @@ async def test_explicit_unit_resolution_clears_the_matching_evidence_blocker(
     async with preflight_harness.session_factory() as session, session.begin():
         asset = await session.get(FileAsset, ASSET_ID)
         asset.manifest_sha256 = stored.sha256
-        brief = await session.get(Brief, BRIEF_ID)
-        _set_content(
-            brief,
-            {
-                **brief.content,
-                "unresolved_items": [
-                    {
-                        "code": "unit_unknown",
-                        "content": "销售额单位未知",
-                        "source": "file",
-                        "evidence_ids": [EVIDENCE_ID],
-                        "blocking": True,
-                    }
-                ],
-            },
-        )
     revised = await preflight_harness.service.revise(
         "access-token",
         BRIEF_ID,
@@ -357,6 +398,15 @@ async def test_explicit_unit_resolution_clears_the_matching_evidence_blocker(
 
     assert result.status == "preflight"
     assert result.has_blockers is False
+    assert revised.source_snapshot["resolutions"] == [
+        {
+            "code": "unit_unknown",
+            "evidence_ids": [EVIDENCE_ID],
+            "action": "assign_unit",
+            "value": "CNY",
+            "selected_evidence_id": None,
+        }
+    ]
 
 
 @pytest.mark.asyncio

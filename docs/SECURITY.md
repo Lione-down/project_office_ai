@@ -58,6 +58,14 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - OCR client 只向 `http://paddleocr:8080/v1/ocr` 发送已完成安全解码的原始图片 bytes、MIME 和 SHA-256；timeout、network、429/502/503/504、响应大小/项数超限、非法 JSON/Schema、非有限 confidence/coordinates 全部 fail closed。暂时性不可用先清理本轮输出并按 30/60 秒 backoff 重试，最多 3 次；其他错误或重试耗尽稳定拒绝，不生成空白或猜测证据。
 - Evidence Manifest 只允许三类显式 provenance：本任务生成 `source_fact`，`calculated_fact` 必须带 calculation expression，`ai_inference` 必须带 model identity；T2-002 不生成后两类。每条 source fact 关联资产 UUID、`sha256:` 资产版本、parser/OCR engine 版本和 Excel cell、PDF page/BBox、Word paragraph、CSV cell、text line 或 image OCR BBox。Post-Alpha 默认最多预算 11563 个过滤前 source item，在空值过滤和 Pydantic Evidence object expansion 前执行，避免小值/高结构输入放大 worker memory；第 11564 项稳定拒绝。该精确值只校准数量，不放宽 Manifest byte、语义 blocker 或任何 provenance 规则。
 - 叙述 OCR confidence `<0.75` 只告警；数字 `<0.90` 或单位未知设置 calculation blocker。未知单位保持 `null`，不得默认零、币种或任意单位；来源冲突裁决和术语标准化仍属于 T2-003。
+- Preflight 只把 Structured Brief 实际引用的 Evidence blocker 带入本次输出门禁，不能让
+  未使用的整份 Manifest 问题造成无界 UI/response 放大；Manifest 与 Evidence 的同义
+  blocker 必须 canonicalize 后按 Evidence ID 去重。该范围收敛不等于忽略问题，任何被引用
+  的单位未知仍阻断确认。
+- `assign_unit` resolution 必须来自受支持的 canonical unit 白名单并精确匹配当前
+  owner-scoped Preflight finding。服务只在新 Brief Revision 的 `source_snapshot` 和
+  generation input snapshot 中保存裁决，不改写原始 Manifest/Evidence；页面只返回来源
+  位置，不返回非必要 raw value，也不得根据业务语境猜测单位。
 - 术语库 API 和 service 始终按 access Session 的 `user_id` 查询；跨用户 library/item/project ID 与不存在资源使用相同 not-found 语义，不能通过版本查询或项目覆盖枚举其他用户 snapshot。
 - 术语库 mutation 只追加不可变 version 与完整条目 snapshot，删除只追加 tombstone；历史任务固定引用 `library_id + version`，回滚规则不得改写已生成 Manifest、Brief 或任务输入。
 - 标准化使用固定 `terminology-normalization.v1`，不调用模型或公网；只识别显式绝对日期、数字、百分比、币种、万/亿倍率和受支持销售单位。缺少年份、未知单位、显式 unit/currency 冲突全部保留 raw 并阻断，不从上下文猜测。

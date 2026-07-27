@@ -43,8 +43,12 @@ class PreflightEvaluator:
         *,
         content: StructuredBrief,
     ) -> PreflightSnapshot:
+        referenced_evidence_ids = _referenced_evidence_ids(content)
         evidence, manifest_findings = await self._load_evidence(
-            session, current_user, brief
+            session,
+            current_user,
+            brief,
+            referenced_evidence_ids=referenced_evidence_ids,
         )
         findings = [
             *manifest_findings,
@@ -68,7 +72,7 @@ class PreflightEvaluator:
                     )
                 )
         resolution_keys = {
-            (item["code"], tuple(item["evidence_ids"]))
+            (_canonical_conflict_code(item["code"]), tuple(item["evidence_ids"]))
             for item in brief.source_snapshot.get("resolutions", [])
         }
         findings = [
@@ -93,7 +97,12 @@ class PreflightEvaluator:
         )
 
     async def _load_evidence(
-        self, session: AsyncSession, current_user: CurrentUser, brief: Brief
+        self,
+        session: AsyncSession,
+        current_user: CurrentUser,
+        brief: Brief,
+        *,
+        referenced_evidence_ids: frozenset[str],
     ) -> tuple[tuple[EvidenceItem, ...], list[ConflictFinding]]:
         evidence = []
         findings = []
@@ -127,15 +136,25 @@ class PreflightEvaluator:
             except EvidenceProcessingError:
                 findings.append(_source_unavailable())
                 continue
-            evidence.extend(manifest.evidence)
+            referenced_evidence = tuple(
+                item
+                for item in manifest.evidence
+                if item.evidence_id in referenced_evidence_ids
+            )
+            evidence.extend(referenced_evidence)
+            evidence_by_id = {item.evidence_id: item for item in referenced_evidence}
             findings.extend(
                 ConflictFinding(
-                    code=issue.code,
+                    code=_canonical_conflict_code(issue.code),
                     level="blocking",
-                    message=_conflict_message(issue.code),
+                    message=_evidence_conflict_message(
+                        _canonical_conflict_code(issue.code),
+                        evidence_by_id[issue.evidence_id],
+                    ),
                     evidence_ids=(issue.evidence_id,),
                 )
                 for issue in manifest.blockers
+                if issue.evidence_id in evidence_by_id
             )
         return tuple(evidence), findings
 
@@ -154,7 +173,7 @@ class PreflightEvaluator:
                     ConflictFinding(
                         code="unit_unknown",
                         level="blocking",
-                        message=_conflict_message("unit_unknown"),
+                        message=_evidence_conflict_message("unit_unknown", item),
                         evidence_ids=(item.evidence_id,),
                     )
                 )
@@ -163,7 +182,9 @@ class PreflightEvaluator:
                     ConflictFinding(
                         code="numeric_low_confidence",
                         level="blocking",
-                        message=_conflict_message("numeric_low_confidence"),
+                        message=_evidence_conflict_message(
+                            "numeric_low_confidence", item
+                        ),
                         evidence_ids=(item.evidence_id,),
                     )
                 )
@@ -174,19 +195,20 @@ class PreflightEvaluator:
         content: StructuredBrief, source_snapshot: dict
     ) -> list[ConflictFinding]:
         resolutions = {
-            (item["code"], tuple(item["evidence_ids"]))
+            (_canonical_conflict_code(item["code"]), tuple(item["evidence_ids"]))
             for item in source_snapshot.get("resolutions", [])
         }
         findings = []
         for item in content.unresolved_items:
-            if (item.code, item.evidence_ids) in resolutions:
+            code = _canonical_conflict_code(item.code)
+            if (code, item.evidence_ids) in resolutions:
                 continue
             findings.append(
                 ConflictFinding(
-                    code=item.code,
+                    code=code,
                     level="blocking" if item.blocking else "needs_confirmation",
                     message=(
-                        _conflict_message(item.code)
+                        _conflict_message(code)
                         if item.blocking
                         else f"请确认：{item.content}"
                     ),
@@ -320,6 +342,47 @@ def _conflict_message(code: str) -> str:
         "source_conflict": "请选择权威来源后继续",
         "metric_scope_conflict": "请选择明确的数据口径后继续",
     }.get(code, "请处理当前阻断项后继续")
+
+
+def _canonical_conflict_code(code: str) -> str:
+    return {
+        "numeric_unit_unknown": "unit_unknown",
+        "ocr_numeric_low_confidence": "numeric_low_confidence",
+    }.get(code, code)
+
+
+def _evidence_conflict_message(code: str, item: EvidenceItem) -> str:
+    location = item.location
+    if location.kind == "excel_cell":
+        label = f"工作表“{location.sheet}”单元格 {location.cell}"
+    elif location.kind == "csv_cell":
+        label = f"表格第 {location.row} 行、第 {location.column} 列"
+    elif location.kind == "pdf_region":
+        label = f"PDF 第 {location.page} 页"
+    elif location.kind == "word_paragraph":
+        label = f"Word 第 {location.paragraph} 段"
+    elif location.kind == "text_line":
+        label = f"文本第 {location.line} 行"
+    else:
+        label = "图片识别区域"
+    return f"{label}：{_conflict_message(code)}"
+
+
+def _referenced_evidence_ids(content: StructuredBrief) -> frozenset[str]:
+    collections = (
+        content.facts,
+        content.inferences,
+        content.output_plan.deliverables,
+        content.unresolved_items,
+        content.must_include,
+        content.must_exclude,
+    )
+    return frozenset(
+        evidence_id
+        for items in collections
+        for item in items
+        for evidence_id in item.evidence_ids
+    )
 
 
 def _deduplicate_findings(

@@ -1,3 +1,27 @@
+.brief-page {
+  --canvas: oklch(0.975 0.006 78);
+  --surface: oklch(0.995 0.003 78);
+  --ink: oklch(0.24 0.035 257);
+  --muted: oklch(0.53 0.02 257);
+  --line: oklch(0.88 0.012 257);
+  --steel: oklch(0.48 0.13 247);
+  --steel-dark: oklch(0.4 0.12 247);
+  --warning-bg: oklch(0.96 0.035 78);
+  --warning-ink: oklch(0.46 0.11 58);
+  min-height: 100vh;
+  padding: 32px clamp(20px, 5vw, 72px) 64px;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.back-link {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+
 .conflict-panel {
   margin: 20px 0;
   border-radius: 10px;
@@ -11,6 +35,10 @@
   margin: 10px 0 0;
   padding-left: 20px;
   line-height: 1.65;
+}
+
+.conflict-panel ul:empty {
+  display: none;
 }
 
 .review-panel {

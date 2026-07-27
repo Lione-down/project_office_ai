@@ -79,10 +79,24 @@ class BriefWorkflowService:
                     item.model_dump(mode="json") for item in command.template_versions
                 ]
             if command.resolutions is not None:
-                self._validate_resolutions(content, command)
-                source_snapshot["resolutions"] = [
-                    item.model_dump(mode="json") for item in command.resolutions
-                ]
+                current_preflight = await self._evaluator.evaluate(
+                    session,
+                    current_user,
+                    latest,
+                    content=self._validated_content(latest),
+                )
+                self._validate_resolutions(current_preflight, command)
+                resolutions = {
+                    (item["code"], tuple(item["evidence_ids"])): dict(item)
+                    for item in source_snapshot.get("resolutions", [])
+                }
+                resolutions.update(
+                    {
+                        (item.code, item.evidence_ids): item.model_dump(mode="json")
+                        for item in command.resolutions
+                    }
+                )
+                source_snapshot["resolutions"] = list(resolutions.values())
             model = await session.get(AiModel, latest.selected_model_id)
             if model is None:
                 raise BriefOperationError("model_not_found", "模型不存在", 404)
@@ -229,10 +243,12 @@ class BriefWorkflowService:
 
     @staticmethod
     def _validate_resolutions(
-        content: StructuredBrief, command: BriefRevisionCommand
+        preflight: PreflightSnapshot, command: BriefRevisionCommand
     ) -> None:
         unresolved = {
-            (item.code, item.evidence_ids) for item in content.unresolved_items
+            (item.code, item.evidence_ids)
+            for item in preflight.conflicts
+            if item.level in {"blocking", "incompatible"}
         }
         if any(
             (item.code, item.evidence_ids) not in unresolved

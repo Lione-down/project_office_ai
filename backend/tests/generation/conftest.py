@@ -205,6 +205,15 @@ async def generation_harness() -> AsyncIterator[GenerationHarness]:
                                 "version": "1.0.0",
                             }
                         ],
+                        "resolutions": [
+                            {
+                                "code": "unit_unknown",
+                                "evidence_ids": [f"e-{'1' * 64}"],
+                                "action": "assign_unit",
+                                "value": "CNY",
+                                "selected_evidence_id": None,
+                            }
+                        ],
                     },
                     content={},
                     content_checksum="a" * 64,

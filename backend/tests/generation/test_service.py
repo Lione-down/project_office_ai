@@ -39,6 +39,9 @@ async def test_idempotent_creation_reserves_once_and_freezes_inputs(
         user = await session.get(User, USER_ID)
         reserve = await session.scalar(select(CreditLedger))
         task = await session.scalar(select(GenerationTask))
+        brief_input = await session.scalar(
+            select(GenerationTaskInput).where(GenerationTaskInput.input_type == "brief")
+        )
 
     assert first.task_id == replay.task_id
     assert replay.replayed is True
@@ -49,6 +52,15 @@ async def test_idempotent_creation_reserves_once_and_freezes_inputs(
     assert reserve.amount == -800
     assert reserve.task_id == first.task_id
     assert task.skill_snapshot[0]["version"] == "1.0.0"
+    assert brief_input.snapshot["resolutions"] == [
+        {
+            "code": "unit_unknown",
+            "evidence_ids": [f"e-{'1' * 64}"],
+            "action": "assign_unit",
+            "value": "CNY",
+            "selected_evidence_id": None,
+        }
+    ]
 
 
 async def test_creation_rejects_cross_owner_and_insufficient_credit(

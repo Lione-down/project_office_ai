@@ -8,6 +8,22 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.services.briefs.contracts import StructuredBrief
 
 
+SUPPORTED_UNIT_RESOLUTIONS = frozenset(
+    {
+        "CNY",
+        "CNY_10K",
+        "CNY_100M",
+        "USD",
+        "PERCENT",
+        "RATIO",
+        "COUNT_PERSON",
+        "COUNT_ITEM",
+        "COUNT_SET",
+        "COUNT_UNIT",
+    }
+)
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -47,6 +63,11 @@ class ConflictResolution(StrictModel):
         elif self.action in {"assign_unit", "choose_scope"}:
             if self.value is None or self.selected_evidence_id is not None:
                 raise ValueError("unit and scope resolutions require a value")
+            if (
+                self.action == "assign_unit"
+                and self.value not in SUPPORTED_UNIT_RESOLUTIONS
+            ):
+                raise ValueError("unit resolution is not supported")
         elif self.value is not None or self.selected_evidence_id is not None:
             raise ValueError("numeric confirmation cannot override evidence")
         return self

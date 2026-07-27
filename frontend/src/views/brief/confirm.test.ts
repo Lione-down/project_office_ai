@@ -129,6 +129,42 @@ describe("Brief confirmation view", () => {
     expect(wrapper.get("[data-testid='confirm-brief']").attributes("disabled")).toBeDefined();
   });
 
+  it("saves explicit unit resolutions as a new revision", async () => {
+    const revisedBriefId = "019f4000-0000-7000-8000-000000000032";
+    apiMocks.reviseBrief.mockResolvedValue({
+      ...brief,
+      brief_id: revisedBriefId,
+      revision: 2,
+    });
+    const wrapper = await mountView(true);
+
+    await wrapper.get("[data-testid='unit-resolution-0']").setValue("CNY_10K");
+    await wrapper.get("[data-testid='save-brief']").trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.reviseBrief).toHaveBeenCalledWith(
+      brief.brief_id,
+      {
+        expected_revision: 1,
+        goal: "形成月度销售经营复盘",
+        audience: "销售管理层",
+        resolutions: [
+          {
+            code: "unit_unknown",
+            evidence_ids: ["e-1"],
+            action: "assign_unit",
+            value: "CNY_10K",
+          },
+        ],
+      },
+      "access-token",
+    );
+    expect(apiMocks.preflight).toHaveBeenLastCalledWith(
+      revisedBriefId,
+      "access-token",
+    );
+  });
+
   it("confirms the accepted estimate when preflight is clean", async () => {
     apiMocks.confirm.mockResolvedValue({ ...preflight(), status: "queued" });
     workspaceMocks.createGeneration.mockResolvedValue({

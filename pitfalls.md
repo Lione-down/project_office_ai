@@ -628,6 +628,20 @@
   和“模型收到完整可执行 contract”；repair 必须给安全、可定位的机器错误提示，不能只说
   “格式不对”，也不能把 validation input 或 Provider response 写入日志。
 
+### 2026-07-27 · Post-Alpha · Preflight 不能用整份 Manifest 代替本次引用范围
+
+- 现象：当前 Brief 只有 12 个唯一 Evidence 引用，旧 Preflight 却扫描整份 10,465 条
+  Manifest；5,193 个单位 blocker 又以两个同义 code 分别进入结果，页面显示 10,386 个
+  重复且无法操作的阻断项。
+- 影响：未用于本次输出的数据阻止整个任务；响应和 DOM 被无界放大。前端只有重复文案，
+  后端 resolution 又只匹配 Brief unresolved item，用户没有可完成路径。
+- 本次处理：从 Brief 六类内容集合收集实际 Evidence 引用，Manifest/Evidence finding
+  canonicalize 后去重；单位项显示安全位置并使用白名单 canonical unit，resolution 匹配
+  当前 Preflight blocker 后追加 Revision，并进入 generation input snapshot。
+- 预防/验证：所有 validation gate 必须明确“全资产事实”与“当前输出引用”的边界；
+  同义错误码在聚合前归一。阻断文案必须同时提供可定位对象和真实解决入口，禁止用
+  “忽略并继续”绕过不可变 Evidence，也禁止让不可操作的万级列表进入 Browser。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
