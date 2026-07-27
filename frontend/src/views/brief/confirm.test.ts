@@ -7,7 +7,6 @@ import { useSessionStore } from "@/store/session";
 
 import BriefConfirmView from "./confirm.vue";
 
-
 const apiMocks = vi.hoisted(() => ({
   getBrief: vi.fn(),
   reviseBrief: vi.fn(),
@@ -44,21 +43,19 @@ const brief = {
   confirmed_at: null,
 };
 
-function preflight(hasBlockers = false) {
+function preflight(hasBlockers = false, unitConflictCount = 1) {
   return {
     brief_id: brief.brief_id,
     brief_group_id: brief.brief_group_id,
     revision: 1,
     status: hasBlockers ? "needs_resolution" : "preflight",
     conflicts: hasBlockers
-      ? [
-          {
+      ? Array.from({ length: unitConflictCount }, (_, index) => ({
             code: "unit_unknown",
             level: "blocking",
-            message: "请为数值补充明确单位后继续",
-            evidence_ids: ["e-1"],
-          },
-        ]
+            message: `请为数值 ${index + 1} 补充明确单位后继续`,
+            evidence_ids: [`e-${index + 1}`],
+          }))
       : [
           {
             code: "narrative_low_confidence",
@@ -83,7 +80,7 @@ function preflight(hasBlockers = false) {
   };
 }
 
-async function mountView(hasBlockers = false) {
+async function mountView(hasBlockers = false, unitConflictCount = 1) {
   const pinia = createPinia();
   setActivePinia(pinia);
   const session = useSessionStore();
@@ -103,7 +100,9 @@ async function mountView(hasBlockers = false) {
     ],
   });
   apiMocks.getBrief.mockResolvedValue(brief);
-  apiMocks.preflight.mockResolvedValue(preflight(hasBlockers));
+  apiMocks.preflight.mockResolvedValue(
+    preflight(hasBlockers, unitConflictCount),
+  );
   await router.push(`/briefs/${brief.brief_id}/confirm`);
   await router.isReady();
   const wrapper = mount(BriefConfirmView, {
@@ -124,22 +123,48 @@ describe("Brief confirmation view", () => {
     expect(wrapper.text()).toContain("确认后进入生成队列");
     expect(wrapper.text()).toContain("高管钢蓝 · v1.0.0");
     expect(wrapper.text()).not.toContain("ppt.executive-blue.v1 @ 1.0.0");
-    expect(wrapper.text()).toContain("请为数值补充明确单位后继续");
+    expect(wrapper.text()).toContain("请为数值 1 补充明确单位后继续");
     expect(wrapper.get("[data-testid='estimated-credits']").text()).toContain("800");
     expect(wrapper.get("[data-testid='confirm-brief']").attributes("disabled")).toBeDefined();
   });
 
-  it("saves explicit unit resolutions as a new revision", async () => {
+  it("keeps the unit save action reachable and unlocks generation after recheck", async () => {
     const revisedBriefId = "019f4000-0000-7000-8000-000000000032";
     apiMocks.reviseBrief.mockResolvedValue({
       ...brief,
       brief_id: revisedBriefId,
       revision: 2,
     });
-    const wrapper = await mountView(true);
+    const wrapper = await mountView(true, 2);
 
+    expect(
+      wrapper
+        .get("[data-testid='unit-resolution-scroll']")
+        .attributes("aria-label"),
+    ).toContain("可滚动");
+    expect(wrapper.get("[data-testid='unit-resolution-progress']").text()).toContain(
+      "0/2",
+    );
+    expect(
+      wrapper.get("[data-testid='save-unit-resolutions']").attributes("disabled"),
+    ).toBeDefined();
     await wrapper.get("[data-testid='unit-resolution-0']").setValue("CNY_10K");
-    await wrapper.get("[data-testid='save-brief']").trigger("click");
+    await wrapper.get("[data-testid='unit-resolution-1']").setValue("COUNT_ITEM");
+
+    expect(wrapper.get("[data-testid='unit-resolution-progress']").text()).toContain(
+      "2/2",
+    );
+    expect(
+      wrapper.get("[data-testid='save-unit-resolutions']").attributes("disabled"),
+    ).toBeUndefined();
+    expect(wrapper.get("[data-testid='confirm-brief']").text()).toContain(
+      "保存单位并重新校验",
+    );
+
+    apiMocks.preflight.mockResolvedValue(preflight(false));
+    await wrapper
+      .get("[data-testid='save-unit-resolutions']")
+      .trigger("click");
     await flushPromises();
 
     expect(apiMocks.reviseBrief).toHaveBeenCalledWith(
@@ -155,6 +180,12 @@ describe("Brief confirmation view", () => {
             action: "assign_unit",
             value: "CNY_10K",
           },
+          {
+            code: "unit_unknown",
+            evidence_ids: ["e-2"],
+            action: "assign_unit",
+            value: "COUNT_ITEM",
+          },
         ],
       },
       "access-token",
@@ -163,6 +194,9 @@ describe("Brief confirmation view", () => {
       revisedBriefId,
       "access-token",
     );
+    expect(
+      wrapper.get("[data-testid='confirm-brief']").attributes("disabled"),
+    ).toBeUndefined();
   });
 
   it("confirms the accepted estimate when preflight is clean", async () => {

@@ -1829,3 +1829,37 @@
   不变。
 - 未打开、输出或修改用户文件正文，未自动猜测单位，未替用户提交页面；未触碰/暂存
   `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。
+
+## Post-Alpha Preflight 单位操作闭环与滚动修复
+
+### 根因与实现
+
+- 单位下拉只更新页面临时 state，唯一保存入口位于左侧 Brief 编辑卡片；右侧长 blocker
+  列表与左侧保存动作无法同时看见。完成 9/9 选择后，服务端 Preflight 尚未刷新，因此
+  生成按钮保持 disabled，但旧页面没有解释下一步。
+- 单位列表改为有可见滚动条、键盘 focus 和 responsive 高度上限的独立区域；滚到列表
+  边界后仍可继续滚动页面。阻断区底部显示 `已选 x/y`，全部完成后启用“保存 n 个单位并
+  重新校验”。
+- 保存继续复用既有 immutable Revision PATCH；成功后刷新 Preflight。单位未选完、
+  已选但未保存、存在其他 blocker 与 clean 状态分别显示准确的主按钮文案。
+
+### TDD、Broad 与 Runtime
+
+- 首次 Compose focused 命令误用了旧 Frontend image，未计入证据；重建 image 后真实 RED
+  为 `1 failed, 3 passed`，锁定缺少滚动区和右侧保存动作。GREEN focused 为 `4 passed`。
+- Frontend full 为 23 files / `71 passed`；production build 为
+  `104 modules transformed`；`npm audit --audit-level=high` 为 0 vulnerabilities。
+- 只重建并强制替换 Frontend；Backend、workflow worker、MySQL、Redis 与用户数据未重建。
+  Frontend/Backend/workflow worker/MySQL/Redis 均 healthy，Frontend Host 返回 200。
+- 真实 Chrome 只读确认当前用户已通过旧入口形成 Revision 2 并创建 generation task；
+  未再次保存或确认。2048px 为双栏且无横向 overflow，375px 为 343px 单栏且无横向
+  overflow，Console 无 warning/error；验收后恢复到用户原 generation 详情页。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-preflight-unit-action-scroll.md`。
+- Frontend：Brief 确认页、单位列表、action styles 与 component test。
+- Records：`docs/PLAN.md`、`docs/PROGRESS.md` 与 `pitfalls.md`。
+- Backend/API/数据库 Schema/Evidence/Preflight/积分均不变；未打开或修改用户文件，未
+  自动猜测、保存单位或创建任务；未触碰/暂存 `.playwright-cli/`、`design-system/`、
+  旧 `docs/ui-mockups/` 或 ignored `output/`。

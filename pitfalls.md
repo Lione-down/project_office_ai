@@ -642,6 +642,19 @@
   同义错误码在聚合前归一。阻断文案必须同时提供可定位对象和真实解决入口，禁止用
   “忽略并继续”绕过不可变 Evidence，也禁止让不可操作的万级列表进入 Browser。
 
+### 2026-07-27 · Post-Alpha · 表单已填写不等于服务端门禁已解除
+
+- 现象：9 个单位下拉都已选择，但选择只存在于前端临时 state；保存 Revision 的按钮位于
+  另一列顶部。用户滚到右栏底部只看到 disabled 的生成按钮，无法知道必须回到左栏保存。
+- 影响：数据输入看似完成，Preflight 仍持有旧 blocker；长列表同时把保存/校验动作推离
+  当前上下文，形成“无法滚动、无法生成”的综合感知。
+- 本次处理：长单位列表使用独立可滚动区域；选择区原位显示完成计数、保存并重新校验动作
+  及 Revision 说明。主按钮根据“未选完、待保存、其他 blocker、clean”显示准确文案，
+  保存成功刷新 Preflight 后才解锁生成。
+- 预防/验证：任何 client-side resolution 都必须在输入附近提供明确 commit action，
+  并把 `local state -> persisted revision -> server revalidation -> unlocked action`
+  写成一个自动化 contract；disabled 按钮必须解释恢复步骤，不能依赖跨栏或跨屏动作。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

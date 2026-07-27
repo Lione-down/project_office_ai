@@ -204,3 +204,9 @@ generation_reserve -> generation_finalize | generation_release -> refund
   canonical unit 中显式选择。选择结果保存到新的不可变 Brief Revision、
   `source_snapshot.resolutions` 和 generation input snapshot；不修改 Manifest、不猜测
   单位，也不放宽 OCR、来源、口径、模型或积分门禁。
+- `2026-07-27` 补齐单位解决的前端操作闭环：单位列表使用有明确滚动条的受限高度区域，
+  阻断区内显示 `已选 x/y` 和“保存单位并重新校验”。全部选择保存为新 Revision 并刷新
+  Preflight 后，生成按钮才自动解锁；未满足门禁时按钮文案直接说明缺少选择、保存或其他
+  blocker。
+- 该交互修复复用既有 Revision PATCH，不自动保存、不自动确认生成，也不修改 API、
+  数据库 Schema、Evidence、Preflight 判定、积分或历史记录。

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { PreflightConflict } from "@/modules/briefs/types";
 
-
 defineProps<{
   conflicts: PreflightConflict[];
 }>();
@@ -26,7 +25,12 @@ function conflictKey(conflict: PreflightConflict) {
 </script>
 
 <template>
-  <div class="unit-resolution-list" aria-label="单位确认">
+  <div
+    class="unit-resolution-list"
+    data-testid="unit-resolution-scroll"
+    aria-label="待确认单位，可滚动"
+    tabindex="0"
+  >
     <label
       v-for="(conflict, index) in conflicts"
       :key="conflictKey(conflict)"
@@ -53,8 +57,18 @@ function conflictKey(conflict: PreflightConflict) {
 <style scoped>
 .unit-resolution-list {
   display: grid;
+  max-height: clamp(240px, 34vh, 340px);
   margin-top: 14px;
+  padding: 2px 10px 2px 2px;
+  overflow-y: auto;
   gap: 12px;
+  scrollbar-gutter: stable;
+}
+
+.unit-resolution-list:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid oklch(0.72 0.1 247 / 45%);
+  outline-offset: 2px;
 }
 
 .unit-resolution-item {
@@ -73,5 +87,11 @@ function conflictKey(conflict: PreflightConflict) {
   color: var(--ink);
   background: var(--surface);
   font: inherit;
+}
+
+@media (max-width: 820px) {
+  .unit-resolution-list {
+    max-height: min(44vh, 360px);
+  }
 }
 </style>

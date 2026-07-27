@@ -13,7 +13,6 @@ import { useSessionStore } from "@/store/session";
 
 import UnitResolutionList from "./components/unit-resolution-list.vue";
 
-
 const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
@@ -43,6 +42,27 @@ const unitConflicts = computed(() =>
 const otherBlockingConflicts = computed(() =>
   blockingConflicts.value.filter((item) => item.code !== "unit_unknown"),
 );
+const selectedUnitResolutionCount = computed(
+  () =>
+    unitConflicts.value.filter(
+      (item) =>
+        unitResolutionValues.value[
+          conflictKey(item.code, item.evidence_ids)
+        ],
+    ).length,
+);
+const allUnitResolutionsSelected = computed(
+  () =>
+    unitConflicts.value.length > 0 &&
+    selectedUnitResolutionCount.value === unitConflicts.value.length,
+);
+const canSaveUnitResolutions = computed(
+  () =>
+    allUnitResolutionsSelected.value &&
+    Boolean(goal.value.trim()) &&
+    Boolean(audience.value.trim()) &&
+    !isSaving.value,
+);
 const confirmationConflicts = computed(
   () =>
     preflight.value?.conflicts.filter(
@@ -56,6 +76,17 @@ const canConfirm = computed(
     !isConfirming.value &&
     !isConfirmed.value,
 );
+const confirmButtonLabel = computed(() => {
+  if (isConfirmed.value) return "任务已创建";
+  if (isConfirming.value) return "正在创建任务…";
+  if (unitConflicts.value.length) {
+    return allUnitResolutionsSelected.value
+      ? "请先保存单位并重新校验"
+      : "请先完成单位选择";
+  }
+  if (blockingConflicts.value.length) return "请先解决阻断项";
+  return "确认并开始生成";
+});
 
 function requireAccessToken() {
   if (!session.accessToken) {
@@ -196,7 +227,6 @@ async function confirmBrief() {
 
 onMounted(loadBrief);
 </script>
-
 <template>
   <section class="brief-page" lang="zh-CN">
     <a class="back-link" href="/">← 返回工作台</a>
@@ -278,9 +308,12 @@ onMounted(loadBrief);
           <div
             v-if="blockingConflicts.length"
             class="conflict-panel"
-            role="alert"
+            role="region"
+            aria-labelledby="blocking-conflicts-title"
           >
-            <strong>还有 {{ blockingConflicts.length }} 个阻断项</strong>
+            <strong id="blocking-conflicts-title">
+              还有 {{ blockingConflicts.length }} 个阻断项
+            </strong>
             <ul>
               <li
                 v-for="conflict in otherBlockingConflicts"
@@ -294,6 +327,32 @@ onMounted(loadBrief);
               v-model="unitResolutionValues"
               :conflicts="unitConflicts"
             />
+            <div
+              v-if="unitConflicts.length"
+              class="unit-resolution-actions"
+            >
+              <div class="unit-resolution-status">
+                <strong data-testid="unit-resolution-progress">
+                  已选 {{ selectedUnitResolutionCount }}/{{ unitConflicts.length }}
+                </strong>
+                <span>
+                  保存后会创建新 Revision 并重新校验，通过后生成按钮自动解锁。
+                </span>
+              </div>
+              <button
+                type="button"
+                class="unit-save-button"
+                data-testid="save-unit-resolutions"
+                :disabled="!canSaveUnitResolutions"
+                @click="saveBrief"
+              >
+                {{
+                  isSaving
+                    ? "正在保存并校验…"
+                    : `保存 ${unitConflicts.length} 个单位并重新校验`
+                }}
+              </button>
+            </div>
           </div>
 
           <div
@@ -329,13 +388,7 @@ onMounted(loadBrief);
             :disabled="!canConfirm"
             @click="confirmBrief"
           >
-            {{
-              isConfirmed
-                ? "任务已创建"
-                : isConfirming
-                  ? "正在创建任务…"
-                  : "确认并开始生成"
-            }}
+            {{ confirmButtonLabel }}
           </button>
           <p class="boundary-note">
             确认后将创建真实任务，并按已接受的估算预留积分。
@@ -345,153 +398,5 @@ onMounted(loadBrief);
     </template>
   </section>
 </template>
-
-<style scoped>
-.page-heading {
-  max-width: 720px;
-  margin: 38px auto 30px;
-  text-align: center;
-}
-
-.eyebrow,
-.section-kicker {
-  margin: 0 0 8px;
-  color: var(--steel);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.page-heading h1 {
-  margin: 0;
-  font-size: clamp(32px, 4vw, 46px);
-  line-height: 1.12;
-  text-wrap: balance;
-}
-
-.page-heading > p:last-child {
-  margin: 14px 0 0;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.workspace {
-  display: grid;
-  max-width: 1120px;
-  margin: 0 auto;
-  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
-  gap: 24px;
-  align-items: start;
-}
-
-.brief-editor,
-.confirmation-panel,
-.state-panel {
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow:
-    0 1px 3px rgb(21 35 56 / 12%),
-    0 16px 38px rgb(21 35 56 / 7%);
-}
-
-.brief-editor,
-.confirmation-panel {
-  padding: 28px;
-}
-
-.section-heading,
-.editor-footer,
-.credit-summary,
-.output-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.section-heading h2 {
-  margin: 0;
-  font-size: 24px;
-  letter-spacing: -0.012em;
-}
-
-.revision-badge,
-.file-kind {
-  border-radius: 8px;
-  background: oklch(0.94 0.025 247);
-  color: var(--steel-dark);
-  font-variant-numeric: tabular-nums;
-  font-weight: 750;
-}
-
-.revision-badge {
-  padding: 6px 10px;
-}
-
-label {
-  display: block;
-  margin: 24px 0 8px;
-  font-weight: 700;
-}
-
-textarea,
-input {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px 14px;
-  color: var(--ink);
-  background: oklch(1 0 0);
-  font: inherit;
-  line-height: 1.65;
-}
-
-textarea:focus-visible,
-input:focus-visible,
-button:focus-visible,
-a:focus-visible {
-  outline: 3px solid oklch(0.72 0.1 247 / 45%);
-  outline-offset: 2px;
-}
-
-.editor-footer {
-  margin-top: 24px;
-  color: var(--muted);
-}
-
-.output-list {
-  margin: 22px 0;
-  padding: 0;
-  list-style: none;
-}
-
-.output-list li {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.file-kind {
-  min-width: 58px;
-  padding: 7px 8px;
-  text-align: center;
-}
-
-.output-copy {
-  display: grid;
-  flex: 1;
-  gap: 4px;
-}
-
-.output-copy small {
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.output-credit,
-.credit-summary strong {
-  font-variant-numeric: tabular-nums;
-}
-
-</style>
+<style scoped src="./confirm-layout.css"></style>
 <style scoped src="./confirm-actions.css"></style>
