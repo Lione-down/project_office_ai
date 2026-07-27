@@ -176,6 +176,15 @@ MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credent
 - T2-001 worker 将 `app-files` 只读挂载到 `/app/files`，将独立 `parsed-files` 可写挂载到 `/app/parsed`；结构化结果固定为 `users/{user_id}/parsed/{asset_id}/content.json`，单结果默认不超过 10 MB。
 - T2-002 worker 将独立 `evidence-files` 可写挂载到 `/app/evidence`；Manifest key 固定为 `users/{user_id}/assets/{asset_id}/extracted/evidence-manifest.json`，单结果默认不超过 10 MB。`app-files` 仍只读，Evidence 输出不能改写原始 quarantine。
 - 解析 worker 使用 backend 镜像与真实 polling entrypoint，只连接 internal `private` network，不挂载 Master/Provider Key；root filesystem 只读，`/tmp` 使用 tmpfs，并限制为 `768m` memory、`1.0` CPU 和 `128` PIDs。Office XML member、parser 总结构项、OCR response 和两类结构化输出分别有独立预算；parser 在可终止子进程中执行并受 timeout 约束。
+- Post-Alpha 新增 `workflow-worker`，使用 backend 镜像和
+  `python -m app.workers.workflow` entrypoint，消费
+  `office_ai:workflow:queue`。它需要 MySQL、Redis、只读 `parsed-files`/
+  `evidence-files` 及 Agnes credential 解密能力，因此连接 `edge + private` 并挂载
+  `OFFICE_AI_MASTER_KEY`；不映射 Host port，root filesystem read-only，以
+  `10001:10001` 运行。原解析 `worker` 继续只连 private、无 Master/Provider credential。
+- Backend Outbox publisher 按 event type 分流：`brief.*` 只进入 workflow queue，
+  `generation.*` 只进入 `office_ai:generation:queue`，不同 consumer 不混取。真实 Compose
+  已构建并启动 `workflow-worker`，当前 10 个长期服务 healthy。
 - PaddleOCR 使用独立 `office-ai-paddleocr:local` image。为避免不可解析的旧 image tag，
   以可解析的 `paddlepaddle/paddle:3.3.1` 为基础，再固定安装经真实 inference 验证的
   PaddlePaddle `3.1.1` 与 PaddleOCR `3.7.0`；构建阶段固定下载

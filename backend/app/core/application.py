@@ -33,10 +33,12 @@ from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.generation import GenerationService
 from app.services.generation_contracts import GenerationServices
 from app.services.outbox import (
+    CompositeRecoveryService,
     OutboxDispatcher,
     OutboxRuntime,
     RedisGenerationPublisher,
     TaskRecoveryService,
+    WorkflowTaskRecoveryService,
 )
 from app.services.rate_limit import RedisRateLimiter
 from app.services.provider_admin import ProviderAdminService
@@ -44,6 +46,8 @@ from app.services.provider_security import CredentialCipher, ProviderConfigurati
 from app.services.preflight.service import BriefWorkflowService
 from app.services.skills import SkillCatalogService
 from app.services.terminology.service import TerminologyLibraryService
+from app.services.workflow_contracts import WorkflowServices
+from app.services.workflow_tasks import WorkflowTaskService
 from app.settings.config import Settings, get_settings
 from app.storage.local import LocalStorageAdapter
 
@@ -68,6 +72,7 @@ def create_app(
     terminology_services: object | None = None,
     brief_services: BriefServices | None = None,
     generation_services: GenerationServices | None = None,
+    workflow_services: WorkflowServices | None = None,
     admin_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
@@ -217,16 +222,32 @@ def create_app(
             )
         )
 
+    if workflow_services is None and database is not None and auth_services is not None:
+        workflow_services = WorkflowServices(
+            WorkflowTaskService(
+                database.session_factory,
+                auth_services.sessions,
+            )
+        )
+
     if database is not None and redis is not None:
         outbox_runtime = OutboxRuntime(
             OutboxDispatcher(
                 database.session_factory,
                 RedisGenerationPublisher(redis),
             ),
-            TaskRecoveryService(
-                database.session_factory,
-                stale_after=timedelta(
-                    seconds=application_settings.task_timeout_seconds
+            CompositeRecoveryService(
+                TaskRecoveryService(
+                    database.session_factory,
+                    stale_after=timedelta(
+                        seconds=application_settings.task_timeout_seconds
+                    ),
+                ),
+                WorkflowTaskRecoveryService(
+                    database.session_factory,
+                    stale_after=timedelta(
+                        seconds=application_settings.task_timeout_seconds
+                    ),
                 ),
             ),
         )
@@ -256,6 +277,7 @@ def create_app(
     app.state.terminology_services = terminology_services
     app.state.brief_services = brief_services
     app.state.generation_services = generation_services
+    app.state.workflow_services = workflow_services
     app.add_middleware(
         UploadBodyLimitMiddleware,
         max_body_bytes=application_settings.max_upload_body_bytes,

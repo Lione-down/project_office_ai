@@ -9,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models.generation_task_steps import GenerationTaskStep
 from app.models.generation_tasks import GenerationTask
 from app.models.outbox_events import OutboxEvent
+from app.models.workflow_tasks import WorkflowTask
 from app.models.base import utc_now
 from app.services.outbox_events import build_generation_outbox_event
+from app.services.outbox_events import build_workflow_outbox_event
 
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,12 @@ class OutboxDispatcher:
 
 @dataclass(frozen=True)
 class RecoveryResult:
+    requeued_tasks: int = 0
+    uncertain_tasks: int = 0
+
+
+@dataclass(frozen=True)
+class WorkflowRecoveryResult:
     requeued_tasks: int = 0
     uncertain_tasks: int = 0
 
@@ -152,19 +160,91 @@ class TaskRecoveryService:
 
 class RedisGenerationPublisher:
     queue_key = "office_ai:generation:queue"
+    workflow_queue_key = "office_ai:workflow:queue"
 
     def __init__(self, redis) -> None:
         self._redis = redis
 
     async def publish(self, event_id, event_type, payload) -> None:
+        if event_type.startswith("brief."):
+            queue_key = self.workflow_queue_key
+        elif event_type.startswith("generation."):
+            queue_key = self.queue_key
+        else:
+            raise ValueError("outbox event type is unsupported")
         await self._redis.enqueue_generation(
-            self.queue_key,
+            queue_key,
             {
                 "event_id": str(event_id),
                 "event_type": event_type,
                 "payload": payload,
             },
         )
+
+
+class WorkflowTaskRecoveryService:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        stale_after: timedelta,
+    ) -> None:
+        self._session_factory = session_factory
+        self._stale_after = stale_after
+
+    async def recover(self) -> WorkflowRecoveryResult:
+        threshold = utc_now() - self._stale_after
+        requeued = 0
+        uncertain = 0
+        async with self._session_factory() as session, session.begin():
+            tasks = list(
+                await session.scalars(
+                    select(WorkflowTask)
+                    .where(
+                        or_(
+                            (
+                                (WorkflowTask.stage == "brief_queued")
+                                & (WorkflowTask.status == "queued")
+                                & (WorkflowTask.last_enqueued_at <= threshold)
+                            ),
+                            (
+                                (WorkflowTask.stage == "brief_generating")
+                                & (WorkflowTask.status == "running")
+                                & (WorkflowTask.started_at <= threshold)
+                            ),
+                        )
+                    )
+                    .order_by(WorkflowTask.created_at, WorkflowTask.id)
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            for task in tasks:
+                if task.status == "running":
+                    task.stage = "brief_failed"
+                    task.status = "provider_uncertain"
+                    task.progress = 100
+                    task.note = "Brief 整理结果未知"
+                    task.failure_code = "provider_result_unknown"
+                    task.failure_reason = "Provider 结果未知，未自动重试"
+                    task.completed_at = utc_now()
+                    uncertain += 1
+                    continue
+                task.dispatch_sequence += 1
+                task.last_enqueued_at = utc_now()
+                session.add(build_workflow_outbox_event(task))
+                requeued += 1
+        return WorkflowRecoveryResult(
+            requeued_tasks=requeued,
+            uncertain_tasks=uncertain,
+        )
+
+
+class CompositeRecoveryService:
+    def __init__(self, *services) -> None:
+        self._services = services
+
+    async def recover(self) -> tuple[object, ...]:
+        return tuple([await service.recover() for service in self._services])
 
 
 class OutboxRuntime:

@@ -21,6 +21,7 @@ from app.services.briefs.contracts import (
 )
 from app.services.briefs.service import BriefOperationError
 from app.services.preflight.catalog import PPT_DEFAULT_TEMPLATE
+from app.services.auth_sessions import CurrentUser
 from tests.briefs.helpers import (
     ASSET_ID,
     CREDENTIAL_ID,
@@ -77,6 +78,29 @@ def completion(payload: dict, request_id: str) -> ProviderCompletion:
         finish_reason="stop",
         status_summary=200,
     )
+
+
+async def test_generation_can_run_for_durable_worker_identity(brief_harness) -> None:
+    brief_harness.adapter.outcomes = [
+        completion(valid_brief_payload(), "agnes-worker-request")
+    ]
+    current_user = CurrentUser(
+        user_id=USER_ID,
+        phone_country_code="+86",
+        phone_number="13800000000",
+        role="user",
+        status="active",
+        credit_balance=0,
+        must_change_password=False,
+    )
+
+    result = await brief_harness.service.generate_for_user(
+        current_user,
+        command(),
+        trace_id="workflow-task:test",
+    )
+
+    assert result.brief_group_id is not None
 
 
 async def test_generation_persists_immutable_brief_and_redacted_call_metadata(

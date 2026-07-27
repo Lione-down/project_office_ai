@@ -93,6 +93,26 @@ export interface GeneratedBrief {
   status: string;
 }
 
+export interface WorkflowTask {
+  task_id: string;
+  project_id: string;
+  brief_id: string | null;
+  generation_task_id: string | null;
+  title: string;
+  output_kinds: Array<"pptx" | "xlsx">;
+  stage: string;
+  status: string;
+  progress: number;
+  note: string | null;
+  failure_code: string | null;
+  failure_reason: string | null;
+  estimated_credits: number;
+  settled_credits: number;
+  created_at: string;
+  updated_at: string;
+  replayed: boolean;
+}
+
 export interface GenerationStep {
   step_key: string;
   output_kind: "pptx" | "xlsx";

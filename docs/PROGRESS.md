@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-27`
-- 最近完成：`Post-Alpha 空项目首份材料上传修复`
+- 最近完成：`Post-Alpha durable 异步工作流任务与失败记录`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1687,3 +1687,52 @@
   `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`；5,193 个
   `numeric_unit_unknown` blocker、`1/10 pilot` 边界和“无下一 dependency-ready task”
   均保持不变。
+
+## Post-Alpha durable 异步工作流任务与失败记录
+
+### 根因与实现
+
+- 用户点击继续后，旧前端同步等待 `POST /briefs/generate`；真实 Runtime 分别观察到约
+  110 秒 `502` 与约 88 秒 `422`。后一次经过 Agnes 初次和 repair 两次 `200`，最终因
+  strict Schema 返回 `brief_schema_invalid`。Brief 成功前数据库没有任务，`/tasks`
+  又是静态占位，因此处理中和失败均无记录。
+- 新增 `workflow_tasks` 与 migration `20260727_0015`。`POST /workflow-tasks` 在短事务
+  内写 task + Outbox 并立即返回；独立 workflow worker 后台整理 Brief，成功进入
+  `awaiting_confirmation`，失败保留 stable code、安全原因和备注。
+- Frontend 新建任务后立即进入 `/tasks/{task_id}`；任务列表/详情调用真实 API 并轮询
+  非终态，显示输出、状态、0–100 进度、备注、失败原因和积分。确认 Brief 后按 group
+  自动关联现有 generation task，并投影其权威状态。
+
+### 验证与 Runtime 证据
+
+- RED 依次覆盖缺少 model/migration、service/API、worker、Compose contract、
+  generation link，以及前端 API/list/detail/route；GREEN focused Backend
+  `71 passed`。
+- Broad：Backend `597 passed, 6 skipped`，6 个 skip 仍仅为默认关闭的 4 个 live
+  failure drill 与 2 个 live Agnes case；Ruff 全量 check/format 通过。Frontend
+  23 files / `70 passed`，production build `101 modules transformed`。
+- 真实 MySQL 从 `20260727_0014` 升级到唯一 `20260727_0015 (head)`；
+  `alembic current` 与 `alembic check` 均通过。Backend image 顺序重建成功，
+  Backend/Frontend/workflow-worker 无依赖强制重建后 10 个长期服务 healthy；
+  Host `9999/health/ready=ready`，Frontend `8888=200`。
+- Backend image 内 workflow tests `12 passed`。Backend `pip check` 无 broken
+  requirements，`pip-audit` 为 0 known vulnerabilities（仅跳过本地非 PyPI package）；
+  Frontend `npm audit --audit-level=high` 为 0 vulnerabilities。
+- 真实浏览器在没有登录 Session 的新标签访问 `/tasks`，按鉴权 contract 重定向登录页；
+  未读取凭证、未代替登录，也未为 QA 再触发 Agnes。已登录任务列表、详情轮询、失败保留
+  由组件 contract 覆盖；下一次用户提交会创建新 canonical task，修复前的同步失败不会
+  伪造或回填为历史记录。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-async-workflow-tasks.md`。
+- Backend：workflow model/migration/API/services/worker、Outbox 分流、Brief identity
+  执行入口、generation group 关联与对应 tests。
+- Frontend：workspace workflow API/type、新建任务异步提交、真实任务列表与详情、
+  route 和对应 tests。
+- Runtime/Records：`docker-compose.yml`、`docs/PLAN.md`、`docs/API.md`、
+  `docs/DATA_MODEL.md`、`docs/ENVIRONMENT.md`、`docs/SECURITY.md`、
+  `docs/PROGRESS.md` 与 `pitfalls.md`。
+- 同步 `/briefs/generate` 只作为兼容 API 保留；Structured Brief/Evidence/Preflight/
+  积分/质量 Gate 均未降低。不保存 Provider 原始响应或 Prompt，不自动重试
+  `provider_uncertain`，不回填修复前没有 canonical task 的历史同步失败。

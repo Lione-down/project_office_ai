@@ -13,6 +13,7 @@ const workspaceMocks = vi.hoisted(() => ({
   uploadAsset: vi.fn(),
   deleteAsset: vi.fn(),
   generateBrief: vi.fn(),
+  createWorkflowTask: vi.fn(),
 }));
 
 vi.mock("@/modules/workspace/api", () => ({
@@ -118,6 +119,11 @@ async function mountWorkflow(loadedOptions?: WorkspaceOptions) {
         name: "brief-confirm",
         component: { template: "<div />" },
       },
+      {
+        path: "/tasks/:taskId",
+        name: "workflow-task-detail",
+        component: { template: "<div />" },
+      },
       { path: "/:pathMatch(.*)*", component: { template: "<div />" } },
     ],
   });
@@ -140,14 +146,14 @@ describe("New workflow", () => {
     vi.useRealTimers();
   });
 
-  it("creates a combined Brief from ready owner-scoped selections", async () => {
-    workspaceMocks.generateBrief.mockResolvedValue({ brief_id: "brief-id" });
+  it("creates a durable workflow task without waiting for Brief generation", async () => {
+    workspaceMocks.createWorkflowTask.mockResolvedValue({ task_id: "workflow-id" });
     const { wrapper, router } = await mountWorkflow();
 
     await wrapper.get("[data-testid='workflow-submit']").trigger("submit");
     await flushPromises();
 
-    expect(workspaceMocks.generateBrief).toHaveBeenCalledWith(
+    expect(workspaceMocks.createWorkflowTask).toHaveBeenCalledWith(
       expect.objectContaining({
         project_id: "project-id",
         asset_ids: ["asset-id"],
@@ -157,11 +163,13 @@ describe("New workflow", () => {
         ],
         model_id: "model-id",
       }),
+      expect.any(String),
       "access",
     );
+    expect(workspaceMocks.generateBrief).not.toHaveBeenCalled();
     expect(router.currentRoute.value).toMatchObject({
-      name: "brief-confirm",
-      params: { briefId: "brief-id" },
+      name: "workflow-task-detail",
+      params: { taskId: "workflow-id" },
     });
   });
 
@@ -386,12 +394,13 @@ describe("New workflow", () => {
     await wrapper.get("[data-testid='workflow-submit']").trigger("submit");
     await flushPromises();
 
-    expect(workspaceMocks.generateBrief).toHaveBeenCalledWith(
+    expect(workspaceMocks.createWorkflowTask).toHaveBeenCalledWith(
       expect.objectContaining({
         term_library_versions: [
           { library_id: "library-id", version: 3 },
         ],
       }),
+      expect.any(String),
       "access",
     );
   });

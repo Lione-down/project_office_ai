@@ -14,6 +14,7 @@ from app.services.rate_limit import RateLimitExceeded
 from app.services.provider_admin import ProviderOperationError
 from app.services.provider_security import ProviderConfigurationError
 from app.services.terminology.service import TerminologyOperationError
+from app.services.workflow_contracts import WorkflowOperationError
 
 
 _error_logger = logging.getLogger("office_ai.error")
@@ -133,6 +134,18 @@ async def handle_generation_operation_error(
     )
 
 
+async def handle_workflow_operation_error(
+    request: Request,
+    exception: WorkflowOperationError,
+) -> JSONResponse:
+    return _error_response(
+        request,
+        exception.status_code,
+        exception.error_code,
+        exception.message,
+    )
+
+
 async def handle_provider_configuration_error(
     request: Request, exception: ProviderConfigurationError
 ) -> JSONResponse:
@@ -153,6 +166,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(BriefOperationError, handle_brief_operation_error)
     app.add_exception_handler(
         GenerationOperationError, handle_generation_operation_error
+    )
+    app.add_exception_handler(
+        WorkflowOperationError,
+        handle_workflow_operation_error,
     )
     app.add_exception_handler(
         ProviderConfigurationError, handle_provider_configuration_error

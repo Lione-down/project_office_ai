@@ -601,6 +601,19 @@
   和真实模型窗口；优先消除可逆冗余，禁止用抽样、静默截断或虚增 capability 把 RED
   伪装成 GREEN。
 
+### 2026-07-27 · Post-Alpha · 异步工作不能等外部调用成功后才创建任务
+
+- 现象：用户提交后页面同步等待 Agnes；旧实现只有合法 Brief 落库后才能继续创建
+  generation task。真实 Schema repair 最终失败时，请求返回错误但任务页没有任何事实。
+- 影响：长调用期间无法跨页面查看进度，刷新会丢失可见状态；失败原因只能停留在瞬时
+  toast，用户无法区分排队、处理中、Schema 失败或 Provider 结果不确定。
+- 本次处理：提交事务先写 canonical `workflow_tasks + outbox_events` 并立即返回，专用
+  worker 后台执行 Brief；列表/详情读取 MySQL 持久进度与安全失败原因，确认后关联既有
+  generation task 权威状态。`provider_uncertain` 不自动重试。
+- 预防/验证：凡是跨请求、外部 Provider 或长耗时流程，必须先建立 owner-scoped durable
+  job 再入队；验收同时覆盖创建可见、幂等重放、重复消息、刷新保留、稳定失败码和
+  Provider in-flight crash，不能用 loading 按钮代替任务事实。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

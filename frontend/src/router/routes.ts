@@ -12,6 +12,7 @@ import NotFoundView from "@/views/system/not-found.vue";
 import HomeView from "@/views/user/home.vue";
 import UserResourceView from "@/views/user/resource.vue";
 import WorkflowNewView from "@/views/user/workflow-new.vue";
+import WorkflowTaskDetailView from "@/views/task/detail.vue";
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -55,6 +56,12 @@ export const routes: RouteRecordRaw[] = [
     path: "/generations/:taskId",
     name: "generation-detail",
     component: GenerationDetailView,
+    meta: { requiresAuth: true, shell: "user" },
+  },
+  {
+    path: "/tasks/:taskId",
+    name: "workflow-task-detail",
+    component: WorkflowTaskDetailView,
     meta: { requiresAuth: true, shell: "user" },
   },
   ...[

@@ -20,6 +20,7 @@ from app.models.term_items import TermItem
 from app.models.term_libraries import TermLibrary
 from app.models.user_sessions import UserSession
 from app.models.users import User
+from app.models.workflow_tasks import WorkflowTask
 
 __all__ = [
     "AiModel",
@@ -44,4 +45,5 @@ __all__ = [
     "TermLibrary",
     "User",
     "UserSession",
+    "WorkflowTask",
 ]

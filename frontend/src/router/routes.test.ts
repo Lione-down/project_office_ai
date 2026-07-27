@@ -15,6 +15,7 @@ describe("application routes", () => {
         "workflow-new",
         "brief-confirm",
         "generation-detail",
+        "workflow-task-detail",
         "tasks",
         "files",
         "templates",
@@ -47,6 +48,10 @@ describe("application routes", () => {
       loginRoute: "admin-login",
     });
     expect(byName.get("generation-detail")?.meta).toMatchObject({
+      requiresAuth: true,
+      shell: "user",
+    });
+    expect(byName.get("workflow-task-detail")?.meta).toMatchObject({
       requiresAuth: true,
       shell: "user",
     });

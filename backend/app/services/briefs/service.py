@@ -13,7 +13,7 @@ from app.models.provider_calls import ProviderCall
 from app.models.provider_credentials import ProviderCredential
 from app.models.base import new_uuid7
 from app.providers.agnes import ChatCompletionRequest, ProviderCompletion
-from app.services.auth_sessions import AuthSessionService
+from app.services.auth_sessions import AuthSessionService, CurrentUser
 from app.services.briefs.context import BriefContextError, build_evidence_context
 from app.services.briefs.contracts import (
     BriefGenerationCommand,
@@ -75,6 +75,19 @@ class BriefGenerationService:
         trace_id: str,
     ) -> BriefRevisionSnapshot:
         current_user = await self._sessions.authenticate_access(access_token)
+        return await self.generate_for_user(
+            current_user,
+            command,
+            trace_id=trace_id,
+        )
+
+    async def generate_for_user(
+        self,
+        current_user: CurrentUser,
+        command: BriefGenerationCommand,
+        *,
+        trace_id: str,
+    ) -> BriefRevisionSnapshot:
         try:
             selection = resolve_alpha_skill_selection(command.skill_codes)
         except SkillSelectionError as exception:

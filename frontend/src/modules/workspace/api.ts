@@ -13,6 +13,7 @@ import type {
   SkillSummary,
   TermLibrarySummary,
   WorkspaceOptions,
+  WorkflowTask,
 } from "./types";
 
 interface WorkspaceApiClient {
@@ -46,6 +47,28 @@ export function createWorkspaceApi(client: WorkspaceApiClient) {
     },
     generateBrief(selection: BriefGenerationSelection, accessToken: string) {
       return client.post<GeneratedBrief>("/briefs/generate", selection, {
+        accessToken,
+      });
+    },
+    createWorkflowTask(
+      selection: BriefGenerationSelection,
+      idempotencyKey: string,
+      accessToken: string,
+    ) {
+      return client.post<WorkflowTask>(
+        "/workflow-tasks",
+        selection,
+        {
+          accessToken,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+      );
+    },
+    listWorkflowTasks(accessToken: string) {
+      return client.get<WorkflowTask[]>("/workflow-tasks", { accessToken });
+    },
+    getWorkflowTask(taskId: string, accessToken: string) {
+      return client.get<WorkflowTask>(`/workflow-tasks/${taskId}`, {
         accessToken,
       });
     },

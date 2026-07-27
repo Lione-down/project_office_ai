@@ -87,6 +87,16 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 
 ## 任务与账务
 
+- 点击生成先建立 owner-scoped `workflow_tasks + outbox_events` 数据库事实，再由专用
+  workflow worker 调用 Agnes。任务 snapshot 只保存结构化 ID/选择项、进度、稳定失败码
+  和可安全展示原因，不保存 Prompt、Provider response、文件正文、Evidence、Credential、
+  storage key 或本地路径。
+- `workflow-worker` 是唯一新增的 Provider-capable worker：只读 Evidence volume、无
+  Host port、non-root/read-only rootfs，连接受控 edge/private network。解析 `worker`
+  继续没有 Master Key 且不能访问公网，不能因复用 backend image 扩大其权限。
+- Brief queue 重复投递由 MySQL claim 去重；确定失败可保留原因，Provider 已 in-flight
+  后 stale 必须转 `provider_uncertain`，不能自动重复外部调用。List/detail 只允许 owner，
+  响应 `private, no-store`；跨用户 ID 不泄露存在性。
 - T3-001 生成创建只接受 owner 的最新 confirmed Brief；同事务锁定用户余额与 Model/Credential/Provider，复验 Skill/model identity、capability、pricing 和子输出费用总和，再写不可变 inputs、task/steps、负数 reserve 与首个 Outbox。数据库唯一键保证幂等，任一写入失败整体回滚。
 - 每用户最多 2 个 running task；Credential 最大并发使用数据库 active checkpoint，RPM/TPM 使用单个 Redis Lua 原子窗口预算。Redis 限流丢失不能改变 task/ledger 事实，恢复后只影响新的 admission。
 - Redis queue 丢失后从 MySQL Outbox 和 checkpoint 恢复，不能依据孤立 queue message 扣费。重复投递由数据库 claim 去重；safe stale step 可重试，已经进入 Provider 且结果未知的 checkpoint 必须转 `provider_uncertain`。

@@ -10,6 +10,7 @@ const workspaceMocks = vi.hoisted(() => ({
   loadOptions: vi.fn(),
   getCreditBalance: vi.fn(),
   getCreditLedger: vi.fn(),
+  listWorkflowTasks: vi.fn(),
 }));
 
 vi.mock("@/modules/workspace/api", () => ({
@@ -49,6 +50,7 @@ describe("User resource views", () => {
     });
     workspaceMocks.getCreditBalance.mockResolvedValue({ balance: 8420 });
     workspaceMocks.getCreditLedger.mockResolvedValue({ entries: [] });
+    workspaceMocks.listWorkflowTasks.mockResolvedValue([]);
   });
 
   it("shows real owner-scoped file metadata and processing state", async () => {
@@ -103,10 +105,38 @@ describe("User resource views", () => {
     expect(wrapper.text()).toContain("流水只追加");
   });
 
-  it("does not invent task history when the backend has no task list endpoint", async () => {
+  it("shows durable task progress, notes, and failure reasons", async () => {
+    workspaceMocks.listWorkflowTasks.mockResolvedValue([
+      {
+        task_id: "workflow-id",
+        project_id: "project-id",
+        brief_id: null,
+        generation_task_id: null,
+        title: "形成销售经营复盘",
+        output_kinds: ["pptx", "xlsx"],
+        stage: "brief_failed",
+        status: "failed",
+        progress: 100,
+        note: "Brief 整理失败",
+        failure_code: "brief_schema_invalid",
+        failure_reason: "Structured Brief Schema 无效",
+        estimated_credits: 0,
+        settled_credits: 0,
+        created_at: "2026-07-27T10:00:00Z",
+        updated_at: "2026-07-27T10:02:00Z",
+        replayed: false,
+      },
+    ]);
     const wrapper = await mountResource("tasks");
 
-    expect(wrapper.text()).toContain("任务列表接口尚未交付");
-    expect(wrapper.findAll("tbody tr")).toHaveLength(0);
+    expect(workspaceMocks.listWorkflowTasks).toHaveBeenCalledWith("access");
+    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
+    expect(wrapper.text()).toContain("形成销售经营复盘");
+    expect(wrapper.text()).toContain("PPTX + XLSX");
+    expect(wrapper.text()).toContain("失败");
+    expect(wrapper.text()).toContain("100%");
+    expect(wrapper.text()).toContain("Brief 整理失败");
+    expect(wrapper.text()).toContain("Structured Brief Schema 无效");
+    expect(wrapper.text()).not.toContain("任务列表接口尚未交付");
   });
 });

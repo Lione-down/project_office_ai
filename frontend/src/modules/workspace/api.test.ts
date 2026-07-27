@@ -29,6 +29,9 @@ describe("Workspace API", () => {
 
     await api.loadOptions("access");
     await api.generateBrief(selection, "access");
+    await api.createWorkflowTask(selection, "workflow-key", "access");
+    await api.listWorkflowTasks("access");
+    await api.getWorkflowTask("workflow-id", "access");
     await api.createGeneration("brief-id", "generation-key", "access");
     await api.getGeneration("task-id", "access");
     await api.getGenerationOutputs("task-id", "access");
@@ -40,6 +43,21 @@ describe("Workspace API", () => {
     expect(client.post).toHaveBeenCalledWith(
       "/briefs/generate",
       selection,
+      { accessToken: "access" },
+    );
+    expect(client.post).toHaveBeenCalledWith(
+      "/workflow-tasks",
+      selection,
+      {
+        accessToken: "access",
+        headers: { "Idempotency-Key": "workflow-key" },
+      },
+    );
+    expect(client.get).toHaveBeenCalledWith("/workflow-tasks", {
+      accessToken: "access",
+    });
+    expect(client.get).toHaveBeenCalledWith(
+      "/workflow-tasks/workflow-id",
       { accessToken: "access" },
     );
     expect(client.post).toHaveBeenCalledWith(

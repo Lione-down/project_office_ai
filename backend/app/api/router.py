@@ -10,6 +10,7 @@ from app.api.v1.invite_codes import router as invite_codes_router
 from app.api.v1.providers import admin_router as provider_admin_router
 from app.api.v1.providers import model_router
 from app.api.v1.term_libraries import router as terminology_router
+from app.api.v1.workflow_tasks import router as workflow_task_router
 
 
 def include_routers(app: FastAPI) -> None:
@@ -27,3 +28,4 @@ def include_routers(app: FastAPI) -> None:
     app.include_router(generation_router)
     app.include_router(task_router)
     app.include_router(credit_router)
+    app.include_router(workflow_task_router)

@@ -161,7 +161,10 @@ T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset ver
 
 | Method | Path | 说明 |
 |---|---|---|
-| POST | `/briefs/generate` | 从版本化材料生成 evidence-grounded Structured Brief |
+| POST | `/workflow-tasks` | 幂等创建异步工作流任务并立即返回 `202` |
+| GET | `/workflow-tasks` | 当前用户最近最多 100 条工作流任务 |
+| GET | `/workflow-tasks/{task_id}` | 当前用户工作流进度、备注、失败原因与关联资源 |
+| POST | `/briefs/generate` | 兼容用同步 Brief 生成；用户工作流不再调用 |
 | PATCH | `/briefs/{brief_id}` | 新建不可变 revision，不原地覆盖历史版本 |
 | POST | `/briefs/{brief_id}/confirm` | 用户确认当前 revision |
 | POST | `/generations/preflight` | 返回冲突、阻断项和不可提高的预计积分 |
@@ -172,6 +175,19 @@ T2-004 生成前校验 owner project/assets、`ready` Manifest key/SHA/asset ver
 | GET | `/generations/{task_id}/outputs` | 当前用户可下载的不可变输出版本 |
 
 生成状态为：`draft`、`preflight`、`needs_resolution`、`queued`、`running`、`succeeded`、`partial_success`、`provider_uncertain`、`failed`、`cancelled`。
+
+Post-Alpha 用户入口使用 `POST /workflow-tasks`。请求复用 Structured Brief 的严格
+选择 contract，并要求 8–128 字符 `Idempotency-Key`；服务只在短事务内校验 Session 与
+owner project，写入 workflow task 和专用 Outbox，首次返回 `202`，同用户幂等重放返回
+`200` 与原任务。List/detail 均 owner-scoped、按创建时间倒序并使用
+`Cache-Control: private, no-store`。
+
+工作流快照返回 task/project/Brief/generation ID、标题、输出类型、stage、status、
+0–100 progress、note、稳定 `failure_code`、安全 `failure_reason`、预计/结算积分和时间。
+Brief worker 成功后进入 `awaiting_confirmation`；失败持久化原因，例如
+`brief_schema_invalid / Structured Brief Schema 无效`。关联 generation task 后，
+status/progress/credits/failure 以 `generation_tasks` 为权威投影。跨用户或不存在 ID
+统一返回 `workflow_task_not_found`；服务未配置返回 `workflow_not_configured`。
 
 T2-005 已实现 owner-scoped `GET /briefs/{brief_id}`、`PATCH /briefs/{brief_id}`、`POST /briefs/{brief_id}/confirm` 与 `POST /generations/preflight`。GET 可读取 owner 的历史 Revision；PATCH 只允许基于最新 Revision 追加用户可编辑字段、系统模板版本和匹配当前 unresolved item 的显式 resolution，不允许客户端替换来源、术语、Skill、模型或 Evidence 引用。Preflight 每次复验资产版本/Manifest、Evidence blocker、Brief unresolved item、Skill 全合同、系统模板以及当前 Agnes Provider/Credential/模型能力，返回 `auto_merge`、`needs_confirmation`、`blocking`、`incompatible` 四类结果。
 

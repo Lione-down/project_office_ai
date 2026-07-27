@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import { ApiError } from "@/api/request";
 import { workspaceApi } from "@/modules/workspace/api";
@@ -7,6 +7,7 @@ import type {
   AssetSummary,
   CreditLedger,
   TermLibrarySummary,
+  WorkflowTask,
 } from "@/modules/workspace/types";
 import { useSessionStore } from "@/store/session";
 
@@ -15,11 +16,21 @@ type UserSection = "tasks" | "files" | "templates" | "term-libraries" | "credits
 const props = defineProps<{ section: UserSection }>();
 const session = useSessionStore();
 const assets = ref<AssetSummary[]>([]);
+const tasks = ref<WorkflowTask[]>([]);
 const termLibraries = ref<TermLibrarySummary[]>([]);
 const creditBalance = ref(0);
 const ledger = ref<CreditLedger["entries"]>([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
+let taskPollTimer: ReturnType<typeof setTimeout> | undefined;
+
+const TERMINAL_TASK_STATUSES = new Set([
+  "succeeded",
+  "partial_success",
+  "failed",
+  "provider_uncertain",
+  "cancelled",
+]);
 
 const templates = [
   {
@@ -77,8 +88,36 @@ function statusLabel(status: string) {
     quarantined: "隔离检查中",
     failed: "处理失败",
     active: "已发布",
+    queued: "排队中",
+    running: "进行中",
+    awaiting_confirmation: "等待确认",
+    succeeded: "已完成",
+    partial_success: "部分完成",
+    provider_uncertain: "结果待确认",
+    cancelled: "已取消",
   };
   return labels[status] ?? status;
+}
+
+function clearTaskPoll() {
+  if (taskPollTimer !== undefined) {
+    clearTimeout(taskPollTimer);
+    taskPollTimer = undefined;
+  }
+}
+
+function scheduleTaskPoll() {
+  clearTaskPoll();
+  if (
+    props.section !== "tasks" ||
+    !tasks.value.some((task) => !TERMINAL_TASK_STATUSES.has(task.status))
+  ) {
+    return;
+  }
+  taskPollTimer = setTimeout(() => {
+    taskPollTimer = undefined;
+    void load();
+  }, 3000);
 }
 
 function ledgerLabel(type: string) {
@@ -100,15 +139,19 @@ function formatDate(value: string) {
 }
 
 async function load() {
+  clearTaskPoll();
   errorMessage.value = "";
   assets.value = [];
+  tasks.value = [];
   termLibraries.value = [];
   ledger.value = [];
-  if (props.section === "tasks" || props.section === "templates") return;
+  if (props.section === "templates") return;
   isLoading.value = true;
   try {
     const token = requireToken();
-    if (props.section === "credits") {
+    if (props.section === "tasks") {
+      tasks.value = await workspaceApi.listWorkflowTasks(token);
+    } else if (props.section === "credits") {
       const [balanceResult, ledgerResult] = await Promise.all([
         workspaceApi.getCreditBalance(token),
         workspaceApi.getCreditLedger(token),
@@ -127,11 +170,13 @@ async function load() {
         : "无法加载当前数据";
   } finally {
     isLoading.value = false;
+    scheduleTaskPoll();
   }
 }
 
 watch(() => props.section, load);
 onMounted(load);
+onBeforeUnmount(clearTaskPoll);
 </script>
 
 <template>
@@ -159,16 +204,41 @@ onMounted(load);
               <th>输出</th>
               <th>状态</th>
               <th>进度</th>
+              <th>备注 / 失败原因</th>
               <th>积分</th>
             </tr>
           </thead>
-          <tbody />
+          <tbody>
+            <tr v-for="task in tasks" :key="task.task_id">
+              <td>
+                <RouterLink
+                  class="task-link"
+                  :to="{
+                    name: 'workflow-task-detail',
+                    params: { taskId: task.task_id },
+                  }"
+                >
+                  {{ task.title }}
+                </RouterLink>
+              </td>
+              <td>{{ task.output_kinds.map((kind) => kind.toUpperCase()).join(" + ") }}</td>
+              <td><span class="status-pill">{{ statusLabel(task.status) }}</span></td>
+              <td class="oa-tabular">{{ task.progress }}%</td>
+              <td class="task-note">
+                <span>{{ task.note ?? "—" }}</span>
+                <strong v-if="task.failure_reason" :title="task.failure_code ?? undefined">
+                  {{ task.failure_reason }}
+                </strong>
+              </td>
+              <td class="oa-tabular">
+                {{ task.estimated_credits ? task.estimated_credits.toLocaleString("zh-CN") : "—" }}
+              </td>
+            </tr>
+          </tbody>
         </table>
-        <div class="empty-copy">
-          <strong>任务列表接口尚未交付</strong>
-          <span>
-            当前不会用 mock 数据填充历史。新建生成后可直接进入任务详情查看真实状态。
-          </span>
+        <div v-if="!tasks.length" class="empty-copy">
+          <strong>当前还没有任务</strong>
+          <span>创建任务后，Brief、生成进度和失败原因都会保留在这里。</span>
           <RouterLink class="oa-button oa-button--primary" to="/workflow/new">
             新建任务
           </RouterLink>
@@ -275,30 +345,25 @@ onMounted(load);
   gap: 24px;
   padding: clamp(32px, 5vw, 64px);
 }
-
 header p {
   margin: 0 0 6px;
   color: var(--oa-accent);
   font-size: 13px;
   font-weight: 750;
 }
-
 h1 {
   margin: 0;
   font-size: clamp(30px, 4vw, 44px);
 }
-
 header span,
 .empty-copy,
 .balance-card small {
   color: var(--oa-muted);
 }
-
 header span {
   display: block;
   margin-top: 9px;
 }
-
 .table-panel,
 .balance-card,
 .template-card,
@@ -307,18 +372,15 @@ header span {
   border-radius: 12px;
   background: #fff;
 }
-
 .table-panel {
   overflow-x: auto;
 }
-
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
   white-space: nowrap;
 }
-
 th,
 td {
   min-width: 140px;
@@ -326,21 +388,18 @@ td {
   border-bottom: 1px solid var(--oa-line);
   text-align: left;
 }
-
 th {
   color: #475569;
   background: #fbfcfc;
   font-size: 13px;
   font-weight: 750;
 }
-
 .empty-copy,
 .state-panel {
   margin: 0;
   padding: 38px 20px;
   text-align: center;
 }
-
 div.empty-copy {
   display: grid;
   justify-items: center;
@@ -408,6 +467,28 @@ div.empty-copy {
 
 .positive {
   color: var(--oa-success);
+}
+
+.task-link {
+  color: var(--oa-ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.task-link:hover {
+  color: var(--oa-accent);
+}
+
+.task-note {
+  display: grid;
+  max-width: 320px;
+  gap: 4px;
+  white-space: normal;
+}
+
+.task-note strong {
+  color: var(--oa-danger);
+  font-weight: 650;
 }
 
 @media (max-width: 820px) {

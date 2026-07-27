@@ -177,3 +177,14 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - Agnes 只接收本次 Context 中的短引用；应用在 strict Schema/snapshot/evidence 校验前
   将其映射回原始不可变 Evidence ID，未知引用继续 fail closed。全部 Evidence 均保留，
   不抽样、不截断、不虚增 256K 模型能力，也不改变 5,193 个单位未知 blocker。
+- `2026-07-27` 将用户“点击生成”改为 durable asynchronous workflow：前端先调用
+  `POST /workflow-tasks`，同一事务立即写入 `workflow_tasks + outbox_events` 并返回
+  `202`，随后独立 `workflow-worker` 在后台整理 Brief。用户无需等待 Agnes 完成即可在
+  `/tasks` 查看持久进度、系统备注和失败原因。
+- `workflow_tasks` 覆盖 `brief_queued -> brief_generating -> awaiting_confirmation`
+  及确认后的 generation 阶段；生成任务创建后只投影既有 `generation_tasks` 的权威
+  状态、进度和积分，不复制第二套文件生成状态机。`brief_schema_invalid` 等稳定错误码
+  与安全中文原因会保留，刷新后仍可追踪。
+- 现有同步 `POST /briefs/generate` 仅保留兼容，不再由用户工作流页面调用。Structured
+  Brief Schema、Evidence、Preflight、积分和质量门禁均不降低；任务记录不保存 Prompt、
+  Provider 原始响应、Credential、文件正文或 storage key。

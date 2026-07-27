@@ -1,9 +1,9 @@
 # Office AI Alpha 数据模型基线
 
 - 数据库：MySQL 8.0
-- 表数量：固定 21 张
-- 状态：已封版；`T4-005` migration `20260727_0014` 已补齐 `templates` 与
-  `system_settings`，当前实现 21/21 张业务表
+- 表数量：Post-Alpha 当前 22 张
+- 状态：Alpha 以 21 张封版；Post-Alpha migration `20260727_0015` additive 新增
+  `workflow_tasks`，当前实现 22 张业务表
 
 ## 全局约定
 
@@ -98,6 +98,15 @@
     - T4-002 固化 IP `/24` 或 `/64` 摘要、单行 bounded User-Agent、context 白名单与
       失败结果；不保存密码、Token、Key、storage key、签名 URL 或磁盘路径。
 
+22. `workflow_tasks`
+    - 用户、项目、Brief group、关联 generation task、同用户幂等键、标题、结构化请求
+      snapshot、输出类型、stage/status/progress、系统备注、稳定失败码、安全失败原因、
+      投递序号和生命周期时间。
+    - `request_snapshot` 只保存重放 Brief 所需的 ID、Skill、目标和受众，不保存文件正文、
+      Evidence、Prompt、Provider 原始响应、Credential、路径或 storage key。
+    - Brief 成功后关联稳定 group；确认后按该 group 唯一关联 `generation_tasks`，列表和
+      详情投影 generation task 的权威状态、进度、积分与失败结果。
+
 ## 关键唯一约束
 
 | 表 | 唯一键 | 目的 |
@@ -109,6 +118,9 @@
 | `provider_calls` | `(brief_group_id, attempt)` | 同一 Brief 生成 attempt 唯一 |
 | `provider_calls` | `(task_step_id, attempt)` | 同一任务步骤 Provider attempt 唯一 |
 | `generation_tasks` | `(user_id, idempotency_key)` | 重复提交只创建一个任务 |
+| `workflow_tasks` | `(user_id, idempotency_key)` | 点击生成的幂等重放返回同一工作流 |
+| `workflow_tasks` | `(brief_group_id)` | 一个 Brief 修订组只属于一个工作流 |
+| `workflow_tasks` | `(generation_task_id)` | 一个文件生成任务只投影到一个工作流 |
 | `generation_task_steps` | `(task_id, step_code)` | 每个任务阶段 checkpoint 唯一 |
 | `outbox_events` | `(event_type, idempotency_key)` | 同一业务事件只创建一条 Outbox |
 | `credit_ledger` | `(user_id, idempotency_key, entry_type)` | 防止重复预留/结算/释放 |
@@ -131,6 +143,10 @@
 - T3-001 生成事务：锁定 owner 的最新 confirmed Brief、Model/Credential/Provider 与用户余额，复验 identity/capability/pricing/子输出总和，在同一事务创建 task、steps、inputs、负数 reserve ledger 与首个 Outbox；同一 user/idempotency key 重放返回既有结果，余额不足或 Outbox 写入失败整体回滚。
 - T3-001 执行/恢复边界：MySQL task/step checkpoint 为权威，Redis 只承载可丢失 queue/limit。published-before-marked 允许重复投递但数据库 claim 去重；safe stale step 复位后重新入队，已进入 Provider 且结果未知的 checkpoint 转 `provider_uncertain`。
 - T3-001 结算事务：全成功写幂等 finalize marker；全失败/可取消任务写 release；partial success 按成功子输出费用结算并 release 余量。所有流水只追加，`provider_uncertain` 保留 reserve。
+- Post-Alpha workflow 创建边界：同一事务写 `workflow_tasks` 与 `brief.requested.v1`
+  Outbox；Redis queue 不承载唯一任务状态。专用 worker 以数据库 claim 去重，成功回链
+  Brief group，确定失败持久化稳定码与脱敏原因，Provider in-flight stale 收口为
+  `provider_uncertain` 且不自动重试。
 - T3-002 PPT 输出边界：`render:pptx` step 先以稳定 idempotency key 创建 `parsing` 资产 checkpoint，Renderer 结果先写 step checkpoint，再以 `users/{user_id}/outputs/{asset_id}/presentation.pptx` 原子持久化并最终置 `ready`。`generated_task_id` 关联生成任务；同 Plan replay 返回同一资产，不覆盖已完成文件，不同 Plan、模板 snapshot 漂移、文件 hash/size 漂移全部 fail closed。
 - T3-003 PPT 质量边界：原始 `presentation.pptx` 保持不可变；质量报告、PDF、逐页 PNG 与可选 repaired PPTX 使用同一 asset 下固定 `quality/` key。`file_assets` 保存 quality status、report schema/engine/hash/key、preview keys、validated artifact hash/size/key、repair count 与 checked time；只有报告与全部 artifact integrity 一致时完成 checkpoint 或 replay。最多一次修复，修复文件不覆盖原输出。
 - T3-004 Excel 输出边界：原始 `analysis.xlsx` 使用
@@ -154,7 +170,11 @@
 ## 状态字段
 
 - 资产：`uploaded`、`quarantined`、`scanning`、`parsing`、`ready`、`rejected`、`deleting`、`deleted`。
-- 任务：`draft`、`preflight`、`needs_resolution`、`queued`、`running`、`succeeded`、`partial_success`、`provider_uncertain`、`failed`、`cancelled`。
+- 生成任务：`draft`、`preflight`、`needs_resolution`、`queued`、`running`、`succeeded`、`partial_success`、`provider_uncertain`、`failed`、`cancelled`。
+- 工作流任务：stage 为 `brief_queued`、`brief_generating`、`awaiting_confirmation`、
+  `generation_queued`、`generation_running` 或终态；status 为 `queued`、`running`、
+  `awaiting_confirmation`、`succeeded`、`partial_success`、`provider_uncertain`、
+  `failed`、`cancelled`。
 - 质量：`passed`、`passed_with_warnings`、`blocked`。
 - 积分流水：`registration_grant`、`admin_grant`、`generation_reserve`、`generation_finalize`、`generation_release`、`refund`。
 
@@ -183,7 +203,10 @@
 - `T3-002` 新增 `20260723_0012`，只为既有 `file_assets.generated_task_id` 增加命名外键 `fk_file_assets_generated_task`。SQLite 空库完整升级、唯一 Head、历史 migration chain 和 MySQL dialect offline upgrade/downgrade 已通过；未读取 `.env`，未运行真实 MySQL runtime。
 - 注册使用 `SELECT ... FOR UPDATE` 锁定邀请码，并在同一事务中增加次数、创建用户、写 `registration_grant` 和同步 `users.credit_balance`；任一写入失败整体回滚。
 - 后续每个模型任务通过 additive migration 演进；禁止删除或改写历史 migration。
-- Alpha 封版必须从空数据库完整升级，并验证 21 张表、唯一约束和外键。
+- Alpha 封版基线从空数据库完整升级并验证 21 张表、唯一约束和外键。
 - `T4-005` 新增 additive `20260727_0014`，补齐 `templates` 与 `system_settings`。
   独立 utf8mb4 MySQL 验证库从 base 完整升级至唯一 Head；实测 21 张业务表、40 个外键、
   22 个唯一约束，`alembic check` 无 drift。验证库保留为现场证据。
+- Post-Alpha 新增 additive `20260727_0015`，建立 `workflow_tasks`、owner/project/
+  generation 外键和三项幂等/关联唯一约束。真实 MySQL 已从 `0014` 升级至唯一
+  `20260727_0015 (head)`，`alembic current` 与 `alembic check` 通过，当前共 22 张表。

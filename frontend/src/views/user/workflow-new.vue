@@ -31,6 +31,7 @@ const errorMessage = ref("");
 const deletingAssetIds = ref<Set<string>>(new Set());
 const assetDeleteErrors = ref<Record<string, string>>({});
 let processingPollTimer: ReturnType<typeof setTimeout> | undefined;
+const workflowIdempotencyKey = crypto.randomUUID();
 
 const mode = computed(() => String(route.query.mode ?? "combined"));
 const projectAssets = computed(
@@ -251,10 +252,14 @@ async function submit() {
   isSubmitting.value = true;
   errorMessage.value = "";
   try {
-    const brief = await workspaceApi.generateBrief(selection, requireToken());
+    const task = await workspaceApi.createWorkflowTask(
+      selection,
+      workflowIdempotencyKey,
+      requireToken(),
+    );
     await router.push({
-      name: "brief-confirm",
-      params: { briefId: brief.brief_id },
+      name: "workflow-task-detail",
+      params: { taskId: task.task_id },
     });
   } catch (error) {
     errorMessage.value = readableError(error);
@@ -438,7 +443,7 @@ onBeforeUnmount(clearProcessingPoll);
         type="submit"
         :disabled="!canSubmit"
       >
-        {{ isSubmitting ? "正在整理 Brief…" : "继续到生成前确认" }}
+        {{ isSubmitting ? "正在创建任务…" : "创建任务并整理 Brief" }}
       </button>
     </form>
   </section>

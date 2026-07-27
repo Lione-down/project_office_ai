@@ -16,6 +16,7 @@ from app.models.generation_task_steps import GenerationTaskStep
 from app.models.generation_tasks import GenerationTask
 from app.models.provider_credentials import ProviderCredential
 from app.models.users import User
+from app.models.workflow_tasks import WorkflowTask
 from app.services.auth_sessions import AuthSessionService, CurrentUser
 from app.services.credit_transactions import (
     release_reserved_credits,
@@ -120,6 +121,22 @@ class GenerationService:
                 )
                 session.add(task)
                 await session.flush()
+                workflow_task = await session.scalar(
+                    select(WorkflowTask)
+                    .where(
+                        WorkflowTask.user_id == current_user.user_id,
+                        WorkflowTask.brief_group_id == brief.brief_group_id,
+                    )
+                    .with_for_update()
+                )
+                if workflow_task is not None:
+                    workflow_task.generation_task_id = task.id
+                    workflow_task.stage = "generation_queued"
+                    workflow_task.status = "queued"
+                    workflow_task.progress = 30
+                    workflow_task.note = "文件生成已进入队列"
+                    workflow_task.failure_code = None
+                    workflow_task.failure_reason = None
                 session.add_all(self._steps(task, preflight, model))
                 session.add_all(self._inputs(task, brief, preflight))
                 user.credit_balance -= preflight.estimated_credits
