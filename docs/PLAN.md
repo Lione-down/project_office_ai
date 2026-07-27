@@ -210,3 +210,9 @@ generation_reserve -> generation_finalize | generation_release -> refund
   blocker。
 - 该交互修复复用既有 Revision PATCH，不自动保存、不自动确认生成，也不修改 API、
   数据库 Schema、Evidence、Preflight 判定、积分或历史记录。
+- `2026-07-27` 修复所有 User App Shell 页面无法接受滚轮手势的问题：User Shell 现在
+  使用 `height: 100dvh; min-height: 0; overflow-y: auto`，成为明确的纵向 scroll root。
+  新建任务、Brief、任务详情、文件和模板页面共享该滚动责任，不再依赖浏览器隐式 root
+  scrolling。
+- 该修复不添加全局 wheel listener 或 JS 模拟滚动，不调用 `preventDefault`，也不修改
+  Admin/Public Shell、页面表单、API、数据库或业务状态。

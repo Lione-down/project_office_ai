@@ -1863,3 +1863,39 @@
 - Backend/API/数据库 Schema/Evidence/Preflight/积分均不变；未打开或修改用户文件，未
   自动猜测、保存单位或创建任务；未触碰/暂存 `.playwright-cli/`、`design-system/`、
   旧 `docs/ui-mockups/` 或 ignored `output/`。
+
+## Post-Alpha User App Shell 滚动根修复
+
+### Runtime 根因
+
+- 新建任务页实测内容高度 1627px、视口 1090px，理论可滚动 537px；
+  `html/body/main` 的 overflow 均正常，也没有页面级 `wheel/touchmove/keydown`
+  listener，但真实滚轮与 `PageDown` 后 root `scrollTop` 始终为 0。
+- 同一 Chrome 的独立长页面可以滚动，排除鼠标、Chrome 和全局扩展故障。Office AI
+  User Shell 仅用 `min-height: 100vh`，依赖浏览器隐式 root scrolling，导致手势没有
+  进入 scroll tree；程序化 `scrollTo` 可用但不能代表真实交互。
+- 运行时只为 `.user-shell` 建立 `height: 100dvh; min-height: 0; overflow-y: auto`
+  后，滚轮立即令 shell `scrollTop` 从 0 变为 280，证明共享 App Shell 是根因。
+
+### TDD、实现与验证
+
+- RED：App Shell focused 为 `1 failed, 6 passed`，锁定缺少明确 user scroll root；
+  GREEN 为 `7 passed`。
+- 实现仅标记 User Shell scroll root 并增加三条滚动 CSS；没有修改单个业务页面、添加
+  wheel listener、调用 `preventDefault` 或模拟滚动。
+- Frontend full 为 23 files / `72 passed`；production build 为
+  `104 modules transformed`；`npm audit --audit-level=high` 为 0 vulnerabilities。
+- 只重建并强制替换 Frontend；Frontend/Backend/workflow worker/MySQL/Redis 均 healthy，
+  Frontend Host 返回 200。
+- 真实 Chrome Desktop 滚轮从 `0 -> 360 -> 537.6` 并显示底部主按钮；375x812 滚到
+  `352.8/353`，横向 overflow 为 0。Console 无 warning/error；临时诊断样式已移除，
+  浏览器恢复到用户原任务详情页。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-27-office-ai-user-shell-scroll-root.md`。
+- Frontend：`components/layout/app-shell.vue` 与对应 component test。
+- Records：`docs/PLAN.md`、`docs/PROGRESS.md` 与 `pitfalls.md`。
+- Admin/Public Shell、业务页面、API、数据库 Schema、任务、用户文件和历史记录均不变；
+  未触碰/暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/` 或 ignored
+  `output/`。

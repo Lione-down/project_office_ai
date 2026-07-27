@@ -70,7 +70,12 @@ async function logout() {
 <template>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
 
-  <div v-if="shell === 'user'" class="user-shell" data-testid="app-root">
+  <div
+    v-if="shell === 'user'"
+    class="user-shell"
+    data-testid="app-root"
+    data-scroll-root="user"
+  >
     <header class="user-shell__header">
       <AppLogo />
       <nav aria-label="用户主导航">
@@ -132,7 +137,13 @@ async function logout() {
 </template>
 
 <style scoped>
-.user-shell,
+.user-shell {
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--oa-canvas);
+}
+
 .admin-shell {
   min-height: 100vh;
   background: var(--oa-canvas);

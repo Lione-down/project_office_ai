@@ -59,6 +59,14 @@ async function mountShell(
 }
 
 describe("App shell", () => {
+  it("provides an explicit user scroll root for long workflow pages", async () => {
+    const wrapper = await mountShell("user");
+
+    expect(wrapper.get("[data-scroll-root='user']").classes()).toContain(
+      "user-shell",
+    );
+  });
+
   it("uses the approved four-item user navigation", async () => {
     const wrapper = await mountShell("user");
 

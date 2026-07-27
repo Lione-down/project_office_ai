@@ -655,6 +655,19 @@
   并把 `local state -> persisted revision -> server revalidation -> unlocked action`
   写成一个自动化 contract；disabled 按钮必须解释恢复步骤，不能依赖跨栏或跨屏动作。
 
+### 2026-07-27 · Post-Alpha · 内容超出视口不代表滚轮一定进入 root scrolling
+
+- 现象：User 页面内容高度和 `html/body` overflow 都正常，程序化 `window.scrollTo`
+  也能改变 root scrollTop，但真实滚轮、键盘和 Chromium scroll gesture 始终停在 0；
+  因而多个共享 User Shell 的长页面同时表现为“滚不下去”。
+- 影响：只检查 `scrollHeight > clientHeight` 或用程序化滚动验收会产生假 GREEN；给 Brief
+  或 Workflow 单页分别加 overflow 只会掩盖共享 App Shell 根因。
+- 本次处理：User Shell 使用 viewport height 并明确成为 vertical scroll root；业务页面
+  继续提供自然内容高度。未添加 wheel handler，也不改变 Admin/Public Shell。
+- 预防/验证：App Shell 类产品必须明确唯一滚动责任；Runtime Gate 同时验证真实滚轮后的
+  scrollTop、底部动作可见性、375px 横向 overflow 和 Console，不能用 CSS 静态值或
+  `scrollTo` 代替输入手势证据。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
