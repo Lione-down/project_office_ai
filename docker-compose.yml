@@ -34,9 +34,9 @@ services:
         "runner",
       ]
     environment:
-      VITE_API_BASE_URL: ${OFFICE_AI_API_BASE_URL:-http://localhost:8000/api/v1}
+      VITE_API_BASE_URL: ${OFFICE_AI_API_BASE_URL:-http://localhost:9999/api/v1}
     ports:
-      - "${OFFICE_AI_FRONTEND_PORT:-5173}:5173"
+      - "${OFFICE_AI_FRONTEND_PORT:-8888}:5173"
     read_only: true
     tmpfs:
       - /tmp
@@ -62,7 +62,7 @@ services:
     environment:
       OFFICE_AI_ENV: ${OFFICE_AI_ENV:-local}
       OFFICE_AI_LOG_LEVEL: ${OFFICE_AI_LOG_LEVEL:-INFO}
-      OFFICE_AI_FRONTEND_ORIGIN: ${OFFICE_AI_FRONTEND_ORIGIN:-http://localhost:5173}
+      OFFICE_AI_FRONTEND_ORIGIN: ${OFFICE_AI_FRONTEND_ORIGIN:-http://localhost:8888}
       OFFICE_AI_MYSQL_DATABASE: ${OFFICE_AI_MYSQL_DATABASE:-office_ai}
       OFFICE_AI_MYSQL_USER: ${OFFICE_AI_MYSQL_USER:-office_ai}
       OFFICE_AI_MYSQL_PASSWORD: ${OFFICE_AI_MYSQL_PASSWORD:-local-dev-change-me}
@@ -91,7 +91,7 @@ services:
       OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS: ${OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS:-120}
       OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES: ${OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES:-10485760}
     ports:
-      - "${OFFICE_AI_BACKEND_PORT:-8000}:8000"
+      - "${OFFICE_AI_BACKEND_PORT:-9999}:8000"
     volumes:
       - app-files:/app/files
       - parsed-files:/app/parsed

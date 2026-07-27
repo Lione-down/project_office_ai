@@ -509,6 +509,17 @@
 - 预防/验证：容器化 release command 必须在与服务一致的 user/rootfs/network 边界下跑；
   build cache、test config 与产物目录都需显式可写位置。
 
+### 2026-07-27 · Runtime · Host port 必须使用项目固定默认值
+
+- 现象：Office AI 原默认 `5173/8000` 与同机 `project_revid` 冲突；Docker 容器内部
+  health 正常，但 Windows `127.0.0.1` 可能命中另一个项目的 Vite/Uvicorn。
+- 影响：只看容器 health 会误以为用户浏览器连接的是当前项目，实际前端可能调用错误
+  Backend。
+- 本次处理：将 Office AI 默认 Host ports 固定为 Frontend `8888`、Backend `9999`，
+  同步 API base、CORS origin、contract test 和运行文档；容器内部端口不变。
+- 预防/验证：启动后同时核对 `docker compose ps` 的 Host mapping、Host HTTP 页面和
+  `/health/ready`，不能只验证容器内部 healthcheck。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
@@ -518,3 +529,4 @@
 | 2026-07-23 | 全局安全规则 | 环境示例文件同样禁止进入 Git；补齐 `.env`、`*.env.*` 与 `.ene` 误拼变体的 ignore 和提交检查 |
 | 2026-07-26 | T4-003 | 用户批准将 10 组黄金材料前置缩减为唯一 `1/10 pilot`，保留覆盖限制和严格脱敏/证据边界 |
 | 2026-07-26 | 项目 Secret 授权 | 用户长期授权按最小必要原则读取仓库根 `.env` 用于项目 runtime、真实 Agnes Contract 与配置验证；任何值仍禁止回显、复制、记录或进入 Git，其他环境文件继续禁读 |
+| 2026-07-27 | Runtime ports | 项目默认 Frontend/Backend Host ports 固定为 `8888/9999`；容器内部端口保持 `5173/8000` |

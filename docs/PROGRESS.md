@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-27`
-- 最近完成：`T4-005 安全检查与 Alpha 封版`
+- 最近完成：`Post-Alpha 默认运行端口迁移（Frontend 8888 / Backend 9999）`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1358,3 +1358,43 @@
 - 结论：`ACCEPT_WITH_DECLARED_BOUNDARIES`。Internal Alpha 已封版且无下一
   dependency-ready task；`1/10 pilot`、ClamAV online signature refresh 和生产部署
   边界不被提升为已验证。
+
+## Post-Alpha 默认运行端口迁移
+
+### 范围与 TDD
+
+- 用户明确要求本项目以后固定使用 Frontend `8888`、Backend `9999`，并立即以这两个
+  端口重启；本变更不新增 Alpha 功能或 dependency-ready task。
+- 先新增 Compose default-port contract；旧配置按预期以 Frontend 默认 `5173` 失败。
+  最小修改四个默认值后 focused test 转为 `1 passed`，完整 Compose contract 为
+  `3 passed`。
+- Host mapping 改为 `8888->5173`、`9999->8000`；Frontend API base 改为
+  `http://localhost:9999/api/v1`，Backend CORS origin 改为
+  `http://localhost:8888`。容器内部端口、API 和 private-network contract 不变。
+
+### Runtime 与验证
+
+- 无临时环境覆盖的 `docker compose config` 实际解析为 `8888/9999` 以及一致的 API
+  base/CORS origin。
+- `docker compose up -d --force-recreate --wait --wait-timeout 180 backend frontend`
+  成功；9/9 services healthy。
+- `http://localhost:8888` 返回 200；`http://localhost:9999/health/ready` 返回
+  `ready`，MySQL/Redis 均为 `up`；API docs 返回 200。
+- 从 `http://localhost:8888` 到登录 API 的 CORS preflight 返回 200，allow-origin
+  精确为 `http://localhost:8888`；先前临时 `5174/8001` 已无监听。
+- Focused + release contract：`9 passed`；`docker compose config --quiet`
+  和 `git diff --check` 通过。
+- Exact-path staging 共 8 个本任务文件；unexpected/missing/forbidden path、binary、
+  tracked forbidden path、Secret signature 和 env allowlist negation 均为 0，
+  staged security Gate 通过。
+
+### Changed files 与边界
+
+- Plan/config/test：`.hermes/plans/2026-07-27-office-ai-runtime-ports.md`、
+  `docker-compose.yml`、`backend/tests/assets/test_compose_contract.py`。
+- Records：`README.md`、`docs/PLAN.md`、`docs/ENVIRONMENT.md`、
+  `docs/PROGRESS.md`、`pitfalls.md`。
+- 未修改或读取根 `.env`；未触碰/未暂存 `.playwright-cli/`、`design-system/`、
+  旧 `docs/ui-mockups/`、ignored `output/`、Secret 或用户文件。
+- 结论：默认端口迁移完成，Internal Alpha 状态和既有声明边界不变，下一
+  dependency-ready task 仍为无。

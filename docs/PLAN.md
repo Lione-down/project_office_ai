@@ -134,3 +134,5 @@ generation_reserve -> generation_finalize | generation_release -> refund
   证据复核与 Git/security Gate 均通过。
 - 封版不改变 `1/10 pilot` 边界；它不能证明原计划 10 组 corpus 的多样性。ClamAV
   在线 signature refresh 与生产部署同样保留为已声明边界，不冒充完成。
+- `2026-07-27` post-Alpha 运维配置将本地默认 Host ports 固定为 Frontend `8888`、
+  Backend `9999`；容器内部 `5173/8000`、API contract 和 Alpha scope 不变。

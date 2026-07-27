@@ -41,6 +41,17 @@ Bootstrap 不含默认手机号或密码，重复执行不会修改已有管理�
 
 ## 本地验证入口
 
+项目默认 Host ports 固定为 Frontend `8888`、Backend `9999`；容器内部仍使用
+`5173/8000`。启动完整项目：
+
+```powershell
+docker compose up -d --wait
+```
+
+- Frontend：`http://localhost:8888`
+- Backend readiness：`http://localhost:9999/health/ready`
+- API docs：`http://localhost:9999/docs`
+
 Docker runtime 可用时：
 
 ```powershell

@@ -16,8 +16,10 @@
 |---|---|---:|---|---|
 | `OFFICE_AI_ENV` | `local/test` 运行环境 | 否 | T1-002 | Compose/CI 普通变量 |
 | `OFFICE_AI_LOG_LEVEL` | 日志级别 | 否 | T1-002 | Compose 普通变量 |
-| `OFFICE_AI_FRONTEND_ORIGIN` | 唯一允许的前端 Origin | 否 | T1-002 | Compose 普通变量 |
-| `OFFICE_AI_API_BASE_URL` | Compose 提供的前端 API 基址，映射为容器内 `VITE_API_BASE_URL` | 否 | T1-002 | Build/runtime 普通变量 |
+| `OFFICE_AI_FRONTEND_PORT` | Frontend Host port，默认 `8888`；容器内仍为 `5173` | 否 | Runtime | Compose 普通变量 |
+| `OFFICE_AI_BACKEND_PORT` | Backend Host port，默认 `9999`；容器内仍为 `8000` | 否 | Runtime | Compose 普通变量 |
+| `OFFICE_AI_FRONTEND_ORIGIN` | 唯一允许的前端 Origin，默认 `http://localhost:8888` | 否 | T1-002 | Compose 普通变量 |
+| `OFFICE_AI_API_BASE_URL` | Compose 提供的前端 API 基址，默认 `http://localhost:9999/api/v1`，映射为容器内 `VITE_API_BASE_URL` | 否 | T1-002 | Build/runtime 普通变量 |
 | `OFFICE_AI_MYSQL_DATABASE` | MySQL database 名 | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_MYSQL_USER` | MySQL app user | 否 | T1-002 | Compose 普通变量 |
 | `OFFICE_AI_MYSQL_PASSWORD` | MySQL app password | 是 | T1-002 | 本地未跟踪环境或 Secret store |
@@ -74,6 +76,11 @@
 | `OFFICE_AI_RUN_T4_FAILURE_DRILL` | 显式启用 T4-004 真实 MySQL/Redis 故障演练；仅精确值 `1` 启用 | 否 | T4-004 手工联调 | 临时进程环境；默认不设置 |
 | `OFFICE_AI_T4_FAILURE_DRILL_RUN_ID` | 隔离一次故障演练数据的 UUID | 否 | T4-004 手工联调 | 临时进程环境；不得复用生产 identity |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
+
+本项目固定使用 Frontend Host port `8888` 与 Backend Host port `9999`。这只改变
+Windows Host 映射、Frontend 默认 API base 与 Backend CORS origin；容器内部
+`5173/8000` 及 private-network service URL 不变。需要临时覆盖时可使用上表普通变量，
+但仓库默认值仍以 `8888/9999` 为准。
 
 T3-001 已在 backend Compose environment 显式映射 `OFFICE_AI_TASK_TIMEOUT_SECONDS`。FastAPI lifespan 启动 MySQL Outbox Dispatcher 和 stale-task reconciler；Redis queue 可丢失，任务、步骤和账务事实仍以 MySQL 为准。Python generation consumer 只接收不含 Secret/文件正文/storage key 的任务 ID 与事件合同，并由后续 renderer worker 注入真实 step executor。
 
