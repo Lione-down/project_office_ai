@@ -166,7 +166,7 @@ class Settings(BaseSettings):
         ge=1,
     )
     max_evidence_items: int = Field(
-        10_000,
+        11_563,
         validation_alias="OFFICE_AI_MAX_EVIDENCE_ITEMS",
         ge=1,
         le=100_000,

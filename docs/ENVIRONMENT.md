@@ -61,7 +61,7 @@
 | `OFFICE_AI_MAX_OCR_ITEMS` | 单图片 OCR 识别项上限，默认 5000 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_EVIDENCE_ROOT` | Evidence Manifest 根目录，默认 `/app/evidence` | 否 | T2-002 | 独立受控 volume/path |
 | `OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES` | 单资产 Manifest 上限，默认 10 MB | 否 | T2-002 | Compose 普通变量 |
-| `OFFICE_AI_MAX_EVIDENCE_ITEMS` | 单资产 Evidence item 上限，默认 10000，在对象构建前执行 | 否 | T2-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_EVIDENCE_ITEMS` | 单资产过滤前 Evidence source item 上限，Post-Alpha 黄金校准默认 11563，在对象构建前执行 | 否 | T2-002 / Post-Alpha | Compose 普通变量 |
 | `OFFICE_AI_OCR_RETRY_LIMIT` | 暂时性 OCR 失败最大总尝试次数，默认 3 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_OCR_RETRY_BACKOFF_SECONDS` | OCR exponential backoff 基数，默认 30 秒 | 否 | T2-002 | Compose 普通变量 |
 | `OFFICE_AI_LIBREOFFICE_URL` | LibreOffice quality sidecar internal URL | 否 | T3-003 | Compose internal URL |

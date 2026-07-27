@@ -259,6 +259,43 @@ async def test_builder_rejects_source_expansion_before_manifest_allocation() -> 
     assert captured.value.error_code == "evidence_item_limit_exceeded"
 
 
+async def test_default_builder_accepts_golden_workbook_source_count() -> None:
+    builder = EvidenceManifestBuilder(StubOcrClient(()))
+
+    manifest = await builder.build(
+        asset_id=ASSET_ID,
+        asset_version=ASSET_VERSION,
+        document=document(
+            kind="table",
+            content={"rows": [["x"] * 11_563]},
+        ),
+        source_path=None,
+        mime_type=None,
+        content_sha256="a" * 64,
+    )
+
+    assert len(manifest.evidence) == 11_563
+
+
+async def test_default_builder_rejects_above_golden_workbook_source_count() -> None:
+    builder = EvidenceManifestBuilder(StubOcrClient(()))
+
+    with pytest.raises(EvidenceProcessingError) as captured:
+        await builder.build(
+            asset_id=ASSET_ID,
+            asset_version=ASSET_VERSION,
+            document=document(
+                kind="table",
+                content={"rows": [["x"] * 11_564]},
+            ),
+            source_path=None,
+            mime_type=None,
+            content_sha256="a" * 64,
+        )
+
+    assert captured.value.error_code == "evidence_item_limit_exceeded"
+
+
 async def test_conflicting_currency_markers_fail_closed_as_unknown_unit() -> None:
     builder = EvidenceManifestBuilder(StubOcrClient(()))
 

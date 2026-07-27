@@ -85,6 +85,9 @@ function assetStatusMessage(asset: AssetSummary) {
   if (asset.processing_error_code === "excel_sheet_limit_exceeded") {
     return "未通过：Excel 工作表数量超过 100 个，请精简后重新上传。";
   }
+  if (asset.processing_error_code === "evidence_item_limit_exceeded") {
+    return "未通过：Evidence 证据项数量超过 11,563 项，请精简后重新上传。";
+  }
   if (isAssetRejected(asset)) {
     return `未通过：${asset.processing_error_message || "文件未通过安全处理，请修正后重新上传。"}`;
   }

@@ -17,7 +17,7 @@ def test_ocr_settings_are_internal_and_bounded(monkeypatch, tmp_path) -> None:
     assert settings.max_ocr_response_bytes > 0
     assert settings.max_ocr_items > 0
     assert settings.max_evidence_manifest_bytes > 0
-    assert settings.max_evidence_items == 10_000
+    assert settings.max_evidence_items == 11_563
     assert settings.evidence_root == tmp_path / "evidence"
     assert settings.ocr_retry_limit >= 1
     assert settings.ocr_retry_backoff_seconds >= 1
@@ -33,7 +33,9 @@ def test_compose_runs_pinned_offline_ocr_service_on_private_network() -> None:
 
     assert worker["environment"]["OFFICE_AI_PADDLEOCR_URL"] == ("http://paddleocr:8080")
     assert worker["environment"]["OFFICE_AI_EVIDENCE_ROOT"] == "/app/evidence"
-    assert worker["environment"]["OFFICE_AI_MAX_EVIDENCE_ITEMS"]
+    assert worker["environment"]["OFFICE_AI_MAX_EVIDENCE_ITEMS"] == (
+        "${OFFICE_AI_MAX_EVIDENCE_ITEMS:-11563}"
+    )
     assert worker["depends_on"]["paddleocr"]["condition"] == "service_healthy"
     worker_volumes = {item["target"]: item for item in worker["volumes"]}
     assert worker_volumes["/app/files"]["read_only"] is True

@@ -54,7 +54,7 @@ class SourceValue:
 
 
 class EvidenceManifestBuilder:
-    def __init__(self, ocr_client, *, max_evidence_items: int = 10_000) -> None:
+    def __init__(self, ocr_client, *, max_evidence_items: int = 11_563) -> None:
         self._ocr_client = ocr_client
         self._max_evidence_items = max_evidence_items
 

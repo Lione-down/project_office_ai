@@ -1580,3 +1580,54 @@
 - 未读取 `.env`、Secret 或用户文件；未触碰/未暂存 `.playwright-cli/`、
   `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。下一
   dependency-ready task 仍为无。
+
+## Post-Alpha private 黄金 XLSX Evidence 限制校准
+
+### 授权、测量与 RED
+
+- 用户明确授权只读使用 `golden-data/private/` 中唯一 XLSX 作为当前最高输入规模标准；
+  private 文件继续被 `.gitignore` 覆盖，未复制、修改、输出或暂存其正文、文件名、hash
+  与 metadata。
+- Artifact Tool 结构测量为 31 Sheet、10,465 个非空单元格；生产 parser/Evidence
+  builder 进一步确认过滤前 source expansion 为 11,563 项，过滤后最终 Evidence 为
+  10,465 条，Manifest 约 7.48 MB。
+- 初始按最终 Evidence 数 10,465 设限时，生产同链路仍以
+  `evidence_item_limit_exceeded` 拒绝，证明预算发生在空值过滤前；纠正后的 RED 为
+  Backend `3 failed, 8 passed`、Frontend `1 failed, 10 passed`。
+- 最终 contract 精确接受 11,563 个 source item，第 11,564 项稳定拒绝。Settings、
+  Evidence builder default、Compose worker 与用户提示统一为 11,563。
+
+### 验证与 Runtime
+
+- Focused GREEN：Backend `11 passed`；Frontend `11 passed`。黄金 XLSX 使用生产
+  parser 与默认 builder 只读复验成功，仍生成 10,465 条 Evidence 与约 7.48 MB
+  Manifest。
+- Broad：Backend `579 passed, 6 skipped`，skip 仅为未 opt-in 的 live Agnes/failure
+  drills；Frontend 22 files / `68 passed`，production build `98 modules transformed`；
+  Ruff changed-file check 通过。
+- Security/dependency：Frontend `npm audit --audit-level=high` 为 0 vulnerabilities；
+  Backend `pip check` 无 broken requirements，`pip-audit` 为 0 known vulnerabilities，
+  仅跳过本地非 PyPI package `office-ai-backend`。
+- `docker compose build worker frontend` 成功；只用 `--no-deps --force-recreate`
+  重启 worker/frontend，未重建 Backend、MySQL、Redis 或用户数据。worker 实际读取
+  `OFFICE_AI_MAX_EVIDENCE_ITEMS=11563`；Frontend `8888`、Backend `9999` 与依赖均
+  healthy，前端首页和 `/health/ready` 返回 200。
+- 真实 Chrome 当前账号已无 active asset，因此没有伪造 rejected row 或重新上传 private
+  文件；页面上传按钮 enabled、继续按钮 disabled，Console 无 warning/error，仅有重启
+  期间 Vite 连接日志。11,563 提示由 focused UI contract 覆盖。
+
+### 安全边界与 Changed files
+
+- 黄金 Manifest 的 5,193 个 `numeric_unit_unknown` blocker 保持原样；数量限制通过不等于
+  语义冲突被解决，Preflight 仍要求术语/单位明确，禁止静默猜测。
+- 10 MB Manifest、100 Sheet、30 万非空单元格、Archive、parser structural、timeout、
+  memory、ClamAV、owner scope、immutable Evidence、API shape 与数据库 Schema 均不变。
+- Plan：`.hermes/plans/2026-07-27-office-ai-golden-evidence-limit-calibration.md`。
+- Backend/Runtime：`backend/app/services/evidence/builder.py`、
+  `backend/app/settings/config.py`、`docker-compose.yml` 与对应 evidence/OCR tests。
+- Frontend：`frontend/src/views/user/{workflow-new.vue,workflow-new.test.ts}`。
+- Records：`docs/PLAN.md`、`docs/API.md`、`docs/ENVIRONMENT.md`、
+  `docs/SECURITY.md`、`docs/PROGRESS.md`、`pitfalls.md`。
+- 未读取 `.env` 或 Secret，未修改/暂存 private workbook、`.playwright-cli/`、
+  `design-system/`、旧 `docs/ui-mockups/` 或 ignored `output/`。黄金覆盖仍为
+  `1/10 pilot`，下一 dependency-ready task 仍为无。

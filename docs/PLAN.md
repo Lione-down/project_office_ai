@@ -163,3 +163,10 @@ generation_reserve -> generation_finalize | generation_release -> refund
 - Workflow 仅对 `rejected/invalid` 材料显示右侧删除操作，复用 owner-scoped
   `DELETE /assets/{asset_id}`；用户按文件名确认且服务端返回成功后才移除当前行，
   取消或失败时保留材料，不自动清理任何用户资产。
+- 2026-07-27 经用户批准，`golden-data/private/` 中唯一 XLSX 暂作为最高输入规模标准。
+  只读测量确认 Evidence builder 在过滤空值前预算 11,563 个 source item，最终生成
+  10,465 条 Evidence，Manifest 约 7.48 MB；因此默认 Evidence source expansion 上限
+  精确调整为 11,563，第 11,564 项继续 fail closed。
+- 该校准不修改 10 MB Manifest、100 Sheet、30 万非空单元格、Archive、parser
+  structural、timeout、memory、ClamAV、owner scope、immutable Evidence 或单位未知
+  blocker；private workbook 不进入 Git、fixture、日志或文档正文。

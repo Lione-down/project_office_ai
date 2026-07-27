@@ -207,6 +207,27 @@ describe("New workflow", () => {
     ).toBeDefined();
   });
 
+  it("shows the calibrated Evidence item limit for rejected materials", async () => {
+    const rejectedOptions = {
+      ...options,
+      assets: [
+        {
+          ...options.assets[0],
+          processing_status: "rejected",
+          manifest_status: "invalid",
+          processing_error_code: "evidence_item_limit_exceeded",
+          processing_error_message: "Evidence Manifest 证据项超过允许上限",
+        },
+      ],
+    };
+    const { wrapper } = await mountWorkflow(rejectedOptions);
+
+    expect(wrapper.text()).toContain("Evidence 证据项数量超过 11,563 项");
+    expect(
+      wrapper.get("[aria-label='删除未通过材料 华东销售数据.xlsx']"),
+    ).toBeDefined();
+  });
+
   it("does not delete a rejected material when confirmation is cancelled", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     const rejectedOptions = {

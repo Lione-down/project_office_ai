@@ -72,6 +72,9 @@ Post-Alpha Workflow 仅在材料已进入 `rejected/invalid` 时显示行级删�
 owner-scoped `DELETE /assets/{asset_id}`。客户端按文件名确认，只有收到成功响应后才移除
 当前行；取消或失败时保留原记录。Excel 深度解析的默认输入上限为 100 Sheet，100 Sheet
 可接受，第 101 Sheet 以 `excel_sheet_limit_exceeded` fail closed；其他解析门禁不变。
+Evidence source expansion 默认最多 11,563 项，在空值过滤和 Pydantic Evidence object
+构建前执行；第 11,564 项继续返回 `evidence_item_limit_exceeded`。该值来自用户批准的
+唯一 private 黄金 XLSX 只读结构校准，不改变 Manifest byte 上限或语义 blocker。
 
 T1-005 上传支持 XLSX、XLSM、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、TXT、MD 的扩展名/MIME 初检；PDF、Office ZIP 与图片同时检查最小 magic header。单文件默认上限 50 MB，图片默认上限 20 MB；同一用户重放相同 `Idempotency-Key` 时，`quarantined` 及后续已持久化状态返回既有资产且不重复读取或写入文件，`uploaded`/`deleting` 则在读取 body 前稳定返回 `409 asset_upload_in_progress`。单次 API 只接受一个 `file` 和至多一个 `project_id`，额外文件或未知 multipart 字段以 `upload_form_invalid` 拒绝；必须提供唯一、合法且与实际 bytes 一致的 `Content-Length`，不能使用 `Transfer-Encoding`。upload ASGI middleware 在读取 body 前验证 Bearer Session 和 replay policy；新请求先写入 middleware 自己的 1 MiB memory-threshold 受控 preflight spool，以 `max_file_bytes + 64 KiB` 验证完整 body 后才 replay 给 Starlette multipart parser。拒绝路径不会创建 parser file spool，临时 preflight spool 始终在 `finally` 关闭。20 文件/200 MB 是后续 generation input selection 与 T2-001 安全解析 gate，不以一次 multipart batch 实现。
 

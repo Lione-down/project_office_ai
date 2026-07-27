@@ -573,6 +573,20 @@
   边界测试、文案与专题文档；破坏性行级操作必须确认具体对象、禁止自动执行，并以服务端
   成功响应作为 UI 移除的唯一依据。
 
+### 2026-07-27 · Post-Alpha · 最终 Evidence 数不等于 source expansion 预算
+
+- 现象：黄金 XLSX 最终生成 10,465 条非空 Evidence，但 builder 在过滤空值前先对
+  11,563 个 source item 执行上限；若按最终 Evidence 数设置 10,465，生产同链路仍会在
+  `_bounded_sources` 阶段拒绝。
+- 影响：离线表格计数、最终 Manifest 数量和真实内存保护点看似接近，却对应不同阶段；
+  只测最终输出会把“黄金样本可通过”的限制校准错误标记为 GREEN。
+- 本次处理：保留 Artifact Tool 结构测量，再用生产 parser 与默认 Evidence builder
+  复验；将上限精确设为过滤前 11,563，第 11,564 项拒绝，同时保留 10 MB Manifest 与
+  单位未知 blocker。
+- 预防/验证：任何 expansion limit 都必须在真实限额执行点测量 before/after counts，
+  contract test 同时锁定 accepted boundary 和下一项拒绝；不得用后处理输出数量替代
+  前置 memory budget。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |
