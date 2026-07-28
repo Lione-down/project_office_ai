@@ -141,6 +141,36 @@ def test_compiler_builds_text_only_workbook_without_inventing_numbers() -> None:
     ]
 
 
+def test_compiler_groups_many_workbook_evidence_references_without_loss() -> None:
+    evidence_ids = tuple(f"e-{index:064x}" for index in range(21))
+    brief = structured_brief()
+    fact = brief.facts[0].model_copy(update={"evidence_ids": evidence_ids})
+    plan = StructuredBriefPlanCompiler().workbook(
+        brief.model_copy(
+            update={
+                "facts": (fact,),
+                "inferences": (),
+                "must_include": (),
+            }
+        ),
+        template_code="excel.analysis-dashboard.v1",
+        revision=2,
+    )
+
+    cells = [row["evidence_refs"] for row in plan.sheets[0].rows]
+
+    assert all(len(cell) <= 500 for cell in cells)
+    assert (
+        tuple(
+            evidence_id
+            for cell in cells
+            for evidence_id in cell.split(",")
+            if evidence_id
+        )
+        == evidence_ids
+    )
+
+
 class RecordingOutput:
     def __init__(self) -> None:
         self.calls = []
@@ -206,8 +236,9 @@ async def test_presentation_pipeline_loads_frozen_brief_and_runs_quality(
     result = await pipeline.execute(context)
 
     assert result.status == "succeeded"
-    assert output.calls[0][2].template.code == "ppt.executive-blue.v1"
-    assert quality.calls[0][2] == output.calls[0][2]
+    assert isinstance(output.calls[0][2], dict)
+    assert output.calls[0][2]["template"]["code"] == "ppt.executive-blue.v1"
+    assert quality.calls[0][2].template.code == "ppt.executive-blue.v1"
 
 
 async def test_spreadsheet_pipeline_loads_frozen_brief_without_numeric_guessing(

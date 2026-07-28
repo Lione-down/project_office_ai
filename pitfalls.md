@@ -682,6 +682,31 @@
   entrypoint、Compose service、健康状态、真实 queue drain 和 terminal settlement；
   “class 存在”或 Mock executor 通过不能替代进程级消费证据。
 
+### 2026-07-28 · Post-Alpha · Typed Plan 接线与可见 Evidence cell 是不同边界
+
+- 现象：编译器单测证明 `PresentationPlan` 合法，但真实 output service 只接受 `dict`，
+  typed 实例在 checkpoint 前失败；Workbook 又把 21 个合法 Evidence ID 拼进一个最长
+  500 字符的普通 cell，导致完整 Brief 无法生成。
+- 影响：Mock output 接受任意对象会掩盖 production interface mismatch；把全局
+  Evidence 上限误当成单 cell 容量，则会错误拒绝可追溯内容。简单提高 500 上限会破坏
+  strict Workbook contract，截断引用则会破坏 Evidence 完整性。
+- 本次处理：Presentation pipeline 只在 output boundary 序列化 JSON，QA 继续接收
+  typed Plan；Workbook 按实际字符预算分组 cell，并用 21-Evidence 回归无损还原全部 ID。
+- 预防/验证：新 production wiring 测试必须锁定下游接收的真实类型，不能只用宽松 Mock；
+  全局引用预算与可见字段预算必须分别验证，超长集合使用确定性分组而不是提高上限或截断。
+
+### 2026-07-28 · 工具输出 · Compose config 会展开 Secret
+
+- 现象：使用 `docker compose config` 后再按 service/volume 文本过滤，完整 config 已先在
+  进程中插值，过滤上下文意外把 Session Secret 带入工具输出。
+- 影响：即使没有写入仓库或日志文件，诊断 transcript 仍可能包含运行时 Secret；继续
+  复制该输出会扩大暴露面。
+- 本次处理：停止引用该值，不写入文档、提交或最终答复；保留“需授权轮换且会终止现有
+  登录”的明确 caveat。
+- 预防/验证：检查 Compose 结构优先读取 tracked YAML 或使用不展开 environment 的
+  精确查询；禁止对完整插值 config 使用带上下文的文本过滤。若发生暴露，立即停止复制，
+  记录影响并由用户确认 rotation。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

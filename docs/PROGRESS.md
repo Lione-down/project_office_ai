@@ -1,7 +1,7 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-28`
-- 最近完成：`Post-Alpha 文件生成 Worker Runtime 修复`
+- 最近完成：`Post-Alpha 生成 Plan 边界修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
@@ -1947,3 +1947,47 @@
 - 不修改 HTTP API、数据库 Schema、Frontend、Provider Contract、用户文件或旧任务审计
   事实；未触碰/暂存 `.playwright-cli/`、`design-system/`、旧
   `docs/ui-mockups/` 或 ignored `output/`。
+
+## Post-Alpha 生成 Plan 边界修复
+
+### Runtime 根因与修复
+
+- 新任务 `019fa767-93ea-7b56-a5cd-0a3f9a06bb8e` 已被 generation worker 消费，
+  不再是 queue 卡死。其 Brief 有 10 个内容项、21 个唯一 Evidence，单条内容最多引用
+  21 个 Evidence；PPTX 三次 `worker_execution_failed` 且没有 renderer checkpoint，
+  XLSX 首次以 `workbook_evidence_reference_limit_exceeded` 永久失败。
+- `PresentationGenerationPipeline` 原先把 typed `PresentationPlan` 直接传给只接受
+  `dict` 的 `PresentationOutputService`，因此在 checkpoint 前触发 contract error，
+  再被 worker 泛化为 retryable failure。现在仅 Presentation pipeline 在 output 边界
+  输出确定性 JSON payload，typed Plan 仍传给 QA；Spreadsheet 保持原 typed contract。
+- Workbook compiler 原先把同一内容的全部 Evidence ID 拼入单个 cell。现在按实际字符数
+  在 500 字符 budget 内确定性分组，必要时重复内容行，完整保留 Evidence 顺序与引用；
+  不截断、不抽样，也不提高 Workbook cell 上限。
+
+### TDD、Broad 与 Runtime
+
+- RED 为 `2 failed`：PPT output payload 不是 `dict`；21-Evidence workbook 在旧拼接检查
+  处失败。GREEN focused 两项通过，runtime file 为 `7 passed`。
+- Generation/Outbox/Presentation/Spreadsheet/QA/Workflow 相关回归为 `182 passed`。
+  Backend full 为 `610 passed, 7 skipped`；7 个 skip 仍仅为默认关闭的 4 个 live
+  failure drill 与 3 个 real Agnes case。Ruff `381 files` check/format 通过。
+- Backend image 重建后 generation worker、Backend、PPT Renderer 与 LibreOffice 均
+  healthy；worker 容器 focused `7 passed`，`pip check` 无 broken requirements，
+  generation queue 深度为 `0`。
+- 对失败任务的冻结 Brief 执行无数据库写入 probe：PPTX payload 通过 strict contract，
+  共 5 页、21 Evidence；XLSX 为 1 Sheet、12 rows、21 Evidence，最长 Evidence cell
+  为 468 字符，真实 Excel renderer 生成 8,092-byte 临时文件后立即清理。
+- 旧失败任务、step 和积分流水保持审计事实，未自动重放或创建新收费任务。用户需手工
+  再生成一次，才能完成真实 task checkpoint、LibreOffice QA 与下载验收。
+
+### Changed files 与边界
+
+- Plan：`.hermes/plans/2026-07-28-office-ai-generation-plan-boundaries.md`。
+- Backend：`services/generation_runtime.py` 与 `tests/generation/test_runtime.py`。
+- Records：`docs/PROGRESS.md`、`pitfalls.md`。
+- 不修改 API、数据库 Schema、Frontend、Provider、Evidence/Preflight/Workbook
+  contract、用户文件或旧任务事实；未触碰/暂存 `.playwright-cli/`、`design-system/`、
+  旧 `docs/ui-mockups/` 或 ignored `output/`。
+- 诊断中一次 `docker compose config` 过滤命令意外展开当前 Session Secret 到工具输出；
+  未复制、记录、暂存或提交该值。为使该输出失效，仍需用户授权后轮换 Session Secret，
+  该操作会终止现有登录，因此本任务未擅自执行。

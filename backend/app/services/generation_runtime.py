@@ -19,6 +19,7 @@ class StructuredBriefPlanCompiler:
     _content_limit = 480
     _elements_per_slide = 4
     _maximum_content_slides = 28
+    _workbook_cell_text_limit = 500
 
     def presentation(
         self,
@@ -117,17 +118,15 @@ class StructuredBriefPlanCompiler:
             raise BriefPlanCompilationError("generation_evidence_required")
         rows = []
         for entry in entries:
-            references = ",".join(entry.item.evidence_ids)
-            if len(references) > 500:
-                raise BriefPlanCompilationError(
-                    "workbook_evidence_reference_limit_exceeded"
-                )
-            rows.append(
+            rows.extend(
                 {
                     "category": self._category(entry.kind),
                     "content": entry.item.content,
                     "evidence_refs": references,
                 }
+                for references in self._workbook_reference_cells(
+                    entry.item.evidence_ids
+                )
             )
         return WorkbookPlan.validate_for_renderer(
             {
@@ -214,6 +213,24 @@ class StructuredBriefPlanCompiler:
             )
         )
 
+    @classmethod
+    def _workbook_reference_cells(cls, evidence_ids: tuple[str, ...]) -> list[str]:
+        cells = []
+        current = ""
+        for evidence_id in evidence_ids:
+            candidate = f"{current},{evidence_id}" if current else evidence_id
+            if len(candidate) > cls._workbook_cell_text_limit:
+                if not current:
+                    raise BriefPlanCompilationError(
+                        "workbook_evidence_reference_limit_exceeded"
+                    )
+                cells.append(current)
+                current = evidence_id
+            else:
+                current = candidate
+        cells.append(current)
+        return cells
+
     @staticmethod
     def _title(brief: StructuredBrief, kind: str) -> str:
         return next(
@@ -275,9 +292,16 @@ class _GenerationPipeline:
             return StepExecutionResult.permanent_failure(str(error))
         except ValidationError:
             return StepExecutionResult.permanent_failure("generation_brief_invalid")
-        output = await self._output.render(context.task_id, context.step_id, plan)
+        output = await self._output.render(
+            context.task_id,
+            context.step_id,
+            self._output_payload(plan),
+        )
         quality = await self._quality.evaluate(output.asset_id, context.step_id, plan)
         return quality.step_result()
+
+    def _output_payload(self, plan):
+        return plan
 
     async def _load_brief(self, task_id) -> tuple[Brief, str]:
         async with self._session_factory() as session:
@@ -310,6 +334,9 @@ class _GenerationPipeline:
 
 class PresentationGenerationPipeline(_GenerationPipeline):
     output_kind = "pptx"
+
+    def _output_payload(self, plan: PresentationPlan) -> dict:
+        return plan.model_dump(mode="json", exclude_none=True)
 
     def _compile(
         self,
