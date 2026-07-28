@@ -1,10 +1,25 @@
-# Office AI Alpha 执行基线
+# Office AI 执行基线
 
 - 状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 范围基线：`.hermes/plans/2026-07-22_000414-office-ai-alpha.md`
 - 任务索引：`.hermes/plans/office-ai-alpha-tasks/README.md`
 - UI 基线：`docs/ui-v1/README.md`（`APPROVED-V1`）
 - 执行方式：20 个顺序任务，每次只完成一个 dependency-ready 任务
+
+## Post-Alpha Agnes 对话与 PPT 创作中心
+
+- 批准 PRD：`docs/prd/2026-07-29-office-ai-agnes-chat-ppt-studio-prd.md`
+  （`v1.0 / APPROVED`）
+- 正式执行计划：
+  `.hermes/plans/2026-07-29-office-ai-agnes-chat-ppt-studio-post-alpha.md`
+- 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
+- 当前 Gate：`P5-000 DONE -> P5-001 READY`
+- 计划裁决：PRD 第 20 节要求开发前同步正式合同，因此 `P5-001` 先完成
+  技术/API/Data/Security/Environment 合同；首页最近任务完整后移为 `P5-002`，
+  `P5-003`～`P5-008` 保持批准 PRD 的相对顺序。
+- 合同边界：P5-000 只建立计划与任务卡；本文件以下 Alpha/Post-Alpha 现行合同以及
+  `docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、`docs/ENVIRONMENT.md`
+  在 P5-001 前不因计划任务而改变。
 
 本文是实施期的精简执行真源，不替代总计划中的详细论证。若描述冲突，以总计划的功能、安全和完成定义为最高优先级，以任务文档限定当前 commit 边界。
 

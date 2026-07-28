@@ -1,11 +1,53 @@
-# Office AI Alpha 进度记录
+# Office AI 进度记录
 
-- 最后更新：`2026-07-28`
-- 最近完成：`Post-Alpha 结束页长目标文本质量阻断修复`
-- 下一任务：`无（Office AI Internal Alpha 已封版）`
-- 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
+- 最后更新：`2026-07-29`
+- 最近完成：`P5-000 Post-Alpha 执行计划基线`
+- 下一任务：`P5-001 技术、API、Data、Security 与 Environment 合同`（唯一 `READY`）
+- 当前状态：`POST-ALPHA PLAN READY`；Alpha 仍为
+  `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-000 Post-Alpha 执行计划基线（DONE）
+
+### 范围与顺序裁决
+
+- 将 `v1.0 / APPROVED` 的 Agnes 对话与 PPT 创作中心 PRD 转换为正式总执行计划、
+  任务索引和 `P5-000`～`P5-008` 任务卡；本任务没有实现业务代码。
+- PRD 第 18 节原建议先做首页最近任务、再做设计；第 20 节要求开发前同步正式合同。
+  正式依赖链因此将合同设计设为 `P5-001`，首页最近任务完整后移为 `P5-002`；
+  `P5-003`～`P5-008` 保持原相对顺序。
+- `P5-001` 是唯一 `READY`；其余任务按单链 `BLOCKED`。正式 API/Data/Security/
+  Environment 合同仍由 P5-001 交付，P5-000 没有提前修改。
+
+### Changed files
+
+- 总计划：
+  `.hermes/plans/2026-07-29-office-ai-agnes-chat-ppt-studio-post-alpha.md`。
+- 索引与任务卡：
+  `.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`、
+  `P5-000`～`P5-008`。
+- 计划入口与进度：`docs/PLAN.md`、`docs/PROGRESS.md`。
+- 用户已有 `.playwright-cli/`、`design-system/` 和旧 `docs/ui-mockups/` 保持未修改、
+  未暂存。
+
+### 验证与证据边界
+
+- 计划 focused validator 通过：任务卡 `9/9`、索引链接 `9/9`、ID 连续，唯一
+  `READY` 为 P5-001；每张后续卡均包含依赖、建议 commit、目标、范围、RED、
+  验收、验证、证据边界和非目标。
+- 13 个候选 Markdown 严格 UTF-8、本地链接 `11/11` 有效；11 个新增计划文件均不超过
+  500 行。高置信 Secret pattern scan 为 0。
+- `git diff --check` 通过；`.env` 命中 `.gitignore`，Git 未跟踪环境类文件；
+  `docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、`docs/ENVIRONMENT.md`
+  无 diff。
+- 本任务不调用 Provider、不运行产品 runtime、不生成 Office 文件，因此不产生真实
+  Agnes、Docker、Microsoft Office 或 WPS 新证据。
+
+### 下一任务
+
+- `P5-001` 只冻结 Post-Alpha 技术、API、Data、Security、Environment 和第 19 节决策；
+  不得在同一会话提前实现 P5-002。
 
 ## Post-Alpha 结束页长目标文本质量阻断修复（COMPLETE）
 
@@ -176,9 +218,11 @@
 1. `AGENTS.md`
 2. 本文件
 3. `.hermes/plans/office-ai-alpha-tasks/README.md`
-4. 表格中第一个 `READY` 任务的任务文档
-5. `docs/PLAN.md` 及该任务涉及的专题文档
-6. `git status --short --branch`
+4. `docs/prd/2026-07-29-office-ai-agnes-chat-ppt-studio-prd.md`
+5. `.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
+6. 表格中唯一 `READY` 任务的任务文档
+7. `docs/PLAN.md` 及该任务涉及的专题文档
+8. `git status --short --branch`
 
 不得只依赖上一会话的聊天摘要。只有前置任务为 `DONE` 的任务才能改为 `READY`。
 
@@ -206,6 +250,15 @@
 | T4-003 | DONE | T4-002 | `test(golden): validate office generation corpus`；1/10 pilot 与实际 Office 证据见下文 |
 | T4-004 | DONE | T4-003 | `test(alpha): record compatibility and recovery drills`；真实 Agnes、Docker/恢复演练与 Office/WPS 证据见下文 |
 | T4-005 | DONE | T4-004 | `chore(release): prepare internal office ai alpha`；Week 4 / Alpha Gate |
+| P5-000 | DONE | Alpha Complete | `docs(plan): establish agnes chat ppt studio delivery baseline` |
+| P5-001 | READY | P5-000 | 唯一下一任务：正式合同基线 |
+| P5-002 | BLOCKED | P5-001 | 首页最近任务真实展示 |
+| P5-003 | BLOCKED | P5-002 | 双模型会话、SSE 与历史 |
+| P5-004 | BLOCKED | P5-003 | Deck Draft、逐页编辑、Skill 与 Preflight |
+| P5-005 | BLOCKED | P5-004 | 模板目录、缩略图与版本快照 |
+| P5-006 | BLOCKED | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
+| P5-007 | BLOCKED | P5-006 | Agnes 视频资产与兼容性 Gate |
+| P5-008 | BLOCKED | P5-007 | 端到端 Golden、安全、Office/WPS 与发布 Gate |
 
 ## T1-001 执行记录
 
