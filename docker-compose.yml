@@ -302,6 +302,8 @@ services:
       OFFICE_AI_DATABASE_HOST: mysql
       OFFICE_AI_REDIS_URL: redis://redis:6379/0
       OFFICE_AI_FILES_ROOT: /app/files
+      OFFICE_AI_EVIDENCE_ROOT: /app/evidence
+      OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES: ${OFFICE_AI_MAX_EVIDENCE_MANIFEST_BYTES:-10485760}
       OFFICE_AI_PPT_RENDERER_URL: http://ppt-renderer:3000
       OFFICE_AI_LIBREOFFICE_URL: http://libreoffice:8081
       OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS: ${OFFICE_AI_LIBREOFFICE_TIMEOUT_SECONDS:-120}
@@ -317,6 +319,10 @@ services:
       - type: volume
         source: shared-work
         target: /app/rendered
+        read_only: true
+      - type: volume
+        source: evidence-files
+        target: /app/evidence
         read_only: true
     tmpfs:
       - /tmp

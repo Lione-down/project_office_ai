@@ -31,6 +31,16 @@ from app.skills.catalog import (
 )
 
 
+RESOLVABLE_BRIEF_BLOCKERS = frozenset(
+    {
+        "unit_unknown",
+        "numeric_low_confidence",
+        "source_conflict",
+        "metric_scope_conflict",
+    }
+)
+
+
 class PreflightEvaluator:
     def __init__(self, manifest_store: EvidenceManifestStore) -> None:
         self._manifest_store = manifest_store
@@ -206,10 +216,14 @@ class PreflightEvaluator:
             findings.append(
                 ConflictFinding(
                     code=code,
-                    level="blocking" if item.blocking else "needs_confirmation",
+                    level=(
+                        "blocking"
+                        if item.blocking and code in RESOLVABLE_BRIEF_BLOCKERS
+                        else "needs_confirmation"
+                    ),
                     message=(
                         _conflict_message(code)
-                        if item.blocking
+                        if item.blocking and code in RESOLVABLE_BRIEF_BLOCKERS
                         else f"请确认：{item.content}"
                     ),
                     evidence_ids=item.evidence_ids,

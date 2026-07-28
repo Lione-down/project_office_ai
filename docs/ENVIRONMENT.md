@@ -191,8 +191,11 @@ MySQL/Redis。演练使用隔离 database、合成 identity 和非真实 Credent
   已构建并启动 `workflow-worker` 与 `generation-worker`，当前 11 个长期服务 healthy。
 - Post-Alpha 新增 `generation-worker`，使用 backend 镜像和
   `python -m app.workers.generation` entrypoint。它只连接 private network，不映射
-  Host port，不挂载 Master/Provider credential、parsed/evidence volume 或用户源文件；
-  root filesystem read-only，以 `10001:10001` 运行。它可写 owner-scoped
+  Host port，不挂载 Master/Provider credential、parsed volume 或用户源文件；
+  root filesystem read-only，以 `10001:10001` 运行。为从已确认的冻结来源构造
+  reference-grade PPT Plan，它只读挂载 `evidence-files` 到 `/app/evidence`，并复验
+  owner、project、asset version、Manifest status 与 SHA-256；不能写回或改造 Evidence。
+  它可写 owner-scoped
   `app-files` 输出，只读共享 Renderer work volume，并通过 internal PPT Renderer 与
   LibreOffice sidecar 完成生成和 QA。
 - generation runner 只从 MySQL 读取 confirmed Structured Brief 与 task 的冻结 model/

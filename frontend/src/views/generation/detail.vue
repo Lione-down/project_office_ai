@@ -17,6 +17,7 @@ const outputs = ref<GenerationOutput[]>([]);
 const isLoading = ref(true);
 const errorMessage = ref("");
 const downloadingKind = ref<string | null>(null);
+const isRetrying = ref(false);
 
 const taskId = computed(() => String(route.params.taskId ?? ""));
 const statusCopy = computed(() => {
@@ -89,6 +90,24 @@ async function download(output: GenerationOutput) {
   }
 }
 
+async function retryGeneration() {
+  if (task.value?.status !== "failed") return;
+  isRetrying.value = true;
+  errorMessage.value = "";
+  try {
+    task.value = await workspaceApi.retryGeneration(
+      taskId.value,
+      requireToken(),
+    );
+    outputs.value = [];
+    await load();
+  } catch (error) {
+    errorMessage.value = readableError(error);
+  } finally {
+    isRetrying.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -122,7 +141,19 @@ onMounted(load);
       <section class="output-section" aria-labelledby="outputs-title">
         <div class="section-title">
           <h2 id="outputs-title">生成文件</h2>
-          <button class="oa-button oa-button--secondary" type="button" @click="load">刷新状态</button>
+          <div class="section-actions">
+            <button
+              v-if="task.status === 'failed'"
+              class="oa-button"
+              data-testid="retry-generation"
+              type="button"
+              :disabled="isRetrying"
+              @click="retryGeneration"
+            >
+              {{ isRetrying ? "正在重试…" : "重试生成" }}
+            </button>
+            <button class="oa-button oa-button--secondary" type="button" @click="load">刷新状态</button>
+          </div>
         </div>
         <div v-if="outputs.length" class="output-list">
           <article v-for="output in outputs" :key="output.output_kind">
@@ -268,6 +299,11 @@ footer {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+}
+
+.section-actions {
+  display: flex;
+  gap: 10px;
 }
 
 h2,

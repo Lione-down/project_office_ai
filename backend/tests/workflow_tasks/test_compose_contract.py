@@ -55,6 +55,13 @@ def test_generation_worker_consumes_render_jobs_without_provider_credentials() -
         "read_only": True,
         "type": "volume",
     } in worker["volumes"]
+    assert worker["environment"]["OFFICE_AI_EVIDENCE_ROOT"] == "/app/evidence"
+    assert {
+        "source": "evidence-files",
+        "target": "/app/evidence",
+        "read_only": True,
+        "type": "volume",
+    } in worker["volumes"]
     assert worker["depends_on"]["mysql"]["condition"] == "service_healthy"
     assert worker["depends_on"]["redis"]["condition"] == "service_healthy"
     assert worker["depends_on"]["ppt-renderer"]["condition"] == "service_healthy"

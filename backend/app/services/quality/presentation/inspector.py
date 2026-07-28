@@ -8,6 +8,7 @@ from zipfile import BadZipFile, ZipFile
 from app.services.quality.presentation.chart_references import (
     chart_references_are_valid,
 )
+from app.services.quality.presentation.body_density import inspect_body_text_density
 from app.services.quality.presentation.contracts import PresentationQualityFinding
 
 
@@ -25,6 +26,7 @@ MAX_COMPRESSION_RATIO = 100
 MAX_XML_MEMBER_BYTES = 16 * 1024 * 1024
 TITLE_CHARACTER_LIMIT = 80
 EVIDENCE_MARKER = re.compile(r"Evidence:\s*([A-Za-z0-9._:,\-\s]+)")
+VISIBLE_EVIDENCE_ID = re.compile(r"\be-[a-f0-9]{64}\b")
 REFERENCE_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
 
@@ -134,6 +136,15 @@ class PresentationPackageInspector:
                 if (node.text or "").strip()
             )
             all_text.append(slide_text)
+            if VISIBLE_EVIDENCE_ID.search(slide_text):
+                findings.append(
+                    self._finding(
+                        "visible_evidence_reference",
+                        "presentation-visible-evidence.v1",
+                        slide_number=slide_number,
+                        repairable=False,
+                    )
+                )
             if self._is_blank(slide, slide_text):
                 findings.append(
                     self._finding(
@@ -145,12 +156,19 @@ class PresentationPackageInspector:
                 )
             findings.extend(self._geometry_findings(slide, slide_number, width, height))
             findings.extend(self._title_findings(slide, slide_number))
+            findings.extend(inspect_body_text_density(slide, slide_number))
             findings.extend(
                 self._relationship_findings(
                     archive, names, slide, slide_name, slide_number
                 )
             )
-        return findings, len(slide_ids), "\n".join(all_text)
+        notes_text = [
+            "\n".join(node.text or "" for node in notes.findall(".//a:t", NS))
+            for name in sorted(names)
+            if name.startswith("ppt/notesSlides/notesSlide") and name.endswith(".xml")
+            for notes in (self._xml(archive, name),)
+        ]
+        return findings, len(slide_ids), "\n".join((*all_text, *notes_text))
 
     def _relationship_findings(
         self,

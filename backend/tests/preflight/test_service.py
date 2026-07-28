@@ -260,6 +260,40 @@ async def test_nonblocking_item_requires_confirmation_without_blocking_queue(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["unit_mismatch", "time_range_mismatch"])
+async def test_provider_only_ambiguity_cannot_create_unresolvable_blocker(
+    preflight_harness, code: str
+) -> None:
+    async with preflight_harness.session_factory() as session, session.begin():
+        brief = await session.get(Brief, BRIEF_ID)
+        _set_content(
+            brief,
+            {
+                **brief.content,
+                "unresolved_items": [
+                    {
+                        "code": code,
+                        "content": "保留该歧义并在生成结果中提示复核",
+                        "source": "agnes_inference",
+                        "evidence_ids": [EVIDENCE_ID],
+                        "blocking": True,
+                    }
+                ],
+            },
+        )
+
+    result = await preflight_harness.service.preflight(
+        "access-token", PreflightCommand(brief_id=BRIEF_ID)
+    )
+
+    assert result.status == "preflight"
+    assert result.has_blockers is False
+    assert [(item.code, item.level) for item in result.conflicts] == [
+        (code, "needs_confirmation")
+    ]
+
+
+@pytest.mark.asyncio
 async def test_known_combined_skills_report_the_shared_input_auto_merge(
     preflight_harness,
 ) -> None:

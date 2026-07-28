@@ -53,8 +53,8 @@
   },
   "expected_presentation": {
     "path": "golden-data/expected/sales-pilot-v1.pptx",
-    "sha256": "c8359cc339ac8467c8430e6e2cb02da529397446769d531a42ab6c03d82a9d77",
-    "byte_size": 161786,
+    "sha256": "c940de387ad97a117f6d5a3e2a8f5bdc5fb2904b05fe90e63c6711d285ef5e08",
+    "byte_size": 159755,
     "slide_count": 4
   },
   "expected_workbook": {

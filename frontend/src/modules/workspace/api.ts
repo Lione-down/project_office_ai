@@ -91,6 +91,13 @@ export function createWorkspaceApi(client: WorkspaceApiClient) {
         accessToken,
       });
     },
+    retryGeneration(taskId: string, accessToken: string) {
+      return client.post<GenerationTask>(
+        `/generations/${taskId}/retry`,
+        {},
+        { accessToken },
+      );
+    },
     getGenerationOutputs(taskId: string, accessToken: string) {
       return client.get<GenerationOutputs>(`/generations/${taskId}/outputs`, {
         accessToken,

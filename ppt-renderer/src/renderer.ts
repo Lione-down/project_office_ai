@@ -78,7 +78,9 @@ function buildPresentation(
     for (const element of slidePlan.elements) {
       renderElement(pptx, slide, plan, element, template);
     }
-    slide.addNotes(slidePlan.speaker_notes.join("\n"));
+    slide.addNotes(
+      [...slidePlan.speaker_notes, evidenceNote(slidePlan)].filter(Boolean).join("\n"),
+    );
   }
   return pptx;
 }
@@ -127,23 +129,25 @@ function renderElement(
 ): void {
   const position = { x: element.x, y: element.y, w: element.w, h: element.h };
   if (element.type === "text") {
-    slide.addText(withEvidence(element.text, element.evidence_ids), {
+    slide.addText(element.text, {
       ...position,
       fontFace: template.bodyFontFace,
       fontSize: 18,
       color: template.text,
       margin: 4,
       valign: "top",
+      fit: "shrink",
     });
     return;
   }
   if (element.type === "source") {
-    slide.addText(withEvidence(element.text, element.evidence_ids), {
+    slide.addText(element.text, {
       ...position,
       fontFace: template.bodyFontFace,
       fontSize: 8,
       color: template.muted,
       margin: 0,
+      fit: "shrink",
     });
     return;
   }
@@ -172,6 +176,8 @@ function renderTable(
   element: Extract<PresentationElement, { type: "table" }>,
   template: SystemTemplate,
 ): void {
+  const fontSize =
+    source.columns.length > 6 ? 8 : source.rows.length > 8 ? 9 : 11;
   const rows = [
     source.columns.map((text) => ({
       text,
@@ -181,7 +187,15 @@ function renderTable(
         fill: { color: template.primary },
       },
     })),
-    ...source.rows.map((row) => row.map((value) => String(value))),
+    ...source.rows.map((row, rowIndex) =>
+      row.map((value, columnIndex) => ({
+        text: String(value),
+        options: {
+          bold: columnIndex === 0,
+          fill: { color: rowIndex % 2 === 0 ? template.surface : template.background },
+        },
+      })),
+    ),
   ];
   slide.addTable(rows, {
     x: element.x,
@@ -189,7 +203,7 @@ function renderTable(
     w: element.w,
     h: element.h,
     fontFace: template.bodyFontFace,
-    fontSize: 11,
+    fontSize,
     color: template.text,
     border: { type: "solid", color: "D8DEE8", pt: 0.5 },
     fill: { color: template.surface },
@@ -235,19 +249,18 @@ function renderChart(
       showBorder: false,
     },
   );
-  slide.addText(`Evidence: ${element.evidence_ids.join(", ")}`, {
-    x: element.x,
-    y: Math.min(7.18, element.y + element.h - 0.18),
-    w: element.w,
-    h: 0.16,
-    fontFace: template.bodyFontFace,
-    fontSize: 6,
-    color: template.muted,
-    align: "right",
-    margin: 0,
-  });
+  return;
 }
 
-function withEvidence(text: string, evidenceIds: string[]): string {
-  return `${text}\n[Evidence: ${evidenceIds.join(", ")}]`;
+function evidenceNote(slide: PresentationSlide): string {
+  const evidenceIds = [
+    ...new Set(
+      slide.elements.flatMap((element) =>
+        "evidence_ids" in element && element.evidence_ids
+          ? element.evidence_ids
+          : [],
+      ),
+    ),
+  ];
+  return evidenceIds.length ? `Evidence: ${evidenceIds.join(", ")}` : "";
 }

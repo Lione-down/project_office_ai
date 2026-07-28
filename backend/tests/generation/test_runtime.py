@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.models.briefs import Brief
 from app.models.generation_tasks import GenerationTask
+from app.services.evidence.contracts import EvidenceItem
 from app.services.generation_runtime import (
     PresentationGenerationPipeline,
     SpreadsheetGenerationPipeline,
@@ -18,6 +19,36 @@ from tests.generation.conftest import BRIEF_ID
 
 EVIDENCE_A = f"e-{'a' * 64}"
 EVIDENCE_B = f"e-{'b' * 64}"
+
+
+def excel_evidence(cell: str, value: str, evidence_id: str) -> EvidenceItem:
+    return EvidenceItem.model_validate(
+        {
+            "evidence_id": evidence_id,
+            "evidence_type": "source_fact",
+            "asset_id": "019fa500-0000-7000-8000-000000000001",
+            "asset_version": f"sha256:{'c' * 64}",
+            "location": {
+                "kind": "excel_cell",
+                "sheet": "经营概览",
+                "cell": cell,
+            },
+            "raw_value": value,
+            "normalized_value": value,
+            "value_kind": "narrative",
+            "unit": None,
+            "currency": None,
+            "ocr_confidence": None,
+            "parser_name": "openpyxl",
+            "parser_version": "1.0.0",
+            "ocr_engine_name": None,
+            "ocr_engine_version": None,
+            "warnings": [],
+            "calculation_blocked": False,
+            "calculation_expression": None,
+            "inference_model": None,
+        }
+    )
 
 
 def structured_brief() -> StructuredBrief:
@@ -139,6 +170,109 @@ def test_compiler_deduplicates_presentation_element_evidence_refs() -> None:
         if element.type == "text" and element.text == inference.content
     )
     assert inference_element.evidence_ids == [EVIDENCE_A, EVIDENCE_B]
+
+
+def test_compiler_builds_management_report_structure_from_excel_evidence() -> None:
+    values = (
+        ("A1", "指标"),
+        ("B1", "一月"),
+        ("C1", "二月"),
+        ("A2", "任务量"),
+        ("B2", "20.056999999999999"),
+        ("C2", "135"),
+        ("A3", "完成量"),
+        ("B3", "118"),
+        ("C3", "142"),
+    )
+    evidence_items = tuple(
+        excel_evidence(cell, value, f"e-{index:064x}")
+        for index, (cell, value) in enumerate(values, start=1)
+    )
+
+    plan = StructuredBriefPlanCompiler().presentation(
+        structured_brief(),
+        template_code="ppt.operating-review.v1",
+        revision=2,
+        evidence_items=evidence_items,
+    )
+
+    assert len(plan.slides) >= 6
+    assert any(slide.title == "目录" for slide in plan.slides)
+    assert any(
+        element.type == "table" for slide in plan.slides for element in slide.elements
+    )
+    assert any(source.kind == "table" for source in plan.data_sources.values())
+    assert any(
+        "20.057" in row
+        for source in plan.data_sources.values()
+        if source.kind == "table"
+        for row in source.rows
+    )
+    assert all(
+        "[Evidence:" not in element.text
+        for slide in plan.slides
+        for element in slide.elements
+        if element.type in {"text", "source"}
+    )
+
+
+def test_first_table_page_does_not_show_redundant_page_one_suffix() -> None:
+    values = [("A1", "指标"), ("B1", "数量")]
+    values.extend(
+        (cell, value)
+        for row in range(2, 14)
+        for cell, value in ((f"A{row}", f"项目{row - 1}"), (f"B{row}", str(row)))
+    )
+    evidence_items = tuple(
+        excel_evidence(cell, value, f"e-{index:064x}")
+        for index, (cell, value) in enumerate(values, start=1)
+    )
+
+    plan = StructuredBriefPlanCompiler().presentation(
+        structured_brief(),
+        template_code="ppt.operating-review.v1",
+        revision=2,
+        evidence_items=evidence_items,
+    )
+
+    table_slide = next(
+        slide
+        for slide in plan.slides
+        if any(element.type == "table" for element in slide.elements)
+    )
+
+    assert not table_slide.title.endswith("（1）")
+
+
+def test_data_first_sheet_uses_generic_headers_without_dropping_first_row() -> None:
+    values = (
+        ("A1", "制高点开拓"),
+        ("A2", "1"),
+        ("B2", "黄良锦"),
+        ("C2", "GZ13260"),
+        ("D2", "同兴羊蹄煲"),
+        ("A3", "2"),
+        ("B3", "黄良锦"),
+        ("C3", "GZ13320"),
+        ("D3", "一兴田鱼鸡子牛蹄煲"),
+    )
+    evidence_items = tuple(
+        excel_evidence(cell, value, f"e-{index:064x}")
+        for index, (cell, value) in enumerate(values, start=1)
+    )
+
+    plan = StructuredBriefPlanCompiler().presentation(
+        structured_brief(),
+        template_code="ppt.operating-review.v1",
+        revision=2,
+        evidence_items=evidence_items,
+    )
+    table = next(
+        source for source in plan.data_sources.values() if source.kind == "table"
+    )
+
+    assert table.columns == ["序号", "指标1", "指标2", "指标3"]
+    assert table.rows[0] == ["1", "黄良锦", "GZ13260", "同兴羊蹄煲"]
 
 
 def test_compiler_builds_text_only_workbook_without_inventing_numbers() -> None:

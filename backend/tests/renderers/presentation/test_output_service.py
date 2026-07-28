@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 
 from app.models.file_assets import FileAsset
 from app.models.generation_task_steps import GenerationTaskStep
+from app.models.generation_tasks import GenerationTask
 from app.services.renderers.presentation.service import PresentationOutputError
 from tests.renderers.presentation.conftest import (
     FailingRendererClient,
@@ -34,6 +35,30 @@ async def test_render_persists_one_immutable_task_output_and_replays(
     assert step.checkpoint["output_asset_id"] == str(first.asset_id)
     assert "output_storage_key" not in step.checkpoint
     assert "path" not in str(step.checkpoint).lower()
+
+
+async def test_task_retry_creates_a_new_immutable_output_asset(
+    output_harness,
+) -> None:
+    first = await output_harness.service.render(TASK_ID, STEP_ID, valid_plan())
+    async with output_harness.session_factory() as session, session.begin():
+        task = await session.get(GenerationTask, TASK_ID)
+        step = await session.get(GenerationTaskStep, STEP_ID)
+        task.retry_count = 1
+        step.checkpoint = {}
+
+    retried = await output_harness.service.render(TASK_ID, STEP_ID, valid_plan())
+
+    async with output_harness.session_factory() as session:
+        assets = list(
+            await session.scalars(
+                select(FileAsset).order_by(FileAsset.created_at, FileAsset.id)
+            )
+        )
+
+    assert retried.asset_id != first.asset_id
+    assert len(assets) == 2
+    assert len(output_harness.client.calls) == 2
 
 
 async def test_existing_step_rejects_a_different_plan(output_harness) -> None:

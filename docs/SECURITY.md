@@ -117,9 +117,10 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - `credit_ledger` 与 `audit_logs` 只追加，不提供修改/删除业务接口。
 - Generation、Credits、Outbox/queue payload 和日志不得包含 Credential Secret、Prompt、文件正文、storage key 或本地路径；用户 task/credits 响应使用 `private, no-store`。
 - `generation-worker` 只连 private network，无 Host port、Master/Provider credential、
-  parsed/evidence volume 或外部 egress。它只读取已确认的结构化 Brief 和冻结 snapshot，
-  确定性构造 strict PPTX/XLSX Plan；没有可追溯内容、Evidence 或合法 Schema 时在
-  Renderer 前 fail closed，不能生成空白或猜测性文件。
+  parsed volume 或外部 egress。它只读挂载 Evidence Manifest volume，只读取已确认的
+  结构化 Brief 和冻结 snapshot，并复验来源 owner/project/version/status/hash 后确定性
+  构造 strict PPTX/XLSX Plan；没有可追溯内容、Evidence 或合法 Schema 时在 Renderer
+  前 fail closed，不能生成空白或猜测性文件。
 - generation progress 必须来自 MySQL claim/step/settle checkpoint：claim 写入 10%，
   每个输出完成后按比例推进，终态写入 100%。不得用 client timer、孤立 Redis message
   或日志推断来修改任务/积分事实。
@@ -133,11 +134,17 @@ upload -> quarantine -> MIME/extension -> size/archive limits
 - Python 与 Node 使用同一 canonical Plan hash；Python 再验证 response schema、request ID、模板/Renderer 版本、页数、Plan/file SHA-256、byte size 和唯一受控相对 key。HTTP request/response 均有上限，错误不回显 Plan、图片、路径或 stack。
 - 同 request 的并发执行在 Renderer 内串行；sidecar replay 验证 Plan 和实际文件 hash/size，缺失或损坏的 derived output 可安全重建，不同 Plan 使用同一 request ID 时拒绝。
 - Renderer 容器 non-root、read-only rootfs、private network、无 Host port、无 Secret/Redis/Provider credential；Backend 只读挂载 renderer work volume。最终资产使用 owner-scoped fixed key 和 stable asset ID 原子写入，不覆盖完成输出，ready replay 必须复验磁盘 integrity。
+- 可见 slide text 禁止出现完整 `e-` + 64 位十六进制 Evidence ID；Renderer 将完整
+  Evidence 追踪写入 speaker notes。任务级 retry 使用带 retry 序号的新输出幂等键，
+  创建新的不可变资产，不覆盖或伪装复用上一次被质量门禁拦截的资产；中途失败的
+  partial checkpoint 不作为完成输出暴露。
 
 ## PPT 质量门禁
 
 - `presentation-quality-report.v1` 为 strict schema；finding 只保存稳定 code、severity、rule version、repairable 与可选页码，不保存正文、文件名、storage key、绝对路径或用户材料。
 - OOXML 检查限制 ZIP entry 数量、单项/总解压大小、压缩比和 XML 大小，拒绝 path traversal、加密 entry、DTD/entity、坏 relationship、缺图、坏 chart range 与未知 Evidence 引用。
+- OOXML 检查同时阻断可见完整 Evidence ID 和未启用 autofit 的高密度正文；title、
+  body 与 table 使用不同规则，页码、日期和页脚 placeholder 不得被误判为正文溢出。
 - LibreOffice sidecar 只接受固定 asset identity/hash/size/source variant；源文件与输出均使用服务端派生 key。request replay 必须同时复验 manifest、PDF 与逐页 PNG 的实际 hash/size，不能只信 sidecar JSON。
 - 自动修复只允许一次且仅处理确定性 geometry/autofit 规则；repaired PPTX 使用新 key，原始输出永不覆盖。报告、preview 或 validated artifact 任一漂移均 fail closed，`blocked` 禁止下载并触发既有 release 结算。
 

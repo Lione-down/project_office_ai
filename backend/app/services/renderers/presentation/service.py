@@ -151,7 +151,7 @@ class PresentationOutputService:
                 or frozen_outputs[0].get("template_version") != plan.template.version
             ):
                 raise PresentationOutputError("presentation_template_conflict")
-            idempotency_key = self._idempotency_key(step.id)
+            idempotency_key = self._idempotency_key(step.id, task.retry_count)
             asset = await session.scalar(
                 select(FileAsset)
                 .where(
@@ -356,8 +356,9 @@ class PresentationOutputService:
         }
 
     @staticmethod
-    def _idempotency_key(step_id: UUID) -> str:
-        return f"render-output:{step_id}"
+    def _idempotency_key(step_id: UUID, retry_count: int = 0) -> str:
+        base_key = f"render-output:{step_id}"
+        return base_key if retry_count == 0 else f"{base_key}:retry:{retry_count}"
 
     @staticmethod
     def _snapshot(

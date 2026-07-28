@@ -15,6 +15,7 @@ from app.services.generation_runtime import (
     SpreadsheetGenerationPipeline,
 )
 from app.services.generation_worker import GenerationWorkerService
+from app.services.evidence.store import EvidenceManifestStore
 from app.services.quality.presentation.artifact_store import (
     PresentationQualityArtifactStore,
 )
@@ -88,6 +89,10 @@ def build_executor(settings: Settings, database: DatabaseManager):
             database.session_factory,
             presentation_output,
             presentation_quality,
+            evidence_manifests=EvidenceManifestStore(
+                settings.evidence_root,
+                max_output_bytes=settings.max_evidence_manifest_bytes,
+            ),
         ),
         spreadsheet_pipeline=SpreadsheetGenerationPipeline(
             database.session_factory,

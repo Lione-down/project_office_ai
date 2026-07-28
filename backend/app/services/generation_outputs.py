@@ -14,6 +14,9 @@ from app.services.generation_contracts import (
 
 def generation_step_snapshot(step: GenerationTaskStep) -> GenerationStepSnapshot:
     checkpoint = dict(step.checkpoint or {})
+    output_asset_id = _checkpoint_asset_id(checkpoint)
+    if step.status == "failed" and checkpoint.get("quality_status") is None:
+        output_asset_id = None
     return GenerationStepSnapshot(
         step_key=step.step_key,
         output_kind=step.output_kind,
@@ -21,7 +24,7 @@ def generation_step_snapshot(step: GenerationTaskStep) -> GenerationStepSnapshot
         attempt=step.attempt,
         estimated_credits=step.estimated_credits,
         error_category=step.error_category,
-        output_asset_id=_checkpoint_asset_id(checkpoint),
+        output_asset_id=output_asset_id,
         asset_version=checkpoint.get("asset_version"),
         quality_status=checkpoint.get("quality_status"),
         download_allowed=checkpoint.get("quality_download_allowed", False),

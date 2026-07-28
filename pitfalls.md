@@ -15,6 +15,29 @@
 
 ## 踩坑
 
+### 2026-07-28 · Post-Alpha · 生成 worker 的 Evidence 与 retry 边界
+
+- 现象：PPT compiler 开始读取冻结 Evidence Manifest 后，`generation-worker` 未挂载
+  `evidence-files`，真实任务稳定失败；质量门禁修正后再次 retry，又因清空 checkpoint
+  但复用旧 blocked asset 而触发输出完整性失败。
+- 影响：单元测试中的合成 Evidence 或首次生成成功不能证明真实 retry 链路可用；旧失败
+  资产与新一轮 checkpoint 混用会让页面无法读取任务，也可能诱发覆盖历史输出。
+- 本任务处理：`generation-worker` 以只读方式挂载 Evidence volume；任务级 retry 使用
+  retry 序号派生新的不可变输出幂等键；失败的 partial checkpoint 不对外暴露为完成资产。
+- 预防/验证：凡新增 runtime 文件依赖，必须同时验证 Compose mount、权限和真实 worker；
+  质量规则变化必须用同一失败任务执行 retry，并检查新 asset ID、旧资产未覆盖、下载门禁
+  和积分 reserve/release 闭环。
+
+### 2026-07-28 · Post-Alpha · 质量门禁需区分正文与 placeholder
+
+- 现象：新增正文密度门禁后，27 页汇报中的页码 placeholder 被当作普通正文，导致第
+  10–27 页全部误报 `body_text_overflow_risk`。
+- 影响：门禁 fail closed 是正确的，但错误对象分类会稳定拒绝实际可读的产物。
+- 本任务处理：保留正文容量算法，仅排除 title、slide number、date、footer 等语义明确
+  placeholder，并补充页码回归样本。
+- 预防/验证：新增 OOXML 规则时必须同时覆盖正文、table、title、footer 和 slide-number
+  等对象类别；不能只用单一 text shape 合成样本。
+
 ### 2026-07-22 · T1-001 · Docker CLI/daemon 不可用
 
 - 现象：当前 PowerShell 调用 `docker compose version` 返回 command not found。

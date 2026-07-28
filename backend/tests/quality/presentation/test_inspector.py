@@ -21,6 +21,18 @@ from tests.quality.presentation.samples import write_presentation_sample
             "evidence_reference_missing",
             None,
         ),
+        (
+            "visible-evidence.pptx",
+            {"evidence_ids": (f"e-{'a' * 64}",)},
+            "visible_evidence_reference",
+            1,
+        ),
+        (
+            "dense-body.pptx",
+            {"dense_body_slide": 2},
+            "body_text_overflow_risk",
+            2,
+        ),
     ],
 )
 def test_inspector_blocks_synthetic_failure_samples(
@@ -69,3 +81,41 @@ def test_inspector_allows_valid_synthetic_sample(tmp_path: Path) -> None:
 
     assert result.slide_count == 3
     assert result.findings == ()
+
+
+def test_inspector_tracks_full_evidence_from_notes_without_visible_leak(
+    tmp_path: Path,
+) -> None:
+    evidence_id = f"e-{'a' * 64}"
+    sample = write_presentation_sample(
+        tmp_path / "notes-evidence.pptx",
+        evidence_ids=("ev-readable-source",),
+        notes_evidence_ids=(evidence_id,),
+    )
+
+    result = PresentationPackageInspector().inspect(
+        sample,
+        expected_slide_count=3,
+        expected_evidence_ids={evidence_id},
+    )
+
+    assert result.findings == ()
+
+
+def test_inspector_ignores_slide_number_placeholder_for_body_density(
+    tmp_path: Path,
+) -> None:
+    sample = write_presentation_sample(
+        tmp_path / "slide-number.pptx",
+        slide_number_placeholder_slide=2,
+    )
+
+    result = PresentationPackageInspector().inspect(
+        sample,
+        expected_slide_count=3,
+        expected_evidence_ids={"ev-revenue"},
+    )
+
+    assert not any(
+        finding.code == "body_text_overflow_risk" for finding in result.findings
+    )

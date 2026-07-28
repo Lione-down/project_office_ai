@@ -10,6 +10,7 @@ import GenerationDetailView from "./detail.vue";
 const workspaceMocks = vi.hoisted(() => ({
   getGeneration: vi.fn(),
   getGenerationOutputs: vi.fn(),
+  retryGeneration: vi.fn(),
   downloadAsset: vi.fn(),
 }));
 
@@ -101,5 +102,27 @@ describe("Generation detail", () => {
     expect(wrapper.text()).toContain("Provider 状态暂不确定");
     expect(wrapper.text()).toContain("系统不会自动重试或重复扣费");
     expect(wrapper.find("[data-testid='retry-generation']").exists()).toBe(false);
+  });
+
+  it("allows a deterministic failed task to use the audited retry endpoint", async () => {
+    workspaceMocks.retryGeneration.mockResolvedValue({
+      task_id: "task-id",
+      brief_id: "brief-id",
+      status: "queued",
+      progress: 0,
+      estimated_credits: 1600,
+      settled_credits: 0,
+      error_category: null,
+      cancel_requested: false,
+      steps: [],
+      replayed: false,
+    });
+    const wrapper = await mountDetail("failed");
+
+    const retry = wrapper.get("[data-testid='retry-generation']");
+    await retry.trigger("click");
+    await flushPromises();
+
+    expect(workspaceMocks.retryGeneration).toHaveBeenCalledWith("task-id", "access");
   });
 });

@@ -20,6 +20,10 @@
 - 输入支持 XLSX、CSV、DOCX、PDF、PNG、JPG、JPEG、WEBP、TXT、MD；XLSM 只读安全数据且不执行宏。
 - Agnes 2.0 Flash Provider Adapter，管理员可配置 Provider、独立 Credential 和发布模型；不静默切换 Provider。
 - 两个用户可见 Skill：销售经营汇报（PPTX）与销售数据分析和经营看板（XLSX），可共享材料组合执行。
+- 销售经营汇报从已冻结资产的 Evidence Manifest 恢复 Excel 行列关系，生成封面、目录、
+  经营摘要、分页业务表、问题与措施、结束页等管理汇报结构；完整 Evidence ID 进入
+  speaker notes 和内部追踪，不占用可见正文。私有参考稿仅用于只读结构与可读性验收，
+  不复制其品牌、Logo、图片、母版或嵌入对象。
 - 结构化 Brief、版本、证据引用、冲突处理、用户确认、预计积分和异步生成。
 - 3 套系统 PPT 模板、2 套系统 Excel 模板、确定性 renderer、LibreOffice 兼容验证和质量门禁。
 - T4-003 由用户于 `2026-07-26` 批准以唯一一组授权 XLSX 来源 + PPTX 参考输出完成
@@ -33,6 +37,7 @@
 - UI V1 之后的品牌升级、高保真动效、像素级终稿和完整多端响应式。
 - 在线 PPT/Excel 编辑器、团队/Workspace/组织协作、微信、小程序、支付、会员和生产部署。
 - 用户私人模板上传、任意 PPTX 母版无损复刻、PPTX 输入和任意历史 Excel 无损往返。
+- 对私有参考稿做像素级、品牌级或内容级复刻；本期只交付同类管理叙事和表格化表达。
 - VBA、宏执行、Power Query、Power Pivot、DAX、ActiveX、外部连接和第三方插件。
 - Alpha 两个 Skill 之外的业务 Skill、任意 Skill 组合和多 Provider 正式质量认证。
 - 绕过加密/保护、将本地图片暴露到公网或把文档内容当作 System Prompt。

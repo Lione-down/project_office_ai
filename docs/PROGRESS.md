@@ -1,11 +1,68 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-28`
-- 最近完成：`Post-Alpha 生成 Plan 边界修复`
+- 最近完成：`Post-Alpha 参考级经营管理汇报 PPT 修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## Post-Alpha 参考级经营管理汇报 PPT 修复（COMPLETE）
+
+### 根因与实现
+
+- 原生成结果只有 4 页：compiler 只把少量 Brief 文本放入固定正文框，未加载冻结来源的
+  Evidence Manifest，也没有恢复 Excel 行列或构造 table data source；Renderer 又把完整
+  Evidence ID 写进可见正文，既挤占版面又造成重叠。
+- 新增确定性的管理汇报 composer：复验来源 owner/project/version/status/hash，从
+  ExcelCellLocation 恢复 Sheet、行、列与数据分页，生成封面、目录、经营摘要、22 页业务
+  表、问题与下一步措施、结束页，共 27 页。无表头 Sheet 使用安全通用列名，不丢首条数据；
+  浮点展示最多保留 4 位小数，单页标题不再带多余“（1）”。
+- `ppt.operating-review.v1` 使用红/金/暖白管理汇报视觉；正文使用 shrink/autofit，table
+  使用动态字号和交替行底色。可见 slide 不显示完整 Evidence ID，完整引用进入 speaker
+  notes；质量门禁新增可见 Evidence 泄漏和高密度正文检查，并排除页码、日期、页脚等
+  placeholder 的正文误判。
+- `generation-worker` 只读挂载 Evidence volume。任务级 retry 使用 retry 序号创建新的
+  不可变输出资产，不覆盖 blocked 历史资产；失败 partial checkpoint 不再冒充完整输出。
+  前端失败任务提供确定性的“重试生成”入口。Preflight 仅让系统确有 resolution UI 的
+  blocker 阻断，Provider 自定义但无法操作的 code 保留为确认 warning。
+
+### 真实浏览器、质量与 Office 证据
+
+- 未重新上传，复用管理员已上传的 `第一季度数据.xlsx`。workflow
+  `019fa7ff-18d8-7dfb-b4be-964baf3aa46a` 的 Brief 首轮成功；26 个单位确认全部按用户指示
+  选择 `数量（个/件）`，confirmed revision 为
+  `019fa801-0899-7727-949d-1fe4cd6f94e4`。
+- 最终 generation task `019fa828-8f7a-706d-9b88-64a433b7be76`：
+  `progress=100`、PPTX `succeeded`、quality `passed`、`download_allowed=true`、
+  `findings=0`、结算 800；最终 asset 为
+  `019fa828-93e2-7103-a2be-adadf5179674`。浏览器显示“任务已完成 / 全部文件已通过检查”。
+- 私有只读参考为 28 页、8 个 table、9 个 picture、4 个 group、16 个 OLE；最终输出为
+  27 页、22 个原生 table、0 个外部图片/嵌入对象。该结果复用管理叙事、红白层级和
+  表格化表达，不复制私有品牌、Logo、图片、母版或嵌入对象。
+- Microsoft PowerPoint 原生打开并导出 27/27 页 PNG；逐页 contact sheet 与重点页抽查
+  未见文字重叠、截断或浮点尾差。OOXML 检查确认 27 个 slide、27 个 notes、可见完整
+  Evidence ID 为 0、notes 中 1,199 个唯一 Evidence 引用。
+
+### 下载、验证与 Changed files
+
+- 最终文件：
+  `D:\works\codexWorks\download\第一季度数据-参考级销售经营复盘-最终版.pptx`，
+  2,652,931 bytes，SHA-256
+  `8191b1f449b69c4b134bcd2061753a972e292d97d79db5b03048409d1540d09f`。
+- RED→GREEN 覆盖 management composer、浮点展示、无表头 Sheet、可见 Evidence、
+  正文密度、页码 placeholder、retry 新资产、partial checkpoint 和前端 retry。
+- Broad：Backend `626 passed, 7 skipped`；Ruff check/format `383 files`；Frontend
+  `23 files / 73 passed` 与 production build；PPT renderer `5 files / 22 passed`
+  与 build；Backend golden `5 passed`；Python/Frontend/Renderer dependency audit
+  均为 0 known vulnerabilities；`docker compose config --quiet` 通过。
+- 核心代码：`backend/app/services/management_presentation.py`、generation/preflight/
+  presentation quality/runtime/output services、generation worker、PPT renderer 与
+  generation detail UI；同步更新 Compose、脱敏黄金 PPT/manifest、计划、安全、环境和
+  pitfalls 记录。
+- 私有参考、管理员上传文件、`.playwright-cli/`、`design-system/` 和用户已有旧版
+  `docs/ui-mockups/` 均未修改、未暂存。自动化和原生导出是机器验收证据；最终视觉偏好
+  仍由用户查看成品后确认。
 
 ## Post-Alpha 空 Brief 与 PPT 真实端到端修复（COMPLETE）
 

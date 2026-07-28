@@ -20,7 +20,10 @@ def write_presentation_sample(
     missing_image_slide: int | None = None,
     long_title_slide: int | None = None,
     bad_chart_slide: int | None = None,
+    dense_body_slide: int | None = None,
+    slide_number_placeholder_slide: int | None = None,
     evidence_ids: Iterable[str] = ("ev-revenue",),
+    notes_evidence_ids: Iterable[str] = (),
 ) -> Path:
     slides: list[tuple[str, str]] = []
     extra_members: dict[str, bytes | str] = {}
@@ -61,14 +64,22 @@ def write_presentation_sample(
                 )
             )
             extra_members["ppt/embeddings/workbook1.xlsx"] = _workbook_bytes()
+        body = f"Evidence: {', '.join(evidence_ids)}"
+        if dense_body_slide == number:
+            body += "\n" + ("经营分析正文过密，无法在当前文本框中安全展示。" * 120)
         slide_xml = _slide_xml(
             title=title,
-            body="" if is_blank else f"Evidence: {', '.join(evidence_ids)}",
+            body="" if is_blank else body,
             title_x=shape_x,
             include_content=not is_blank,
             visual_xml=visual_xml,
+            include_slide_number=slide_number_placeholder_slide == number,
         )
         slides.append((f"ppt/slides/slide{number}.xml", slide_xml))
+        if notes_evidence_ids:
+            extra_members[f"ppt/notesSlides/notesSlide{number}.xml"] = _notes_xml(
+                notes_evidence_ids
+            )
         if relationship_xml:
             extra_members[f"ppt/slides/_rels/slide{number}.xml.rels"] = _relationships(
                 relationship_xml
@@ -105,6 +116,7 @@ def _slide_xml(
     title_x: int,
     include_content: bool,
     visual_xml: str,
+    include_slide_number: bool,
 ) -> str:
     content = (
         _text_shape_xml(
@@ -133,13 +145,27 @@ def _slide_xml(
         if include_content
         else ""
     )
+    slide_number_shape = (
+        _text_shape_xml(
+            shape_id=25,
+            name="Slide Number",
+            text="10",
+            x=11_800_000,
+            y=6_560_000,
+            cx=180_000,
+            cy=180_000,
+            placeholder="sldNum",
+        )
+        if include_slide_number
+        else ""
+    )
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="{DML}" xmlns:r="{REL}" xmlns:p="{PML}" xmlns:c="{CHART}">
   <p:cSld><p:spTree>
     <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
     <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>
       <a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
-    {title_shape}{content}{visual_xml}
+    {title_shape}{content}{visual_xml}{slide_number_shape}
   </p:spTree></p:cSld>
   <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
 </p:sld>"""
@@ -234,6 +260,21 @@ def _presentation_xml(slide_ids: str) -> str:
   <p:sldIdLst>{slide_ids}</p:sldIdLst>
   <p:sldSz cx="12192000" cy="6858000"/>
 </p:presentation>"""
+
+
+def _notes_xml(evidence_ids: Iterable[str]) -> str:
+    evidence = escape(f"Evidence: {', '.join(evidence_ids)}")
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:notes xmlns:a="{DML}" xmlns:r="{REL}" xmlns:p="{PML}">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>
+      <a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r>
+        <a:t>{evidence}</a:t></a:r></a:p></p:txBody></p:sp>
+  </p:spTree></p:cSld>
+</p:notes>"""
 
 
 def _content_types(slide_count: int) -> str:

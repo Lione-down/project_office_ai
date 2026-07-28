@@ -109,8 +109,17 @@ describe("deterministic PPTX rendering", () => {
     expect(layoutXml).toContain("<p:ph");
     expect(masterXml).toContain("<a:fld");
     expect(slideXml).toContain("<a:tbl>");
-    expect(slideXml).toContain("Evidence:");
+    expect(slideXml).not.toContain("Evidence:");
     expect(slideXml).toContain("来源：脱敏 synthetic sales dataset");
+    const notesXml = (
+      await Promise.all(
+        names
+          .filter((name) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(name))
+          .map((name) => archive.file(name)?.async("string") ?? ""),
+      )
+    ).join("\n");
+    expect(notesXml).toContain("Evidence:");
+    expect(notesXml).toContain("ev-revenue");
   });
 
   it("produces structurally equivalent OOXML for identical inputs", async () => {

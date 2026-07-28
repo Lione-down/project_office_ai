@@ -5,7 +5,7 @@ from typing import Literal
 from app.skills.catalog import EXCEL_SKILL_CODE, PPT_SKILL_CODE
 
 
-PPT_DEFAULT_TEMPLATE = "ppt.executive-blue.v1"
+PPT_DEFAULT_TEMPLATE = "ppt.operating-review.v1"
 EXCEL_DEFAULT_TEMPLATE = "excel.analysis-dashboard.v1"
 _BASE_OUTPUT_CREDITS = 800
 
@@ -36,7 +36,7 @@ class PlannedOutput:
 
 ALPHA_TEMPLATES = (
     TemplateDefinition(PPT_DEFAULT_TEMPLATE, "1.0.0", "pptx"),
-    TemplateDefinition("ppt.operating-review.v1", "1.0.0", "pptx"),
+    TemplateDefinition("ppt.executive-blue.v1", "1.0.0", "pptx"),
     TemplateDefinition("ppt.data-story.v1", "1.0.0", "pptx"),
     TemplateDefinition(EXCEL_DEFAULT_TEMPLATE, "1.0.0", "xlsx"),
     TemplateDefinition("excel.operating-review.v1", "1.0.0", "xlsx"),

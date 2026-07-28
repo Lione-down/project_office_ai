@@ -4,9 +4,13 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.briefs import Brief
+from app.models.file_assets import FileAsset
 from app.models.generation_tasks import GenerationTask
 from app.services.briefs.contracts import BriefContentItem, StructuredBrief
+from app.services.evidence.contracts import EvidenceItem, EvidenceProcessingError
+from app.services.evidence.store import EvidenceManifestStore
 from app.services.generation_worker import StepExecutionResult
+from app.services.management_presentation import ManagementPresentationComposer
 from app.services.renderers.excel.contracts import WorkbookPlan
 from app.services.renderers.presentation.contracts import PresentationPlan
 
@@ -27,7 +31,16 @@ class StructuredBriefPlanCompiler:
         *,
         template_code: str,
         revision: int,
+        evidence_items: tuple[EvidenceItem, ...] = (),
     ) -> PresentationPlan:
+        management_plan = ManagementPresentationComposer().compose(
+            brief,
+            template_code=template_code,
+            revision=revision,
+            evidence_items=evidence_items,
+        )
+        if management_plan is not None:
+            return management_plan
         entries = self._entries(brief)
         evidence_ids = self._evidence_ids(entries)
         if not evidence_ids:
@@ -278,19 +291,24 @@ class _GenerationPipeline:
         quality_service,
         *,
         compiler: StructuredBriefPlanCompiler | None = None,
+        evidence_manifests: EvidenceManifestStore | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._output = output_service
         self._quality = quality_service
         self._compiler = compiler or StructuredBriefPlanCompiler()
+        self._evidence_manifests = evidence_manifests
 
     async def execute(self, context):
         try:
-            brief, template_code = await self._load_brief(context.task_id)
+            brief, task, template_code = await self._load_brief(context.task_id)
+            structured_brief = StructuredBrief.model_validate(brief.content)
+            evidence_items = await self._load_evidence(task, structured_brief)
             plan = self._compile(
-                StructuredBrief.model_validate(brief.content),
+                structured_brief,
                 template_code=template_code,
                 revision=brief.revision,
+                evidence_items=evidence_items,
             )
         except BriefPlanCompilationError as error:
             return StepExecutionResult.permanent_failure(str(error))
@@ -317,7 +335,7 @@ class _GenerationPipeline:
     def _output_payload(self, plan):
         return plan
 
-    async def _load_brief(self, task_id) -> tuple[Brief, str]:
+    async def _load_brief(self, task_id) -> tuple[Brief, GenerationTask, str]:
         async with self._session_factory() as session:
             task = await session.get(GenerationTask, task_id)
             brief = (
@@ -334,7 +352,46 @@ class _GenerationPipeline:
             or not isinstance(frozen[0].get("template_code"), str)
         ):
             raise BriefPlanCompilationError("generation_template_snapshot_invalid")
-        return brief, frozen[0]["template_code"]
+        return brief, task, frozen[0]["template_code"]
+
+    async def _load_evidence(
+        self, task: GenerationTask, brief: StructuredBrief
+    ) -> tuple[EvidenceItem, ...]:
+        if self.output_kind != "pptx" or self._evidence_manifests is None:
+            return ()
+        loaded: list[EvidenceItem] = []
+        async with self._session_factory() as session:
+            for reference in brief.source_asset_versions:
+                asset = await session.get(FileAsset, reference.asset_id)
+                if (
+                    asset is None
+                    or asset.user_id != task.user_id
+                    or asset.project_id != task.project_id
+                    or asset.deleted_at is not None
+                    or asset.processing_status != "ready"
+                    or asset.manifest_status != "valid"
+                    or not asset.manifest_key
+                    or not asset.manifest_sha256
+                    or f"sha256:{asset.sha256}" != reference.asset_version
+                ):
+                    raise BriefPlanCompilationError(
+                        "generation_evidence_manifest_invalid"
+                    )
+                try:
+                    manifest = self._evidence_manifests.read(
+                        task.user_id,
+                        asset.id,
+                        asset.manifest_key,
+                        expected_sha256=asset.manifest_sha256,
+                    )
+                except EvidenceProcessingError as error:
+                    raise BriefPlanCompilationError(error.error_code) from error
+                if manifest.asset_version != reference.asset_version:
+                    raise BriefPlanCompilationError(
+                        "generation_evidence_manifest_invalid"
+                    )
+                loaded.extend(manifest.evidence)
+        return tuple(loaded)
 
     def _compile(
         self,
@@ -342,6 +399,7 @@ class _GenerationPipeline:
         *,
         template_code: str,
         revision: int,
+        evidence_items: tuple[EvidenceItem, ...],
     ):
         raise NotImplementedError
 
@@ -358,11 +416,13 @@ class PresentationGenerationPipeline(_GenerationPipeline):
         *,
         template_code: str,
         revision: int,
+        evidence_items: tuple[EvidenceItem, ...],
     ) -> PresentationPlan:
         return self._compiler.presentation(
             brief,
             template_code=template_code,
             revision=revision,
+            evidence_items=evidence_items,
         )
 
 
@@ -375,6 +435,7 @@ class SpreadsheetGenerationPipeline(_GenerationPipeline):
         *,
         template_code: str,
         revision: int,
+        evidence_items: tuple[EvidenceItem, ...],
     ) -> WorkbookPlan:
         return self._compiler.workbook(
             brief,
