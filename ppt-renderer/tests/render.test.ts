@@ -132,6 +132,34 @@ describe("deterministic PPTX rendering", () => {
     expect(await structuralDigest(first)).toBe(await structuralDigest(second));
   });
 
+  it("applies shrink autofit to a long closing subtitle", async () => {
+    const plan = clonePlan();
+    const slides = plan.slides as Array<Record<string, unknown>>;
+    const closingSlide = slides.at(-1);
+    const longSubtitle =
+      "Analyze regional operations and summarize the next half-year actions. ".repeat(
+        3,
+      );
+    if (!closingSlide) throw new Error("closing slide is required");
+    closingSlide.subtitle = longSubtitle;
+    const target = await outputPath("long-closing-subtitle.pptx");
+
+    await renderPresentation(plan, target);
+
+    const archive = await JSZip.loadAsync(await readFile(target));
+    const closingXml = await archive
+      .file(`ppt/slides/slide${slides.length}.xml`)
+      ?.async("string");
+    if (!closingXml) throw new Error("closing slide XML is required");
+    const textIndex = closingXml.indexOf(longSubtitle);
+    const shapeStart = closingXml.lastIndexOf("<p:sp>", textIndex);
+    const shapeEnd = closingXml.indexOf("</p:sp>", textIndex);
+    const subtitleShape = closingXml.slice(shapeStart, shapeEnd);
+
+    expect(textIndex).toBeGreaterThan(-1);
+    expect(subtitleShape).toContain("<a:normAutofit");
+  });
+
   it.each(SYSTEM_TEMPLATES)(
     "renders certified template $code@$version",
     async (template) => {

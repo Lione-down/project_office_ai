@@ -718,6 +718,19 @@
 - 预防/验证：新 production wiring 测试必须锁定下游接收的真实类型，不能只用宽松 Mock；
   全局引用预算与可见字段预算必须分别验证，超长集合使用确定性分组而不是提高上限或截断。
 
+### 2026-07-28 · Post-Alpha · 对确定性版式重复 retry 不会修复相同质量阻断
+
+- 现象：结束页把 69 字目标放入安全容量为 67 的固定 subtitle 框，未启用 autofit；
+  初次生成和用户手工 retry 都在第 27 页 shape 3 命中同一
+  `body_text_overflow_risk`。
+- 影响：Renderer 已成功产出文件，但 quality precheck 在 LibreOffice 前永久阻断；
+  retry 只创建新不可变资产，不改变输入和 layout，所以会稳定复制相同失败。
+- 本次处理：subtitle 使用 PptxGenJS `fit: "shrink"`，完整保留用户目标；真实 OOXML
+  回归锁定 subtitle shape 的 `a:normAutofit`，不降低 density blocker。
+- 预防/验证：确定性生成失败必须先比较新旧 quality finding、shape、输入和构建产物；
+  若完全一致，应修复 source-to-artifact 边界并重建对应服务，再用真实 retry 验证新资产，
+  不能把“再点一次”当作修复。最终要求 quality、LibreOffice 页数和实际受影响页面同时通过。
+
 ### 2026-07-28 · 工具输出 · Compose config 会展开 Secret
 
 - 现象：使用 `docker compose config` 后再按 service/volume 文本过滤，完整 config 已先在

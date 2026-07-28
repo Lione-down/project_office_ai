@@ -1,11 +1,52 @@
 # Office AI Alpha 进度记录
 
 - 最后更新：`2026-07-28`
-- 最近完成：`Post-Alpha 参考级经营管理汇报 PPT 修复`
+- 最近完成：`Post-Alpha 结束页长目标文本质量阻断修复`
 - 下一任务：`无（Office AI Internal Alpha 已封版）`
 - 当前状态：`INTERNAL ALPHA COMPLETE`（`ACCEPT_WITH_DECLARED_BOUNDARIES`）
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## Post-Alpha 结束页长目标文本质量阻断修复（COMPLETE）
+
+### 根因与实现
+
+- generation task `019fa920-a43f-71f5-8617-1d1bc3d90cb5` 的原生成与用户手工 retry
+  都成功产出 27 页 PPTX，但两份 quality report 均只在第 27 页 shape 3 命中
+  `body_text_overflow_risk`：结束页 subtitle 长度为 69，固定文本框安全容量为 67，且
+  OOXML 不含 `a:normAutofit`。质量 precheck 因此在 LibreOffice 前永久阻断；重复 retry
+  保持相同输入和布局，必然重复失败。
+- Renderer 为所有 slide subtitle 启用 PptxGenJS `fit: "shrink"`，保留完整
+  `brief.goal`，不截断用户目标，也不降低 `presentation-body-fit.v1` 质量规则。真实 OOXML
+  回归直接定位目标 subtitle shape 并要求包含 `a:normAutofit`。
+- 脱敏 presentation golden 按新增 OOXML 标记安全再生成，大小从 159,755 更新为
+  159,771 bytes；输入、Evidence、Private 文件和 workbook golden 不变。
+
+### 真实流程、质量与视觉证据
+
+- 修复并重建 `ppt-renderer` 后，在用户已登录的 Chrome 对原任务执行第二次 retry。
+  task 最终为 `succeeded/100%`、PPTX step `succeeded`、结算 800；第三个不可变资产
+  `019fa929-c646-75d2-8132-4175625ecef9` 为 `quality=passed`、
+  `download_allowed=true`、`findings=0`、`repair_attempt_count=0`。
+- LibreOffice `25.2.3.2` 成功验证 27/27 页。第 27 页实际 PNG 复核确认 69 字目标完整
+  换行为两行，无截断、重叠或越界；浏览器显示“任务已完成 / 全部文件已通过检查”。
+- 验证文件：
+  `D:\works\codexWorks\download\019fa920-结束页自适应修复验证.pptx`，
+  2,653,204 bytes，SHA-256
+  `27890b6446024343d1b85f9410605cf92933f27501b0d69fe6507007c2a6f836`。
+
+### RED→GREEN 与 Broad
+
+- RED：`applies shrink autofit to a long closing subtitle` 在旧代码上因缺少
+  `<a:normAutofit>` 按预期失败；GREEN 后通过。
+- Focused：PPT Renderer `23 passed` 与 build；Backend presentation quality/renderer
+  `84 passed`。
+- Broad：Backend `626 passed, 7 skipped`；Ruff check/format `383 files`；Frontend
+  `23 files / 73 passed` 与 production build；`docker compose config --quiet` 及全部
+  runtime health 通过。
+- Changed files：PPT renderer 与真实 OOXML 回归、脱敏 golden PPT/manifest、修复计划、
+  本进度记录和 `pitfalls.md`。用户已有 `.playwright-cli/`、`design-system/` 和旧版
+  `docs/ui-mockups/` 保持未修改、未暂存。
 
 ## Post-Alpha 参考级经营管理汇报 PPT 修复（COMPLETE）
 

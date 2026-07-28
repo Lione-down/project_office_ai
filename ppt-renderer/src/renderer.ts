@@ -116,6 +116,7 @@ function renderSlideTitle(
       color: template.muted,
       align: "center",
       margin: 0,
+      fit: "shrink",
     });
   }
 }
