@@ -9,6 +9,11 @@ import type {
   TermLibrarySummary,
   WorkflowTask,
 } from "@/modules/workspace/types";
+import {
+  isTerminalWorkflowTask,
+  workflowTaskOutputLabel,
+  workflowTaskStatusLabel,
+} from "@/modules/workspace/workflow-task-presentation";
 import { useSessionStore } from "@/store/session";
 
 type UserSection = "tasks" | "files" | "templates" | "term-libraries" | "credits";
@@ -23,14 +28,6 @@ const ledger = ref<CreditLedger["entries"]>([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
 let taskPollTimer: ReturnType<typeof setTimeout> | undefined;
-
-const TERMINAL_TASK_STATUSES = new Set([
-  "succeeded",
-  "partial_success",
-  "failed",
-  "provider_uncertain",
-  "cancelled",
-]);
 
 const templates = [
   {
@@ -110,7 +107,7 @@ function scheduleTaskPoll() {
   clearTaskPoll();
   if (
     props.section !== "tasks" ||
-    !tasks.value.some((task) => !TERMINAL_TASK_STATUSES.has(task.status))
+    !tasks.value.some((task) => !isTerminalWorkflowTask(task))
   ) {
     return;
   }
@@ -221,8 +218,8 @@ onBeforeUnmount(clearTaskPoll);
                   {{ task.title }}
                 </RouterLink>
               </td>
-              <td>{{ task.output_kinds.map((kind) => kind.toUpperCase()).join(" + ") }}</td>
-              <td><span class="status-pill">{{ statusLabel(task.status) }}</span></td>
+              <td>{{ workflowTaskOutputLabel(task.output_kinds) }}</td>
+              <td><span class="status-pill">{{ workflowTaskStatusLabel(task.status) }}</span></td>
               <td class="oa-tabular">{{ task.progress }}%</td>
               <td class="task-note">
                 <span>{{ task.note ?? "—" }}</span>

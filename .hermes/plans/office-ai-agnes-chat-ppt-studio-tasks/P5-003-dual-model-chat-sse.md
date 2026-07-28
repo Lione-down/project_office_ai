@@ -1,6 +1,6 @@
 # P5-003 双模型会话、SSE 与历史
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`P5-002`
 - 来源：PRD FR-101～FR-107、模型策略、Chat Run 状态机
 - 建议 commit：`feat(chat): add dual model streaming conversations`

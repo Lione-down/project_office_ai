@@ -1,11 +1,35 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+
+import { workspaceApi } from "@/modules/workspace/api";
+import type { WorkflowTask } from "@/modules/workspace/types";
+import {
+  isTerminalWorkflowTask,
+  selectRecentWorkflowTasks,
+  workflowTaskOutputLabel,
+  workflowTaskStatusLabel,
+} from "@/modules/workspace/workflow-task-presentation";
+import { useSessionStore } from "@/store/session";
 
 type WorkflowMode = "pptx" | "xlsx" | "combined";
 
+const RECENT_TASK_LIMIT = 5;
+const TASK_POLL_INTERVAL_MS = 3000;
+
 const router = useRouter();
+const session = useSessionStore();
 const selectedMode = ref<WorkflowMode>("combined");
+const workflowTasks = ref<WorkflowTask[]>([]);
+const isRecentLoading = ref(true);
+const hasRecentError = ref(false);
+const recentTasks = computed(() =>
+  selectRecentWorkflowTasks(workflowTasks.value, RECENT_TASK_LIMIT),
+);
+let taskPollTimer: ReturnType<typeof setTimeout> | undefined;
+let latestRequest = 0;
+let isActive = false;
+
 const choices: Array<{
   mode: WorkflowMode;
   title: string;
@@ -32,12 +56,76 @@ const choices: Array<{
   },
 ];
 
+function requireToken() {
+  if (!session.accessToken) throw new Error("登录状态已失效");
+  return session.accessToken;
+}
+
+function clearTaskPoll() {
+  if (taskPollTimer !== undefined) {
+    clearTimeout(taskPollTimer);
+    taskPollTimer = undefined;
+  }
+}
+
+function scheduleTaskPoll() {
+  clearTaskPoll();
+  if (
+    !isActive ||
+    hasRecentError.value ||
+    !workflowTasks.value.some((task) => !isTerminalWorkflowTask(task))
+  ) {
+    return;
+  }
+  taskPollTimer = setTimeout(() => {
+    taskPollTimer = undefined;
+    void loadRecentTasks(false);
+  }, TASK_POLL_INTERVAL_MS);
+}
+
+async function loadRecentTasks(showLoading = true) {
+  clearTaskPoll();
+  const request = ++latestRequest;
+  if (showLoading) isRecentLoading.value = true;
+  hasRecentError.value = false;
+  try {
+    const result = await workspaceApi.listWorkflowTasks(requireToken());
+    if (!isActive || request !== latestRequest) return;
+    workflowTasks.value = result;
+  } catch {
+    if (!isActive || request !== latestRequest) return;
+    hasRecentError.value = true;
+  } finally {
+    if (!isActive || request !== latestRequest) return;
+    isRecentLoading.value = false;
+    scheduleTaskPoll();
+  }
+}
+
+function formatUpdatedAt(value: string) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 async function continueWorkflow() {
   await router.push({
     name: "workflow-new",
     query: { mode: selectedMode.value },
   });
 }
+
+onMounted(() => {
+  isActive = true;
+  void loadRecentTasks();
+});
+
+onBeforeUnmount(() => {
+  isActive = false;
+  latestRequest += 1;
+  clearTaskPoll();
+});
 </script>
 
 <template>
@@ -77,11 +165,94 @@ async function continueWorkflow() {
     </button>
 
     <section class="recent-section" aria-labelledby="recent-title">
-      <div>
+      <div class="recent-heading">
         <h2 id="recent-title">最近任务</h2>
         <RouterLink to="/tasks">查看全部</RouterLink>
       </div>
-      <p>完成生成后，任务进度、质量结果和下载入口会显示在这里。</p>
+
+      <div
+        v-if="isRecentLoading"
+        class="recent-state"
+        data-testid="recent-loading"
+        role="status"
+        aria-live="polite"
+      >
+        正在加载最近任务…
+      </div>
+      <div
+        v-else-if="hasRecentError"
+        class="recent-state recent-state--error"
+        data-testid="recent-error"
+        role="alert"
+      >
+        <strong>最近任务加载失败</strong>
+        <span>请检查网络后重试，已有任务不会受到影响。</span>
+        <button
+          type="button"
+          class="oa-button oa-button--secondary"
+          @click="loadRecentTasks()"
+        >
+          重新加载
+        </button>
+      </div>
+      <div
+        v-else-if="!recentTasks.length"
+        class="recent-state"
+        data-testid="recent-empty"
+      >
+        <strong>还没有任务</strong>
+        <span>创建任务后，服务端进度和输出类型会显示在这里。</span>
+      </div>
+      <ul v-else class="recent-grid">
+        <li
+          v-for="task in recentTasks"
+          :key="task.task_id"
+          data-testid="recent-task"
+        >
+          <RouterLink
+            class="recent-task"
+            :to="{
+              name: 'workflow-task-detail',
+              params: { taskId: task.task_id },
+            }"
+          >
+            <div class="recent-task__heading">
+              <div>
+                <span class="recent-task__kind">
+                  {{ workflowTaskOutputLabel(task.output_kinds) }}
+                </span>
+                <h3>{{ task.title }}</h3>
+              </div>
+              <span
+                class="status-pill"
+                :data-status="task.status"
+              >
+                {{ workflowTaskStatusLabel(task.status) }}
+              </span>
+            </div>
+            <div class="recent-task__progress">
+              <span>当前进度</span>
+              <strong class="oa-tabular">{{ task.progress }}%</strong>
+            </div>
+            <progress
+              :value="task.progress"
+              max="100"
+              :aria-label="`${task.title}进度 ${task.progress}%`"
+            >
+              {{ task.progress }}%
+            </progress>
+            <footer>
+              <span>
+                更新于
+                <time :datetime="task.updated_at">
+                  {{ formatUpdatedAt(task.updated_at) }}
+                </time>
+              </span>
+              <strong>查看详情</strong>
+            </footer>
+          </RouterLink>
+        </li>
+      </ul>
     </section>
   </section>
 </template>
@@ -190,31 +361,6 @@ header span {
   margin: 40px auto 62px;
 }
 
-.recent-section {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding-top: 28px;
-  border-top: 1px solid var(--oa-line);
-}
-
-.recent-section > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-h2 {
-  margin: 0;
-  font-size: 22px;
-}
-
-.recent-section p {
-  margin: 16px 0 0;
-  color: var(--oa-muted);
-  line-height: 1.7;
-}
-
 @media (max-width: 820px) {
   .choice-grid {
     grid-template-columns: 1fr;
@@ -232,5 +378,26 @@ h2 {
     width: auto;
     margin-left: 0;
   }
+
+  .recent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-page {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .recent-task__heading {
+    display: grid;
+  }
+
+  .recent-task footer {
+    align-items: flex-start;
+  }
 }
 </style>
+
+<style scoped src="./home-recent-tasks.css"></style>

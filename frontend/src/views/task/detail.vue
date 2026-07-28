@@ -5,17 +5,14 @@ import { useRoute } from "vue-router";
 import { ApiError } from "@/api/request";
 import { workspaceApi } from "@/modules/workspace/api";
 import type { WorkflowTask } from "@/modules/workspace/types";
+import {
+  isTerminalWorkflowTask,
+  workflowTaskOutputLabel,
+} from "@/modules/workspace/workflow-task-presentation";
 import { useSessionStore } from "@/store/session";
 
 
 const POLL_INTERVAL_MS = 3000;
-const TERMINAL_STATUSES = new Set([
-  "succeeded",
-  "partial_success",
-  "failed",
-  "provider_uncertain",
-  "cancelled",
-]);
 
 const route = useRoute();
 const session = useSessionStore();
@@ -26,7 +23,7 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
 const taskId = computed(() => String(route.params.taskId ?? ""));
 const isTerminal = computed(
-  () => Boolean(task.value && TERMINAL_STATUSES.has(task.value.status)),
+  () => Boolean(task.value && isTerminalWorkflowTask(task.value)),
 );
 const statusCopy = computed(() => {
   const status = task.value?.status;
@@ -124,7 +121,7 @@ onBeforeUnmount(clearPoll);
         </div>
         <p>
           输出：
-          {{ task.output_kinds.map((kind) => kind.toUpperCase()).join(" + ") }}
+          {{ workflowTaskOutputLabel(task.output_kinds) }}
         </p>
       </section>
 

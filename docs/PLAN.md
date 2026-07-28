@@ -13,7 +13,7 @@
 - 正式执行计划：
   `.hermes/plans/2026-07-29-office-ai-agnes-chat-ppt-studio-post-alpha.md`
 - 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
-- 当前 Gate：`P5-001 DONE -> P5-002 READY`
+- 当前 Gate：`P5-002 DONE -> P5-003 READY`
 - 计划裁决：PRD 第 20 节要求开发前同步正式合同，因此 `P5-001` 先完成
   技术/API/Data/Security/Environment 合同；首页最近任务完整后移为 `P5-002`，
   `P5-003`～`P5-008` 保持批准 PRD 的相对顺序。
@@ -142,8 +142,9 @@ feature/capability Gate 关闭，不能通过普通配置默默开启。
 | Video | P5-007 | 异步 Provider ID、独立资产；内嵌默认关闭及 Office/WPS Gate |
 | Release | P5-008 | 全链路、broad/security、真实 Provider、Golden、Office/WPS |
 
-P5-001 的完成定义仅为合同一致、validator GREEN、文档/Git/远端对齐。P5-002 是下一唯一
-`READY`；整个 PRD 只有 P5-008 通过且用户整体验收后才能宣称完成。
+P5-001 的完成定义仅为合同一致、validator GREEN、文档/Git/远端对齐。P5-002 已完成
+首页真实最近任务 Gate，P5-003 是下一唯一 `READY`；整个 PRD 只有 P5-008 通过且用户
+整体验收后才能宣称完成。
 
 本文是实施期的精简执行真源，不替代总计划中的详细论证。若描述冲突，以总计划的功能、安全和完成定义为最高优先级，以任务文档限定当前 commit 边界。
 

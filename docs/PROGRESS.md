@@ -1,12 +1,54 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-001 技术、API、Data、Security 与 Environment 合同`
-- 下一任务：`P5-002 首页最近任务真实展示`（唯一 `READY`）
-- 当前状态：`POST-ALPHA CONTRACT GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-002 首页最近任务真实展示`
+- 下一任务：`P5-003 双模型会话、SSE 与历史`（唯一 `READY`）
+- 当前状态：`POST-ALPHA RECENT TASKS GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-002 首页最近任务真实展示（DONE）
+
+### RED -> GREEN 与实现
+
+- RED：Home component contract 在旧静态首页上为 `5 failed, 2 passed`，锁定
+  owner-scoped 真实 workflow list、initial loading/empty、倒序截取 5 条、权威状态/
+  progress、失败/retry、非终态轮询与 unmount 清理。
+- GREEN：首页复用既有 `workspaceApi.listWorkflowTasks`、`WorkflowTask` 和
+  `workflow-task-detail` route；按 `created_at` 倒序显示最近 `5` 条，不改完整任务页
+  的最多 100 条合同。
+- 新 workspace presentation helper 让首页、任务列表和详情复用同一 terminal status、
+  状态文案与输出类型映射。progress/time/title/output 均直接来自 API，不使用前端假进度
+  或第二套持久状态。
+- 成功列表存在非终态任务时，在前一请求完成后安排单次 `3000ms` refresh；全部终态、
+  API 失败、离页或 unmount 时停止。失败态显示固定安全文案和显式 retry，不暴露
+  `failure_code`、内部路径或 Provider detail。
+
+### 验证与真实浏览器
+
+- Focused Home 最终 `7 passed`；受共享映射影响的 Home/Resource/Task Detail 相关回归
+  `5 files / 20 passed`。
+- Frontend full 为 `23 files / 78 passed`；production build 为
+  `106 modules transformed`。Backend `tests/workflow_tasks` 为 `13 passed`。
+- 真实已登录 Chrome 只读显示当前用户最近 `5` 条真实任务，包含已完成/失败和服务端
+  `100%` progress；首条 link 成功进入既有 task detail。未创建、重试任务或扣积分。
+- Desktop `2048x1146`：document `2048/2048`、User Shell `2033/2033`，最近任务双列；
+  Mobile `375x812`：document `375/375`、User Shell `360/360`，最近任务单列 `328px`；
+  5 个详情链接均可键盘聚焦，Console warning/error 为 `0`。
+- QA 临时以不含 Secret 的 API base 启动当前源码 Vite；结束后原 Frontend 容器已恢复，
+  Frontend `8888=200`、Backend ready `9999=200`。
+
+### Changed files 与边界
+
+- Frontend：workspace workflow task presentation helper、Home 实现/contract，以及任务
+  列表/详情对 shared mapping 的复用。
+- Records：P5-002/P5-003 卡、索引、Post-Alpha 总计划、`docs/PLAN.md` 和本文件。
+- 未修改 API、数据库 Schema、任务/积分事实、Provider/Renderer 或环境配置；未读取
+  `.env`，未触碰/暂存 `.playwright-cli/`、`design-system/` 或旧
+  `docs/ui-mockups/`。
+- 本任务不调用 Provider、不生成 Office 文件，因此不产生 Agnes、Microsoft Office、
+  WPS 或 Renderer 新证据。
 
 ## P5-001 技术、API、Data、Security 与 Environment 合同（DONE）
 
@@ -302,8 +344,8 @@
 | T4-005 | DONE | T4-004 | `chore(release): prepare internal office ai alpha`；Week 4 / Alpha Gate |
 | P5-000 | DONE | Alpha Complete | `docs(plan): establish agnes chat ppt studio delivery baseline` |
 | P5-001 | DONE | P5-000 | `docs(chat): define agnes studio contracts` |
-| P5-002 | READY | P5-001 | 唯一下一任务：首页最近任务真实展示 |
-| P5-003 | BLOCKED | P5-002 | 双模型会话、SSE 与历史 |
+| P5-002 | DONE | P5-001 | `feat(home): show authoritative recent tasks` |
+| P5-003 | READY | P5-002 | 唯一下一任务：双模型会话、SSE 与历史 |
 | P5-004 | BLOCKED | P5-003 | Deck Draft、逐页编辑、Skill 与 Preflight |
 | P5-005 | BLOCKED | P5-004 | 模板目录、缩略图与版本快照 |
 | P5-006 | BLOCKED | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
