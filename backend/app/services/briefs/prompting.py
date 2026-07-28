@@ -45,6 +45,15 @@ def generation_messages(
         "terminology_rules": [rule.model_dump(mode="json") for rule in term_rules],
         "required_top_level_fields": list(StructuredBrief.model_fields),
         "structured_brief_schema": StructuredBrief.model_json_schema(),
+        "output_constraints": {
+            "facts": {"min_items": 1, "max_items": 8},
+            "inferences": {"max_items": 4},
+            "unresolved_items": {"max_items": 4},
+            "max_content_characters_per_item": 512,
+            "max_evidence_refs_per_item": 8,
+            "max_serialized_characters": 16_000,
+            "unit_blocker_policy": "handled_by_preflight",
+        },
     }
     return [
         {
@@ -55,8 +64,14 @@ def generation_messages(
                 "authoritative snapshot exactly. In every evidence_ids array, "
                 "use only evidence_ref values listed in evidence_context. "
                 "Facts cannot use agnes_inference; every inference must use "
-                "source=agnes_inference. Do not emit paths, secrets, or prose "
-                "outside JSON."
+                "source=agnes_inference. Never enumerate evidence_context items "
+                "or blockers. Return 1-8 representative facts, at most 4 "
+                "inferences, and at most 4 semantic unresolved items. Do not copy "
+                "numeric_unit_unknown or unit_unknown blockers into unresolved_items; "
+                "Preflight derives unit blockers from cited evidence. Keep every item "
+                "content within 512 characters, every evidence_ids array within 8 refs, "
+                "and the complete serialized JSON within 16000 characters. Do not emit "
+                "paths, secrets, or prose outside JSON."
             ),
         },
         {
@@ -78,19 +93,30 @@ def repair_messages(
     term_rules: tuple[TermRule, ...],
     invalid_content: str,
     repair_hints: tuple[str, ...],
+    *,
+    was_truncated: bool = False,
 ) -> list[dict]:
     messages = generation_messages(command, expected, evidence_context, term_rules)
-    messages.append({"role": "assistant", "content": invalid_content})
+    if not was_truncated:
+        messages.append({"role": "assistant", "content": invalid_content})
+    instruction = (
+        "The previous response was truncated. Regenerate it from scratch "
+        "within output_constraints and structured_brief_schema. Preserve the "
+        "authoritative snapshot, return only the corrected JSON object, and "
+        "do not invent evidence refs."
+        if was_truncated
+        else "The previous JSON failed validation. Repair it once against "
+        "structured_brief_schema. Preserve the authoritative snapshot, return "
+        "only the corrected JSON object, and do not invent evidence refs."
+    )
     messages.append(
         {
             "role": "user",
             "content": json.dumps(
                 {
-                    "instruction": (
-                        "The previous JSON failed validation. Repair it once "
-                        "against structured_brief_schema. Preserve the "
-                        "authoritative snapshot, return only the corrected JSON "
-                        "object, and do not invent evidence refs."
+                    "instruction": instruction,
+                    "previous_response_status": (
+                        "truncated" if was_truncated else "invalid"
                     ),
                     "validation_hints": list(repair_hints),
                 },

@@ -82,9 +82,14 @@ class SelectedModel(StrictModel):
 
 
 class BriefContentItem(StrictModel):
-    content: str = Field(min_length=1, max_length=16_384)
+    content: str = Field(min_length=1, max_length=512)
     source: ContentSource
-    evidence_ids: tuple[str, ...] = Field(max_length=10_000)
+    evidence_ids: tuple[str, ...] = Field(
+        max_length=8,
+        description=(
+            "Use the smallest representative evidence set needed to support this item."
+        ),
+    )
 
 
 class BriefFact(BriefContentItem):
@@ -113,7 +118,7 @@ class OutputDeliverable(StrictModel):
     kind: Literal["pptx", "xlsx"]
     title: str = Field(min_length=1, max_length=255)
     source: ContentSource
-    evidence_ids: tuple[str, ...] = Field(max_length=10_000)
+    evidence_ids: tuple[str, ...] = Field(max_length=8)
 
 
 class OutputPlan(StrictModel):
@@ -122,9 +127,9 @@ class OutputPlan(StrictModel):
 
 class BriefUnresolvedItem(StrictModel):
     code: str = Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")
-    content: str = Field(min_length=1, max_length=4096)
+    content: str = Field(min_length=1, max_length=512)
     source: ContentSource
-    evidence_ids: tuple[str, ...] = Field(max_length=10_000)
+    evidence_ids: tuple[str, ...] = Field(max_length=8)
     blocking: bool
 
 
@@ -147,9 +152,27 @@ class StructuredBrief(StrictModel):
     selected_skills: tuple[SelectedSkill, ...] = Field(min_length=1, max_length=2)
     selected_model: SelectedModel
     output_plan: OutputPlan
-    facts: tuple[BriefFact, ...] = Field(max_length=10_000)
-    inferences: tuple[BriefInference, ...] = Field(max_length=10_000)
-    unresolved_items: tuple[BriefUnresolvedItem, ...] = Field(max_length=10_000)
+    facts: tuple[BriefFact, ...] = Field(
+        min_length=1,
+        max_length=8,
+        description=(
+            "Concise summary only: select the strongest facts and never enumerate every "
+            "evidence item or source blocker."
+        ),
+    )
+    inferences: tuple[BriefInference, ...] = Field(
+        max_length=4,
+        description=(
+            "Concise summary only: include only decision-relevant supported inferences."
+        ),
+    )
+    unresolved_items: tuple[BriefUnresolvedItem, ...] = Field(
+        max_length=4,
+        description=(
+            "List only semantic ambiguities directly cited by the summary. Never copy "
+            "source numeric_unit_unknown or unit_unknown blockers; Preflight handles them."
+        ),
+    )
     must_include: tuple[BriefContentItem, ...] = Field(max_length=100)
     must_exclude: tuple[BriefContentItem, ...] = Field(max_length=100)
     citation_policy: CitationPolicy

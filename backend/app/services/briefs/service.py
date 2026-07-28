@@ -1,5 +1,6 @@
 from hashlib import sha256
 import json
+import logging
 from time import perf_counter
 from typing import Callable
 from uuid import UUID
@@ -47,6 +48,8 @@ from app.skills.catalog import (
     SkillSelectionError,
     resolve_alpha_skill_selection,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BriefGenerationService:
@@ -139,6 +142,24 @@ class BriefGenerationService:
                 brief = validate_brief_response(resolved_content, expected)
             except BriefValidationError as exception:
                 last_validation_error = exception
+                finish_reason = (
+                    completion.finish_reason
+                    if completion.finish_reason
+                    in {"stop", "length", "content_filter", "tool_calls"}
+                    else "unknown"
+                    if completion.finish_reason is None
+                    else "other"
+                )
+                logger.warning(
+                    "brief_validation_failed brief_group_id=%s attempt=%d "
+                    "finish_reason=%s prompt_tokens=%d completion_tokens=%d hints=%s",
+                    brief_group_id,
+                    attempt,
+                    finish_reason,
+                    completion.usage.prompt_tokens,
+                    completion.usage.completion_tokens,
+                    ",".join(exception.repair_hints) or "none",
+                )
                 call_ids.append(
                     await self._record_completion(
                         inputs=inputs,
@@ -161,6 +182,7 @@ class BriefGenerationService:
                     inputs.term_rules,
                     completion.content,
                     exception.repair_hints,
+                    was_truncated=completion.finish_reason == "length",
                 )
                 enforce_message_budget(messages, inputs.model)
                 continue

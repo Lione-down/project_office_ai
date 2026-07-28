@@ -7,6 +7,70 @@
 - 当前分支：`main`
 - 远端：`origin/main`
 
+## Post-Alpha 空 Brief 与 PPT 真实端到端修复（COMPLETE）
+
+### 根因与实现
+
+- 原失败 generation task `019fa780-8b72-74b2-a258-59b52e522e17` 的 Brief
+  `facts/inferences/must_include` 均为空；`StructuredBrief` 已改为至少包含一条
+  Evidence-backed fact，generation runtime 对 legacy 空 Brief 仍返回稳定
+  `generation_brief_content_required`。
+- 真实诊断 workflow `019fa7ab-e2e0-7f99-be3a-a77ece77242b` 确认 Agnes 首轮在完整
+  JSON 结束前达到 `completion_tokens=8192 / finish_reason=length`。Prompt 和合同现限制
+  为代表性摘要：最多 8 facts、4 inferences、4 semantic unresolved items，每项 512 字符、
+  8 个 Evidence refs；截断 repair 从完整 Evidence Context 重新生成，不回送截断正文。
+  安全日志只记录 attempt、finish reason、token 数和 bounded `loc:type`，不记录 Prompt、
+  Provider response 或材料内容。
+- PPT renderer 422 的根因是 compiler 允许重复 `evidence_ids`，但 renderer Schema 要求
+  `uniqueItems=true`；compiler 现按首次出现顺序去重。后续 renderer 已返回 HTTP 200。
+- PPT 在 renderer/持久化成功后仍失败的根因是 pipeline 把 Pydantic
+  `PresentationPlan` 交给只接收 renderer payload `dict` 的 quality service；pipeline 现让
+  renderer 与 quality 复用同一 `_output_payload`。
+
+### 真实浏览器与 runtime 证据
+
+- 未重复上传，复用管理员已上传且 Manifest valid 的 `第一季度数据.xlsx`。combined
+  workflow `019fa7bd-aa3f-76c1-8cfa-0b9569b03559` 的 Brief 首轮成功，16 个单位 blocker
+  全部显式选择 `数量（个/件）`。generation task
+  `019fa7bf-7ea8-7ab3-aacd-d00759fe3942` 的 XLSX 一次通过；PPTX 在修复前失败，任务为
+  `partial_success`，只结算成功 XLSX 的 800。
+- 第一处 PPT 修复后，PPT-only workflow
+  `019fa7c5-40e0-71e1-982e-494cf2897538` 的 Brief 首轮成功，36 个单位全部选择
+  `数量（个/件）`。generation task `019fa7c6-dcbc-762b-834e-2d84a68761cf` 暴露第二处
+  quality 输入边界错误；结算 0，预留 800 已完整释放。
+- 两处 PPT 修复后，PPT-only workflow
+  `019fa7cc-7d45-73ae-bf35-04f3e9070dab` 的 Brief 首轮成功，22 个单位全部选择
+  `数量（个/件）`。generation task `019fa7cf-041d-73ce-ac3d-eb146ffe568a` 一次成功：
+  `progress=100`、PPTX step `succeeded/attempt=1`、quality `passed`、
+  `download_allowed=true`、结算 800。浏览器显示“任务已完成 / 全部文件已通过检查”。
+- 三个真实 Brief Provider call 均为 `attempt=1/status=succeeded/is_redacted=1`。最终两个
+  成功输出合计结算 1,600；失败任务没有结算，积分流水 reserve/release 成对闭合。
+
+### 下载与文件验证
+
+- `D:\works\codexWorks\download\第一季度数据-销售数据分析.xlsx`：9,878 bytes，1 个工作表，
+  OOXML 关键结构完整，SHA-256
+  `dc1777ccd095c973059e4e14d8f7839b5a8a141df8cc43fd83a3d8d75b20ec81`，与质量门禁记录一致。
+- `D:\works\codexWorks\download\第一季度数据-销售经营汇报.pptx`：105,823 bytes，4 页，
+  OOXML 关键结构完整，SHA-256
+  `44c5737705ec9856f29cb947d3298fa12df7a64b124e7f6d5d9fb36284b3b01d`，与质量门禁记录一致。
+
+### 验证与 Changed files
+
+- TDD：Brief focused `41 passed`；generation runtime `8 passed`；presentation quality
+  `52 passed`。PPT 两个回归均先 RED 后 GREEN。
+- Broad：backend 最终从 `backend/` 运行为 `615 passed, 7 skipped`；Frontend `23`
+  files / `72 passed`，production build 通过；Ruff check/format 为 `380 files`
+  全部通过。一次从仓库根目录误运行 pytest 因未加载 `backend/pyproject.toml` 的 async
+  配置产生级联失败，不作为产品回归或通过证据。
+- 代码：`backend/app/services/briefs/{contracts,prompting,service}.py`、
+  `backend/app/services/generation_runtime.py`。
+- 测试：`backend/tests/briefs/{test_contracts,test_prompting,test_service}.py`、
+  `backend/tests/generation/test_runtime.py`。
+- 记录：`.hermes/plans/2026-07-28-office-ai-empty-brief-e2e.md`、本文件。
+- 用户未跟踪的 `.playwright-cli/`、`design-system/`、旧版 `docs/ui-mockups/` 与 ignored
+  `output/` 未修改、未暂存。
+
 ## 新会话必读
 
 每次会话必须按顺序读取：

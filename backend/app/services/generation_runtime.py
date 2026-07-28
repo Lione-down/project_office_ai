@@ -198,9 +198,13 @@ class StructuredBriefPlanCompiler:
 
     def _split(self, item: BriefContentItem) -> Iterable[BriefContentItem]:
         content = item.content
+        evidence_ids = tuple(dict.fromkeys(item.evidence_ids))
         for offset in range(0, len(content), self._content_limit):
             yield item.model_copy(
-                update={"content": content[offset : offset + self._content_limit]}
+                update={
+                    "content": content[offset : offset + self._content_limit],
+                    "evidence_ids": evidence_ids,
+                }
             )
 
     @staticmethod
@@ -291,13 +295,23 @@ class _GenerationPipeline:
         except BriefPlanCompilationError as error:
             return StepExecutionResult.permanent_failure(str(error))
         except ValidationError:
+            if isinstance(brief.content, dict) and not any(
+                brief.content.get(field)
+                for field in ("facts", "inferences", "must_include")
+            ):
+                return StepExecutionResult.permanent_failure(
+                    "generation_brief_content_required"
+                )
             return StepExecutionResult.permanent_failure("generation_brief_invalid")
+        output_payload = self._output_payload(plan)
         output = await self._output.render(
             context.task_id,
             context.step_id,
-            self._output_payload(plan),
+            output_payload,
         )
-        quality = await self._quality.evaluate(output.asset_id, context.step_id, plan)
+        quality = await self._quality.evaluate(
+            output.asset_id, context.step_id, output_payload
+        )
         return quality.step_result()
 
     def _output_payload(self, plan):

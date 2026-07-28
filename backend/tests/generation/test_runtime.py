@@ -120,6 +120,27 @@ def test_compiler_builds_strict_presentation_plan_from_confirmed_brief() -> None
     assert "应优先复制华东区域的销售打法" in rendered_text
 
 
+def test_compiler_deduplicates_presentation_element_evidence_refs() -> None:
+    brief = structured_brief()
+    inference = brief.inferences[0].model_copy(
+        update={"evidence_ids": (EVIDENCE_A, EVIDENCE_A, EVIDENCE_B)}
+    )
+
+    plan = StructuredBriefPlanCompiler().presentation(
+        brief.model_copy(update={"inferences": (inference,)}),
+        template_code="ppt.executive-blue.v1",
+        revision=2,
+    )
+
+    inference_element = next(
+        element
+        for slide in plan.slides
+        for element in slide.elements
+        if element.type == "text" and element.text == inference.content
+    )
+    assert inference_element.evidence_ids == [EVIDENCE_A, EVIDENCE_B]
+
+
 def test_compiler_builds_text_only_workbook_without_inventing_numbers() -> None:
     plan = StructuredBriefPlanCompiler().workbook(
         structured_brief(),
@@ -207,6 +228,12 @@ class RecordingQuality:
         )()
 
 
+class ContractValidatingPresentationQuality(RecordingQuality):
+    async def evaluate(self, asset_id, step_id, plan):
+        assert isinstance(plan, dict)
+        return await super().evaluate(asset_id, step_id, plan)
+
+
 async def test_presentation_pipeline_loads_frozen_brief_and_runs_quality(
     generation_harness,
 ) -> None:
@@ -217,7 +244,7 @@ async def test_presentation_pipeline_loads_frozen_brief_and_runs_quality(
         brief = await session.get(Brief, BRIEF_ID, with_for_update=True)
         brief.content = structured_brief().model_dump(mode="json")
     output = RecordingOutput()
-    quality = RecordingQuality()
+    quality = ContractValidatingPresentationQuality()
     pipeline = PresentationGenerationPipeline(
         generation_harness.session_factory,
         output,
@@ -238,7 +265,7 @@ async def test_presentation_pipeline_loads_frozen_brief_and_runs_quality(
     assert result.status == "succeeded"
     assert isinstance(output.calls[0][2], dict)
     assert output.calls[0][2]["template"]["code"] == "ppt.executive-blue.v1"
-    assert quality.calls[0][2].template.code == "ppt.executive-blue.v1"
+    assert quality.calls[0][2]["template"]["code"] == "ppt.executive-blue.v1"
 
 
 async def test_spreadsheet_pipeline_loads_frozen_brief_without_numeric_guessing(

@@ -1,4 +1,5 @@
 import json
+import logging
 from copy import deepcopy
 from uuid import UUID
 
@@ -197,6 +198,54 @@ async def test_invalid_schema_is_repaired_exactly_once(brief_harness) -> None:
         )
     assert [call.status for call in calls] == ["schema_invalid", "succeeded"]
     assert [call.attempt for call in calls] == [1, 2]
+
+
+async def test_invalid_schema_logs_only_redacted_validation_metadata(
+    brief_harness,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    invalid_content = '{"private-marker":"must-not-appear"'
+    brief_harness.adapter.outcomes = [
+        ProviderCompletion(
+            provider_request_id="agnes-request-truncated",
+            content=invalid_content,
+            usage=ProviderUsage(
+                prompt_tokens=278_166,
+                completion_tokens=8_192,
+                total_tokens=286_358,
+            ),
+            finish_reason="length",
+            status_summary=200,
+        ),
+        completion(valid_brief_payload(), "agnes-request-repaired"),
+    ]
+
+    with caplog.at_level(logging.WARNING, logger="app.services.briefs.service"):
+        result = await brief_harness.service.generate(
+            "access-token",
+            command(),
+            trace_id="trace-redacted-validation",
+        )
+
+    assert result.revision == 1
+    diagnostic = next(
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("brief_validation_failed ")
+    )
+    assert "attempt=1" in diagnostic
+    assert "finish_reason=length" in diagnostic
+    assert "prompt_tokens=278166" in diagnostic
+    assert "completion_tokens=8192" in diagnostic
+    assert "hints=json:invalid" in diagnostic
+    assert "private-marker" not in diagnostic
+    assert invalid_content not in caplog.text
+    repair_messages_payload = json.dumps(
+        brief_harness.adapter.calls[1][1].messages,
+        ensure_ascii=False,
+    )
+    assert invalid_content not in repair_messages_payload
+    assert "private-marker" not in repair_messages_payload
 
 
 async def test_second_invalid_schema_fails_without_persisting_brief(
