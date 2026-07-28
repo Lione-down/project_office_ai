@@ -79,8 +79,8 @@
 
 ## P5-001 Post-Alpha 配置合同（`post-alpha-contract.v1`）
 
-下表只冻结非 Secret 名称与 fail-closed 默认值；P5-001 不修改 Compose、Settings 或任何
-环境文件。后续任务只有在代码、测试和文档同步时才接入对应变量。
+下表冻结非 Secret 名称与 fail-closed 默认值。P5-003 已把 Chat 变量接入
+Settings/Compose；Deck 与媒体变量仍只有在对应代码、测试和文档同步时才接入。
 
 | 变量 | 默认值 | 用途与边界 |
 |---|---:|---|
@@ -133,7 +133,9 @@ fail startup，直到后续批准合同、migration/代码和对应安全/兼容
 真实 Contract 只能用完全合成、无用户内容的输入；不得打印 Key、Prompt、response body、
 Provider URL query、Data URI 或生成内容。测试只记录 model/credential opaque ID、
 request ID、状态、token/latency、实际尺寸/时长和 stable failure category。
-P5-001 没有设置这些 opt-in、没有读取 `.env`、没有调用 Provider。
+P5-003 只在显式 opt-in 进程中使用加密 Credential UUID 和两个发布 model ID，合成
+2.5/2.0 stream/close 合同共 `4 passed`；未把 selector 写入 Compose，也未打印 Key、
+Prompt 或 response body。默认 test suite 仍跳过真实 Provider。
 
 ### Post-Alpha runtime 拓扑
 

@@ -3,6 +3,9 @@ from app.models.ai_providers import AiProvider
 from app.models.audit_logs import AuditLog
 from app.models.base import Base
 from app.models.briefs import Brief
+from app.models.chat_messages import ChatMessage
+from app.models.chat_runs import ChatRun
+from app.models.chat_threads import ChatThread
 from app.models.credit_ledger import CreditLedger
 from app.models.file_assets import FileAsset
 from app.models.generation_task_inputs import GenerationTaskInput
@@ -28,6 +31,9 @@ __all__ = [
     "AuditLog",
     "Base",
     "Brief",
+    "ChatMessage",
+    "ChatRun",
+    "ChatThread",
     "CreditLedger",
     "FileAsset",
     "GenerationTask",

@@ -743,6 +743,18 @@
   精确查询；禁止对完整插值 config 使用带上下文的文本过滤。若发生暴露，立即停止复制，
   记录影响并由用户确认 rotation。
 
+### 2026-07-29 · P5-003 · ORM 无环模型会隐藏真实外键 flush 顺序
+
+- 现象：SQLite focused tests 通过，但真实 MySQL 在同事务更新
+  `chat_messages.run_id` 时，`chat_runs` 尚未 INSERT，命中
+  `fk_chat_messages_run` 并整体回滚。
+- 影响：Browser 已建立 SSE 请求但收到 500；没有残留 run 或 Provider 调用。只依赖
+  SQLite `Base.metadata.create_all` 无法证明 migration 中额外建立的循环外键顺序。
+- 本次处理：先新增 SQL statement 顺序回归固定 RED，再显式 `flush()` ChatRun 后绑定
+  assistant `run_id`；真实 MySQL、2.5/2.0 browser run 与 full suite 复验通过。
+- 预防/验证：migration 增加 ORM metadata 未表达的 FK 时，除 SQLite contract 外必须
+  验证真实 MySQL 写路径和 flush order；不能以空库 upgrade 或 Mock service 替代事务证据。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

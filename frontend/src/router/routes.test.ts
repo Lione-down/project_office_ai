@@ -12,6 +12,7 @@ describe("application routes", () => {
         "register",
         "admin-login",
         "home",
+        "chat-studio",
         "workflow-new",
         "brief-confirm",
         "generation-detail",
@@ -52,6 +53,10 @@ describe("application routes", () => {
       shell: "user",
     });
     expect(byName.get("workflow-task-detail")?.meta).toMatchObject({
+      requiresAuth: true,
+      shell: "user",
+    });
+    expect(byName.get("chat-studio")?.meta).toMatchObject({
       requiresAuth: true,
       shell: "user",
     });

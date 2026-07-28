@@ -216,6 +216,90 @@ class Settings(BaseSettings):
         ge=60,
         le=86_400,
     )
+    chat_max_input_chars: int = Field(
+        32_768,
+        validation_alias="OFFICE_AI_CHAT_MAX_INPUT_CHARS",
+        ge=1,
+        le=131_072,
+    )
+    chat_max_output_tokens: int = Field(
+        8_192,
+        validation_alias="OFFICE_AI_CHAT_MAX_OUTPUT_TOKENS",
+        ge=1,
+        le=65_536,
+    )
+    chat_stream_timeout_seconds: int = Field(
+        180,
+        validation_alias="OFFICE_AI_CHAT_STREAM_TIMEOUT_SECONDS",
+        ge=1,
+        le=600,
+    )
+    chat_heartbeat_seconds: int = Field(
+        15,
+        validation_alias="OFFICE_AI_CHAT_HEARTBEAT_SECONDS",
+        ge=5,
+        le=60,
+    )
+    chat_max_active_runs_per_user: int = Field(
+        1,
+        validation_alias="OFFICE_AI_CHAT_MAX_ACTIVE_RUNS_PER_USER",
+        ge=1,
+        le=5,
+    )
+    chat_runs_per_hour: int = Field(
+        20,
+        validation_alias="OFFICE_AI_CHAT_RUNS_PER_HOUR",
+        ge=1,
+        le=1_000,
+    )
+    chat_runs_per_day: int = Field(
+        100,
+        validation_alias="OFFICE_AI_CHAT_RUNS_PER_DAY",
+        ge=1,
+        le=10_000,
+    )
+    chat_thread_retention_days: int = Field(
+        365,
+        validation_alias="OFFICE_AI_CHAT_THREAD_RETENTION_DAYS",
+        ge=1,
+        le=3_650,
+    )
+    chat_soft_delete_grace_days: int = Field(
+        30,
+        validation_alias="OFFICE_AI_CHAT_SOFT_DELETE_GRACE_DAYS",
+        ge=1,
+        le=365,
+    )
+    chat_backup_retention_days: int = Field(
+        30,
+        validation_alias="OFFICE_AI_CHAT_BACKUP_RETENTION_DAYS",
+        ge=1,
+        le=365,
+    )
+    chat_purge_sla_hours: int = Field(
+        24,
+        validation_alias="OFFICE_AI_CHAT_PURGE_SLA_HOURS",
+        ge=1,
+        le=168,
+    )
+    chat_export_max_bytes: int = Field(
+        10_485_760,
+        validation_alias="OFFICE_AI_CHAT_EXPORT_MAX_BYTES",
+        ge=1_024,
+    )
+    chat_file_context_mode: str = Field(
+        "deck_only",
+        validation_alias="OFFICE_AI_CHAT_FILE_CONTEXT_MODE",
+        pattern=r"^deck_only$",
+    )
+    chat_thinking_default_enabled: bool = Field(
+        False,
+        validation_alias="OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED",
+    )
+    chat_web_search_enabled: bool = Field(
+        False,
+        validation_alias="OFFICE_AI_CHAT_WEB_SEARCH_ENABLED",
+    )
 
     @property
     def max_upload_body_bytes(self) -> int:
@@ -266,6 +350,16 @@ class Settings(BaseSettings):
         if self.processing_lease_seconds < minimum_lease:
             raise ValueError(
                 "processing lease must cover scan/parser timeouts and I/O overhead"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_post_alpha_fail_closed_switches(self):
+        if self.chat_web_search_enabled:
+            raise ValueError("OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=true is not supported")
+        if self.chat_thinking_default_enabled:
+            raise ValueError(
+                "OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED must remain false"
             )
         return self
 

@@ -109,6 +109,12 @@ assistant partial 再提高 sequence。网络可能重复最后 frame，客户�
 `provider_uncertain`，禁止自动重试或扣费重放。终态 run 重连只返回
 `message.snapshot`（如有）和持久终态。
 
+P5-003 已实现上述 Chat thread CRUD/search、双模型 stream、reconnect/cancel 与
+branch/regenerate 合同。真实 MySQL/SSE 证明 2.5/2.0 均由同一用户显式选择并分别
+`succeeded`；同 idempotency key 不重复调用，Provider 失败不 fallback。Restore、
+export、purge 与 Chat tool invocation 仍按后续任务边界保持未实现，不能因已有 CRUD
+端点而声明可用。
+
 ### Deck Draft
 
 | Method | Path | 合同 |

@@ -9,6 +9,7 @@ from app.services.auth_registration import AuthOperationError
 from app.services.admin_contracts import AdminOperationError
 from app.services.asset_contracts import AssetOperationError
 from app.services.briefs.service import BriefOperationError
+from app.services.chat_contracts import ChatOperationError
 from app.services.generation_contracts import GenerationOperationError
 from app.services.rate_limit import RateLimitExceeded
 from app.services.provider_admin import ProviderOperationError
@@ -146,6 +147,18 @@ async def handle_workflow_operation_error(
     )
 
 
+async def handle_chat_operation_error(
+    request: Request,
+    exception: ChatOperationError,
+) -> JSONResponse:
+    return _error_response(
+        request,
+        exception.status_code,
+        exception.error_code,
+        exception.message,
+    )
+
+
 async def handle_provider_configuration_error(
     request: Request, exception: ProviderConfigurationError
 ) -> JSONResponse:
@@ -171,6 +184,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         WorkflowOperationError,
         handle_workflow_operation_error,
     )
+    app.add_exception_handler(ChatOperationError, handle_chat_operation_error)
     app.add_exception_handler(
         ProviderConfigurationError, handle_provider_configuration_error
     )

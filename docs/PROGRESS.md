@@ -1,12 +1,72 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-002 首页最近任务真实展示`
-- 下一任务：`P5-003 双模型会话、SSE 与历史`（唯一 `READY`）
-- 当前状态：`POST-ALPHA RECENT TASKS GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-003 双模型会话、SSE 与历史`
+- 下一任务：`P5-004 Deck Draft、逐页编辑、Skill 与 Preflight`（唯一 `READY`）
+- 当前状态：`POST-ALPHA CHAT GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-003 双模型会话、SSE 与历史（DONE）
+
+### RED -> GREEN 与实现
+
+- RED 先锁定 additive migration/model/state、owner CRUD、幂等、显式模型选择、
+  Provider Mock stream、SSE parser/reconnect/cancel、Markdown XSS、branch 与 Chat UI。
+  初始 Backend 因缺 `ProviderStreamChunk` 失败，Frontend 因缺 Chat modules/route/view
+  失败；真实 MySQL 首轮再暴露 assistant `run_id` 更新早于 `chat_runs` INSERT。
+- GREEN 建立 `chat_threads`、`chat_messages`、`chat_runs` 与 `provider_calls.chat_run_id`，
+  持久化 provider/credential/model/capability/pricing snapshot、partial checkpoint、
+  monotonic sequence 和服务端权威终态。SQL 顺序回归锁定先 INSERT run、再绑定 assistant
+  外键，修复 SQLite Mock 未暴露的 MySQL 约束差异。
+- FastAPI 提供 owner-scoped thread CRUD/search、stream/reconnect/cancel；同
+  owner/idempotency key/payload 只调用一次 Provider，失败不 fallback。Agnes adapter
+  使用官方 `/v1/chat/completions` + `stream:true`，Thinking 只在 capability + per-run
+  opt-in 时发送；工具、文件与 Web 均 fail closed。
+- Vue 新增 AI 创作导航、会话/时间分组、双模型选择、Chat/PPT mode、Thinking gate、
+  stop/copy/edit-resend/regenerate、安全 Markdown 和高风险未核验提示。新 Chat 代码显式
+  推荐 2.5，既有全局 2.0 recommended 状态保持不变。
+
+### 验证与真实证据
+
+- Focused：Backend Chat `18 passed, 4 skipped`；Chat + Provider suites
+  `56 passed, 7 skipped`；Frontend Chat `4 files / 10 passed`，route/shell
+  `2 files / 9 passed`。
+- Broad：Backend full `644 passed, 11 skipped`；Ruff `402 files already formatted`；
+  Frontend full `27 files / 88 passed`；production build `190 modules transformed`；
+  `docker compose config --quiet` 通过。
+- Security：DOMPurify + raw HTML disabled，危险 URL/event/script/image 拒绝；owner、
+  32768 字输入、tool/file injection、disconnect/reconnect、cancel 和 no-fallback 回归
+  通过。`npm audit --audit-level=high` 为 0 vulnerabilities；`pip check` 无 broken
+  requirement；`pip-audit` 除本地非 PyPI package 外无已知漏洞。
+- Runtime：真实 MySQL 从 `20260727_0015` 升级至 `20260729_0016 (head)`，当前
+  25 张业务表；backend/frontend 均 healthy。runtime 只发布公开 model/capability
+  metadata：2.0 保留旧文件默认并补 `chat_stream`，2.5 作为 Chat 推荐显式发布；未读取
+  Credential 密文。
+- Provider：opt-in 测试用显式 credential + 两个 model ID，2.5/2.0 完整 stream
+  latency 为 `7262/1234ms`，均为 `277 prompt + 7 completion tokens`；两模型
+  close-after-delta 也通过，合计 `4 passed`。仅输出脱敏 metadata，不打印 Prompt/
+  response body/Key。
+- Chrome 真实用户态：2.5 与 2.0 两条 run 均 `succeeded`，latency 为
+  `6857/6724ms`、token 为 `331/359`，刷新后 2 条历史仍存在；UI stop 收口为
+  `cancelled_partial`。所有 ProviderCall `is_redacted=true`，日志高置信正文/Secret
+  pattern 命中 0，Console error 0。
+- Desktop `1280x800` 与 Mobile `375x812` 均无 document horizontal overflow；
+  会话栏、composer、双模型和 capability-gated Thinking 可用。Office/WPS 不适用：
+  本任务未生成 PPTX、XLSX 或媒体文件。
+
+### Changed files 与交接
+
+- Backend：Chat migration、thread/message/run models、ProviderCall link、schemas、
+  service/runtime/persistence/request modules、Agnes stream adapter、API/router/settings
+  与 Chat contracts/tests。
+- Frontend：Chat types/API/SSE/store/safe Markdown、Studio view/style/tests、AI 创作
+  route/navigation，以及 `markdown-it`/`dompurify` 依赖。
+- Contracts/records：P5-003/P5-004 状态、Post-Alpha 计划、`docs/PLAN.md`、API/Data/
+  Security/Environment、`pitfalls.md` 与本文件。
+- 未触碰/暂存 `.env`、`.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/`；
+  未实现 Deck Draft、模板、图片、视频或文件生成。P5-004 是下一唯一 `READY`。
 
 ## P5-002 首页最近任务真实展示（DONE）
 
@@ -345,8 +405,8 @@
 | P5-000 | DONE | Alpha Complete | `docs(plan): establish agnes chat ppt studio delivery baseline` |
 | P5-001 | DONE | P5-000 | `docs(chat): define agnes studio contracts` |
 | P5-002 | DONE | P5-001 | `feat(home): show authoritative recent tasks` |
-| P5-003 | READY | P5-002 | 唯一下一任务：双模型会话、SSE 与历史 |
-| P5-004 | BLOCKED | P5-003 | Deck Draft、逐页编辑、Skill 与 Preflight |
+| P5-003 | DONE | P5-002 | 双模型会话、SSE、历史、取消/重连和安全 Markdown |
+| P5-004 | READY | P5-003 | 唯一下一任务：Deck Draft、逐页编辑、Skill 与 Preflight |
 | P5-005 | BLOCKED | P5-004 | 模板目录、缩略图与版本快照 |
 | P5-006 | BLOCKED | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
 | P5-007 | BLOCKED | P5-006 | Agnes 视频资产与兼容性 Gate |

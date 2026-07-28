@@ -25,7 +25,7 @@ def alembic_config() -> Config:
 def test_generation_migration_is_single_additive_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260727_0015"]
+    assert scripts.get_heads() == ["20260729_0016"]
     assert scripts.get_revision("20260723_0011").down_revision == "20260723_0010"
     migration_source = (
         BACKEND_ROOT / "alembic/versions/20260723_0011_generation_outbox_credits.py"
@@ -89,7 +89,7 @@ def test_generation_migration_upgrades_empty_database(
         "generation_task_inputs",
         "outbox_events",
     } <= tables
-    assert len(tables - {"alembic_version"}) == 22
+    assert len(tables - {"alembic_version"}) == 25
     task_uniques = {
         tuple(item["column_names"])
         for item in inspector.get_unique_constraints("generation_tasks")

@@ -67,10 +67,11 @@ describe("App shell", () => {
     );
   });
 
-  it("uses the approved four-item user navigation", async () => {
+  it("adds AI creation without removing the approved user navigation", async () => {
     const wrapper = await mountShell("user");
 
     expect(wrapper.get("[aria-label='用户主导航']").text()).toContain("首页");
+    expect(wrapper.get("[aria-label='用户主导航']").text()).toContain("AI 创作");
     expect(wrapper.get("[aria-label='用户主导航']").text()).toContain("任务");
     expect(wrapper.get("[aria-label='用户主导航']").text()).toContain("文件");
     expect(wrapper.get("[aria-label='用户主导航']").text()).toContain("模板");

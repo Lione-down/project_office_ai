@@ -68,6 +68,7 @@ def test_provider_call_model_records_only_redacted_metadata() -> None:
         "brief_revision_id",
         "task_id",
         "task_step_id",
+        "chat_run_id",
         "attempt",
         "provider_id",
         "model_id",

@@ -99,6 +99,12 @@ scope、状态机、TDD、真实 runtime/Provider 和安全回归分别证明实
 - 首期企业管理员策略固定为 standard：管理员可以选择更严格的全局关闭，但不能放宽
   owner scope、未核验提示或显式确认。未来细粒度策略需要 additive contract。
 
+P5-003 真实证据：2.5/2.0 browser run 与 opt-in Provider stream/close 合同通过，
+ProviderCall 只保留 redacted model/status/token/latency metadata；日志检查未命中
+Key、Authorization、Prompt 或 response body。DOMPurify allowlist、raw HTML disabled、
+危险 URL/event/script/image 拒绝，跨 owner、文件/tool injection、disconnect/reconnect、
+cancel 与 no-fallback 均有回归；真实 stop 收口为 `cancelled_partial`，未冒充 complete。
+
 ### 文件上下文、Web 与外部内容
 
 - 首期文件上下文固定 `deck_only`。P5-003 Chat 请求携带任何 asset ID 都 fail closed；

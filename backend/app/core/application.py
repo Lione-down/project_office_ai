@@ -28,6 +28,8 @@ from app.services.auth_sessions import AuthSessionService
 from app.services.asset_management import AssetManagementService
 from app.services.briefs.dependencies import BriefServices
 from app.services.briefs.service import BriefGenerationService
+from app.services.chat import ChatService
+from app.services.chat_contracts import ChatServices
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.generation import GenerationService
@@ -73,6 +75,7 @@ def create_app(
     brief_services: BriefServices | None = None,
     generation_services: GenerationServices | None = None,
     workflow_services: WorkflowServices | None = None,
+    chat_services: ChatServices | None = None,
     admin_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
@@ -230,6 +233,23 @@ def create_app(
             )
         )
 
+    if (
+        chat_services is None
+        and database is not None
+        and redis is not None
+        and auth_services is not None
+        and credential_cipher is not None
+    ):
+        chat_services = ChatServices(
+            ChatService(
+                database.session_factory,
+                auth_services.sessions,
+                credential_cipher,
+                settings=application_settings,
+                admission_limiter=RedisRateLimiter(redis),
+            )
+        )
+
     if database is not None and redis is not None:
         outbox_runtime = OutboxRuntime(
             OutboxDispatcher(
@@ -278,6 +298,8 @@ def create_app(
     app.state.brief_services = brief_services
     app.state.generation_services = generation_services
     app.state.workflow_services = workflow_services
+    app.state.chat_services = chat_services
+    app.state.chat_heartbeat_seconds = application_settings.chat_heartbeat_seconds
     app.add_middleware(
         UploadBodyLimitMiddleware,
         max_body_bytes=application_settings.max_upload_body_bytes,

@@ -34,7 +34,7 @@ def alembic_config() -> Config:
 def test_quality_metadata_migration_is_single_additive_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260727_0015"]
+    assert scripts.get_heads() == ["20260729_0016"]
     assert scripts.get_revision("20260723_0013").down_revision == "20260723_0012"
 
 
@@ -59,5 +59,5 @@ def test_quality_migration_upgrades_empty_database_without_adding_a_table(
     inspector = inspect(create_engine(f"sqlite:///{database_path}"))
     columns = {item["name"] for item in inspector.get_columns("file_assets")}
 
-    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 22
+    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 25
     assert QUALITY_COLUMNS.issubset(columns)

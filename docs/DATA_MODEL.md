@@ -1,9 +1,9 @@
 # Office AI Alpha 数据模型基线
 
 - 数据库：MySQL 8.0
-- 表数量：Post-Alpha 当前 22 张；`post-alpha-contract.v1` 规划 additive 增至 31 张
-- 状态：Alpha 以 21 张封版；Post-Alpha migration `20260727_0015` additive 新增
-  `workflow_tasks`，当前实现 22 张业务表；P5-001 不创建 migration
+- 表数量：Post-Alpha 当前 25 张；`post-alpha-contract.v1` 规划 additive 增至 31 张
+- 状态：Alpha 以 21 张封版；Post-Alpha `20260727_0015` 新增 `workflow_tasks`，
+  P5-003 `20260729_0016` 新增三张 Chat 表并扩展 `provider_calls`，当前 25 张业务表
 
 ## 全局约定
 
@@ -19,8 +19,8 @@
 
 ## P5-001 Post-Alpha 数据合同（`post-alpha-contract.v1`）
 
-P5-001 只冻结下列 additive Schema；具体表按 P5-003、P5-004、P5-006 和 P5-007 的
-依赖顺序以 migration 建立。已有 22 张表不删除、不改写历史 migration。
+P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，剩余表按 P5-004、
+P5-006 和 P5-007 的依赖顺序以 migration 建立。既有表不删除、不改写历史 migration。
 
 ### 计划新增 9 张表
 
@@ -351,4 +351,9 @@ P5-001 只冻结下列 additive Schema；具体表按 P5-003、P5-004、P5-006 �
   22 个唯一约束，`alembic check` 无 drift。验证库保留为现场证据。
 - Post-Alpha 新增 additive `20260727_0015`，建立 `workflow_tasks`、owner/project/
   generation 外键和三项幂等/关联唯一约束。真实 MySQL 已从 `0014` 升级至唯一
-  `20260727_0015 (head)`，`alembic current` 与 `alembic check` 通过，当前共 22 张表。
+  `20260727_0015`，当前作为 P5-003 migration 的直接前序。
+- `P5-003` 新增 additive `20260729_0016`，建立 owner-scoped `chat_threads`、
+  `chat_messages`、`chat_runs`，并向 `provider_calls` 增加 redacted Chat run scope 与
+  `(chat_run_id, attempt)` 唯一约束。真实 MySQL 从 `0015` 升级至唯一
+  `20260729_0016 (head)`，当前共 25 张业务表；真实 run 验证先 INSERT run、再绑定
+  assistant 外键，2.5/2.0 ProviderCall 均为 redacted terminal metadata。

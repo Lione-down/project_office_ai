@@ -9,13 +9,16 @@
     "build": "vue-tsc -b && vite build --configLoader runner"
   },
   "dependencies": {
+    "dompurify": "^3.4.12",
+    "markdown-it": "^14.3.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.1",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.1",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^26.1.0",
     "typescript": "~5.8.3",

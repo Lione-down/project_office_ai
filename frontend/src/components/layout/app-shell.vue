@@ -15,6 +15,7 @@ const shell = computed(() => route.meta.shell ?? "public");
 
 const userLinks = [
   { label: "首页", to: "/" },
+  { label: "AI 创作", to: "/chat" },
   { label: "任务", to: "/tasks" },
   { label: "文件", to: "/files" },
   { label: "模板", to: "/templates" },

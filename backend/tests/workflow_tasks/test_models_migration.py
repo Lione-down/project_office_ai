@@ -45,7 +45,8 @@ def test_workflow_task_migration_is_additive_head_and_upgrades_empty_database(
     tmp_path: Path,
 ) -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
-    assert scripts.get_heads() == ["20260727_0015"]
+    assert scripts.get_heads() == ["20260729_0016"]
+    assert scripts.get_revision("20260729_0016").down_revision == "20260727_0015"
     assert scripts.get_revision("20260727_0015").down_revision == "20260727_0014"
 
     database_path = tmp_path / "workflow-tasks.db"
@@ -61,7 +62,7 @@ def test_workflow_task_migration_is_additive_head_and_upgrades_empty_database(
 
     inspector = inspect(create_engine(f"sqlite:///{database_path}"))
     assert "workflow_tasks" in inspector.get_table_names()
-    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 22
+    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 25
     uniques = {
         tuple(item["column_names"])
         for item in inspector.get_unique_constraints("workflow_tasks")

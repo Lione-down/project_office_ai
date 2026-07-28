@@ -10,6 +10,7 @@ import GenerationDetailView from "@/views/generation/detail.vue";
 import NoPermissionView from "@/views/system/no-permission.vue";
 import NotFoundView from "@/views/system/not-found.vue";
 import HomeView from "@/views/user/home.vue";
+import ChatStudioView from "@/views/chat/studio.vue";
 import UserResourceView from "@/views/user/resource.vue";
 import WorkflowNewView from "@/views/user/workflow-new.vue";
 import WorkflowTaskDetailView from "@/views/task/detail.vue";
@@ -38,6 +39,12 @@ export const routes: RouteRecordRaw[] = [
     path: "/",
     name: "home",
     component: HomeView,
+    meta: { requiresAuth: true, shell: "user" },
+  },
+  {
+    path: "/chat",
+    name: "chat-studio",
+    component: ChatStudioView,
     meta: { requiresAuth: true, shell: "user" },
   },
   {

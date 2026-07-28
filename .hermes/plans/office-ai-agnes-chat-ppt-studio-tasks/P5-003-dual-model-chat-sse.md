@@ -1,6 +1,6 @@
 # P5-003 双模型会话、SSE 与历史
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`P5-002`
 - 来源：PRD FR-101～FR-107、模型策略、Chat Run 状态机
 - 建议 commit：`feat(chat): add dual model streaming conversations`
@@ -70,3 +70,24 @@ git diff --check
 - 不创建 Deck Draft、图片、视频或文件生成任务。
 - 不启用公共 Web 搜索或任意 execute 工具。
 - 回滚 additive API/UI feature 和 migration head 的安全 downgrade；不删除已存在用户数据。
+
+## 完成记录（2026-07-29）
+
+- RED：Migration/model/API/SSE/Provider/frontend contract 先失败；真实 MySQL 首轮再暴露
+  assistant `run_id` 外键更新早于 `chat_runs` INSERT，新增 SQL 顺序回归后最小修复。
+- Focused：Backend Chat `18 passed, 4 skipped`；Chat + Provider suites
+  `56 passed, 7 skipped`；Frontend Chat `4 files / 10 passed`，route/shell
+  `2 files / 9 passed`。
+- Broad：Backend full `644 passed, 11 skipped`，Ruff check/format；Frontend full
+  `27 files / 88 passed`、production build `190 modules transformed`、Compose config 均通过。
+- Runtime：真实 MySQL 从 `20260727_0015` 升级至 `20260729_0016 (head)`，当前
+  25 张业务表；backend/frontend 均 healthy。
+- Provider：显式 opt-in 逐个选择 2.5/2.0，完整 stream 与 close-after-delta 共
+  `4 passed`；只记录 model/status/latency/token metadata，不打印正文。
+- Browser：Chrome 真实登录态下 2.5/2.0 两条 run 均 `succeeded`，刷新历史保持；
+  UI stop 收口为 `cancelled_partial`，ProviderCall 均为 redacted，Console error 为 0。
+- Security：Markdown/URL/XSS、owner scope、超长输入、tool/file fail-closed、disconnect/
+  reconnect、cancel、日志/正文泄漏检查通过；`npm audit` 0 vulnerabilities，
+  `pip check`/`pip-audit` 无已知第三方漏洞。
+- 未实现 Deck Draft、模板、图片、视频、文件生成或 Office/WPS；下一任务仅切换为
+  `P5-004 READY`。

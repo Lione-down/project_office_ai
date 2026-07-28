@@ -3,7 +3,7 @@
 - 状态：`ACTIVE`
 - 批准来源：`docs/prd/2026-07-29-office-ai-agnes-chat-ppt-studio-prd.md`（`v1.0 / APPROVED`）
 - 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
-- 当前 Gate：`P5-002 DONE -> P5-003 READY`
+- 当前 Gate：`P5-003 DONE -> P5-004 READY`
 - 执行方式：单一 dependency-ready 任务、单一 commit、push 后新会话交接
 
 ## 1. 目标
@@ -35,7 +35,8 @@ Renderer/QA/任务/积分闭环，以及首页最近任务真实投影。
 
 `P5-000` 只建立计划，不修改正式 API/Data/Security/Environment 合同。`P5-001` 已冻结
 `post-alpha-contract.v1` 并同步五份正式文档；`P5-002` 已交付 owner-scoped 首页最近
-任务、权威 progress、失败/retry 和受控轮询，`P5-003` 是下一唯一 `READY`。
+任务、权威 progress、失败/retry 和受控轮询。P5-003 已交付双模型真实 SSE、历史、
+取消/重连、分支和安全 Markdown，`P5-004` 是下一唯一 `READY`。
 
 ## 3. 不可回退边界
 

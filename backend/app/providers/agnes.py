@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from ipaddress import ip_address
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import urlparse
 
@@ -43,9 +44,29 @@ class ChatCompletionRequest:
 
 @dataclass(frozen=True)
 class ProviderUsage:
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass(frozen=True)
+class ChatStreamRequest:
+    model: str
+    messages: list[dict]
+    tools: list[dict]
+    timeout_seconds: int
+    max_output_tokens: int
+    trace_id: str
+    thinking_enabled: bool
+    stream: bool = True
+
+
+@dataclass(frozen=True)
+class ProviderStreamChunk:
+    provider_request_id: str | None = None
+    content_delta: str = ""
+    finish_reason: str | None = None
+    usage: ProviderUsage = ProviderUsage()
 
 
 @dataclass(frozen=True)
@@ -209,6 +230,78 @@ class AgnesAdapter:
             finish_reason=choice.get("finish_reason"),
             status_summary=response.status_code,
         )
+
+    async def stream_chat_completion(
+        self,
+        *,
+        api_key: str,
+        request: ChatStreamRequest,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        payload: dict[str, Any] = {
+            "model": request.model,
+            "messages": request.messages,
+            "max_tokens": request.max_output_tokens,
+            "temperature": 0.7,
+            "stream": True,
+        }
+        if request.tools:
+            payload["tools"] = request.tools
+            payload["tool_choice"] = "auto"
+        if request.thinking_enabled:
+            payload["chat_template_kwargs"] = {"enable_thinking": True}
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-Trace-ID": request.trace_id,
+        }
+        url = f"{self.configuration.base_url}/chat/completions"
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient()
+        try:
+            async with client.stream(
+                "POST",
+                url,
+                content=json.dumps(payload, separators=(",", ":")),
+                headers=headers,
+                timeout=request.timeout_seconds,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line.removeprefix("data:").strip()
+                    if not data or data == "[DONE]":
+                        continue
+                    try:
+                        body = json.loads(data)
+                    except json.JSONDecodeError as exception:
+                        raise ProviderConfigurationError(
+                            "provider_response_invalid",
+                            "Agnes 流式响应合同无效",
+                        ) from exception
+                    choices = body.get("choices") or []
+                    choice = choices[0] if choices else {}
+                    delta = choice.get("delta") or {}
+                    if delta.get("tool_calls"):
+                        raise ProviderConfigurationError(
+                            "chat_tool_not_enabled",
+                            "当前会话未启用工具执行",
+                        )
+                    content = delta.get("content") or ""
+                    if not isinstance(content, str):
+                        raise ProviderConfigurationError(
+                            "provider_response_invalid",
+                            "Agnes 流式正文合同无效",
+                        )
+                    yield ProviderStreamChunk(
+                        provider_request_id=body.get("id"),
+                        content_delta=content,
+                        finish_reason=choice.get("finish_reason"),
+                        usage=self.extract_usage(body),
+                    )
+        finally:
+            if owns_client:
+                await client.aclose()
 
     def classify_error(self, error: Exception) -> ErrorClassification:
         if isinstance(error, httpx.TimeoutException):
