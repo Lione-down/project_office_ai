@@ -1,9 +1,9 @@
 # Office AI Alpha 数据模型基线
 
 - 数据库：MySQL 8.0
-- 表数量：Post-Alpha 当前 22 张
+- 表数量：Post-Alpha 当前 22 张；`post-alpha-contract.v1` 规划 additive 增至 31 张
 - 状态：Alpha 以 21 张封版；Post-Alpha migration `20260727_0015` additive 新增
-  `workflow_tasks`，当前实现 22 张业务表
+  `workflow_tasks`，当前实现 22 张业务表；P5-001 不创建 migration
 
 ## 全局约定
 
@@ -12,7 +12,149 @@
 - 核心关系使用外键，任务请求、能力和历史快照可以使用 JSON。
 - 用户可见资源使用软删除；实际文件异步清理，活动存储立即删除，备份残留最长 30 天。
 - 历史修订、输出版本、`credit_ledger` 和 `audit_logs` 不原地覆盖。
-- 文件二进制、完整 Prompt、明文 Secret 和完整用户内容不进入数据库。
+- 文件二进制、system/完整 Provider Prompt、Provider 原始响应和明文 Secret 不进入
+  数据库。用户明确要求保存的 Chat 正文只进入 owner-scoped `chat_messages`；用户确认
+  的媒体 Prompt 只进入 owner-scoped `media_jobs`。两者都不得复制到日志、audit、
+  `provider_calls`、queue 或其他快照。
+
+## P5-001 Post-Alpha 数据合同（`post-alpha-contract.v1`）
+
+P5-001 只冻结下列 additive Schema；具体表按 P5-003、P5-004、P5-006 和 P5-007 的
+依赖顺序以 migration 建立。已有 22 张表不删除、不改写历史 migration。
+
+### 计划新增 9 张表
+
+23. `chat_threads`
+   - owner user、title、default model ID、`chat/ppt` mode、status、last activity、
+     retention expiry、soft-delete/purge request/content-purged 时间及 created/updated。
+   - title 是用户内容；列表只按 owner 和未删除范围查询。模型只是后续 run 默认，
+     不回写历史 snapshot。
+
+24. `chat_messages`
+   - thread、单调 sequence、`user/assistant` role、Markdown content、status、
+     parent message、superseded message、branch root、可空 run、provenance summary、
+     created/updated/finalized time。
+   - 状态为 `pending`、`streaming`、`succeeded`、`cancelled_partial`、`failed` 或
+     `provider_uncertain`。active assistant 行可 checkpoint 累计 partial；终态后不可变。
+     编辑后重发/重新生成追加 sibling，不覆盖旧行。
+
+25. `chat_runs`
+   - owner、thread、user message、assistant message、client idempotency key、状态、
+     last SSE sequence、provider/credential/model/capability/pricing snapshot、
+     Thinking flag、Provider request ID、token/latency/finish reason、cancel request、
+     error code/脱敏原因及生命周期时间。
+   - 状态为 `queued`、`streaming`、`succeeded`、`failed`、`cancelled_partial`、
+     `provider_uncertain`。不保存 system Prompt、隐藏 reasoning 或 Provider response。
+
+26. `chat_tool_invocations`
+   - owner、run、message、tool code/version、strict arguments JSON、arguments checksum、
+     status、confirmation required/confirmed user/time、result resource type/ID、
+     stable error code 和时间。
+   - 只允许后端 registry 中的白名单工具。Provider 原始 tool call 不直接执行；Schema、
+     owner、capability、额度和用户确认通过后才保存可执行 canonical arguments。
+     arguments 只允许稳定 message/draft/slide/asset ID 和 bounded enum/数字选项，禁止
+     复制 Chat/Deck/media 正文。
+
+27. `deck_drafts`
+   - owner、thread、source assistant message、stable group ID、latest revision、
+     lifecycle status、created/updated/deleted time。
+   - 只保存稳定 identity 和指针，不保存可变内容副本；删除 Chat 时按保留策略断开或清理
+     未进入 generation 的内容。
+
+28. `deck_draft_revisions`
+   - draft、revision、strict `deck-brief.v1` JSON、content checksum、source mode、
+     Skill/model/template snapshot、provenance summary、Preflight snapshot、
+     high-risk confirmation metadata、status、confirmed/generation task/time。
+   - 状态为 `draft`、`editing`、`confirmed`、`preflight`、`needs_resolution`、`ready`、
+     `generation_queued`。每次保存插入下一 revision；confirmed 内容不原地覆盖。
+
+29. `deck_draft_inputs`
+   - revision、input kind、source asset/message/media ID、source version/checksum、
+     Evidence/terminology snapshot 和 provenance kind。
+   - 资料/混合模式只接受 owner 的 `ready/valid` 资产；灵感内容固定为
+     `agnes_inference`，不能升级为 `source_fact`。
+
+30. `media_jobs`
+   - owner、draft revision、slide stable ID、workflow task、kind `image/video`、
+     mode、idempotency key、prompt hash、模型/capability/pricing snapshot、状态、
+     Provider opaque ID、真实 progress、请求/实际尺寸与时长、cancel/error/时间。
+   - 状态为 `queued`、`submitted`、`running`、`succeeded`、`failed`、
+     `provider_uncertain`、`cancelled`。只有用户在 UI 查看/确认的媒体 Prompt 保存于
+     owner-scoped job content 字段；system instructions、Provider request wrapper 和
+     response 不落库。日志、Outbox 和 `provider_calls` 只保存 hash/metadata。
+
+31. `media_job_inputs`
+   - job、input kind、owner-scoped asset ID/version/hash、slide ID、顺序和用途。
+   - 本地图片只允许经安全解码后构造受控 Data URI；不保存 public URL。视频首期
+     text-only，此表为未来经批准的 image/keyframe capability 保留严格关系。
+
+### 现有表 additive 关系
+
+- `provider_calls` 后续增加可空 `chat_run_id`、`media_job_id` 和各 scope 的 attempt
+  唯一约束；仍只保存脱敏 metadata，不保存正文、Prompt 或 response。
+- `file_assets` 后续增加可空 `generated_media_job_id` 与 `media_role`，用既有
+  owner-scoped immutable storage 承载 image、video、poster；同 job/role/version 唯一。
+- `workflow_tasks` 后续增加 `resource_kind/resource_id`，使首页和任务页投影 Deck/media/
+  generation 的同一权威状态；Redis 不承担该关系。
+- `generation_task_inputs` 以稳定 source kind/ID/version/checksum 引用 confirmed Deck
+  revision、选中 media asset、Skill 和 template snapshot；Renderer 仍只接收 strict Plan。
+- `ai_models.capabilities` 必须显式描述 `chat_stream`、`thinking`、`tool_calling`、
+  `image_generation`、`video_generation` 和 `video_embedding`；缺失视为 `false`。
+
+### Post-Alpha 唯一约束
+
+| 表 | 唯一键 | 目的 |
+|---|---|---|
+| `chat_threads` | `(user_id, thread_id)` | owner-scoped identity，便于复合外键 |
+| `chat_messages` | `(thread_id, sequence)` | 会话内稳定顺序 |
+| `chat_runs` | `(user_id, idempotency_key)` | 重放发送只创建一个 run |
+| `chat_runs` | `(assistant_message_id)` | 一个 assistant branch 只属于一个 run |
+| `chat_tool_invocations` | `(run_id, tool_call_id)` | 重复 tool frame 不重复执行 |
+| `deck_drafts` | `(source_message_id, draft_group_id)` | 同来源允许多个显式 Draft，但 identity 唯一 |
+| `deck_draft_revisions` | `(draft_id, revision)` | 不可变 revision |
+| `deck_draft_revisions` | `(draft_id, content_checksum)` | 相同内容重放返回既有 revision |
+| `deck_draft_inputs` | `(draft_revision_id, input_kind, source_id, source_version)` | 输入 snapshot 不重复 |
+| `media_jobs` | `(user_id, idempotency_key)` | 重放媒体创建不重复提交/扣费 |
+| `media_jobs` | `(provider_id, provider_job_id)` | 上游 opaque ID 不重复关联 |
+| `media_job_inputs` | `(media_job_id, input_kind, source_asset_id, sequence)` | 输入顺序与角色稳定 |
+| `file_assets` | `(generated_media_job_id, media_role, version)` | job 输出/海报不可变 |
+
+`NULL` Provider ID 不参与 completed identity；只有提交成功后写入并复验唯一约束。
+幂等 replay 必须同时校验 payload fingerprint，key 相同而 fingerprint 不同返回冲突。
+
+### 事务与 checkpoint
+
+- Chat start：锁定 owner/thread 和 admission budget，在同一事务追加 user message、
+  assistant placeholder、`queued` run 与脱敏 Provider call intent；commit 后才调用
+  Provider。失败前没有无主 partial。
+- Chat stream：累计正文按 bounded byte/time checkpoint 更新 active assistant row，
+  同事务提高 `chat_runs.last_event_sequence`；终态锁定 run，只允许一次状态转换。
+  SSE 重连从累计正文生成 `message.snapshot`，不需要在 MySQL 保存每个 token frame。
+- Cancel/disconnect：锁定 active run 写 `cancel_requested_at`；上游确认后终态为
+  `cancelled_partial`，结果不确定则为 `provider_uncertain`，禁止自动生成 sibling。
+- Tool：严格参数和 confirmation 在一个事务落库；任务/媒体创建继续使用目标资源自己的
+  幂等事务。tool invocation 只保存关联结果，不成为第二套业务事实。
+- Draft create/save：创建 `deck_drafts + revision 1 + inputs` 或追加 revision 时锁定
+  latest revision；checksum/idempotency replay 返回原 revision。confirm/Preflight
+  snapshot 同事务提交，编辑 confirmed Draft 必须追加 revision。
+- Media create：同事务创建 `media_jobs + inputs + workflow projection + reserve/outbox`；
+  Provider submit 后 checkpoint opaque ID 再轮询。未知结果进入 `provider_uncertain` 并
+  保留 reserve；成功 bytes 经类型/容量/解码/hash 后才创建 immutable `file_assets`。
+- Deck generation：锁定 latest confirmed/ready revision，复验 input/media/template/
+  Skill/model/pricing 后复用既有 generation task、ledger 和 Outbox 事务；重复 submit
+  返回同一 task。
+
+### 保留、导出与删除
+
+- active thread 以 `last_activity_at + 365 天` 计算默认 expiry；到期进入 soft delete。
+- soft delete 隐藏 thread/message/draft，30 天 grace 内可恢复；到期后进入 purge。
+- 用户显式“彻底删除”后 24 小时内清除 active Chat 正文、未进入 generation 的 Draft
+  content 和未引用临时导出；`chat_threads` 保留不可逆 tombstone/时间用于幂等。
+- 备份中的已清除正文最多再残留 30 天，不能承诺即时擦除不受应用直接控制的备份。
+- 已生成资产、`generation_tasks`、`credit_ledger`、必要 `audit_logs` 继续按原保留策略；
+  purge 断开 source message/body 关联，不伪造账务或历史输出删除。
+- JSON export 由请求时读取 owner-scoped 表生成，不包含 Secret、system Prompt、隐藏
+  reasoning、Provider response 或其他用户数据；过期临时 export 必须清理。
 
 ## Alpha 表清单
 

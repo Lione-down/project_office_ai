@@ -13,13 +13,137 @@
 - 正式执行计划：
   `.hermes/plans/2026-07-29-office-ai-agnes-chat-ppt-studio-post-alpha.md`
 - 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
-- 当前 Gate：`P5-000 DONE -> P5-001 READY`
+- 当前 Gate：`P5-001 DONE -> P5-002 READY`
 - 计划裁决：PRD 第 20 节要求开发前同步正式合同，因此 `P5-001` 先完成
   技术/API/Data/Security/Environment 合同；首页最近任务完整后移为 `P5-002`，
   `P5-003`～`P5-008` 保持批准 PRD 的相对顺序。
-- 合同边界：P5-000 只建立计划与任务卡；本文件以下 Alpha/Post-Alpha 现行合同以及
-  `docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、`docs/ENVIRONMENT.md`
-  在 P5-001 前不因计划任务而改变。
+- 合同边界：P5-000 只建立计划与任务卡；P5-001 已将
+  `post-alpha-contract.v1` 同步到本文件及 `docs/API.md`、`docs/DATA_MODEL.md`、
+  `docs/SECURITY.md`、`docs/ENVIRONMENT.md`。P5-002 只能实现最近任务，不得提前实现
+  Chat、Deck、模板或媒体。
+
+### P5-001 Contract Gate（`post-alpha-contract.v1`）
+
+P5-001 在业务代码和 migration 之前冻结下列合同。它是 Post-Alpha 的 additive 设计，
+不改变 Alpha 旧流程；P5-002～P5-008 必须逐项实现并验证，不能把本节文档验证当作
+Provider、runtime、Microsoft Office 或 WPS 通过证据。
+
+#### 架构与权威边界
+
+```text
+Vue -> FastAPI -> MySQL chat/deck/media facts
+          |       -> Outbox -> Redis -> bounded workers
+          |       -> owner-scoped protected files
+          -> Agnes text/image/video adapters
+          -> existing Preflight -> generation task -> Renderer/QA
+```
+
+- FastAPI 是 Agnes 的唯一调用方和 SSE 边界，Browser 永远不接触 API Key。
+- MySQL 保存会话、消息、run、Deck revision、媒体任务、幂等和结算事实；Redis 只保存
+  可恢复 queue、锁、限流和瞬时 fan-out，Redis 丢失不能改变最终状态。
+- Chat 正文只进入 owner-scoped `chat_messages`；日志、audit、queue、
+  `provider_calls` 不复制正文、Prompt 或 Provider response。
+- 自由 Markdown 不进入 Renderer。assistant 消息先编译为 strict `deck-brief.v1`，
+  用户编辑形成不可变 revision/checksum，确认后才进入既有 Preflight/Generation。
+- 图片和视频是独立 owner-scoped 不可变资产。视频默认独立交付；只有 P5-007 同时通过
+  Microsoft PowerPoint 与 WPS 播放/无修复 Gate 才允许开启内嵌 capability。
+
+#### 状态机与版本边界
+
+Chat Run：
+
+```text
+queued -> streaming -> succeeded
+                   -> failed
+                   -> cancelled_partial
+                   -> provider_uncertain
+```
+
+Deck Draft：
+
+```text
+draft -> editing -> confirmed -> preflight
+preflight -> needs_resolution | ready
+ready -> generation_queued -> existing generation state machine
+```
+
+Media Job：
+
+```text
+queued -> submitted -> running -> succeeded
+                              -> failed
+                              -> provider_uncertain
+                              -> cancelled
+```
+
+- SSE 使用 `chat-sse.v1`。语义 event 具有单 run 单调 sequence；断线重连返回持久化
+  `message.snapshot` 后继续，绝不把未确认 delta 冒充成功消息。
+- cancel、重连、重新生成、Deck 保存、媒体创建和 generation submit 均使用数据库
+  幂等边界。Provider 已提交但结果不确定时只能收口为 `provider_uncertain`。
+- 编辑后重发和重新生成创建 message branch；旧 message/run 不原地覆盖。
+- 已确认 Deck revision 继续编辑时创建新 revision，并必须重新 Preflight。
+
+#### 来源与 capability
+
+- 首期 Chat 本身只允许灵感创作；文件上下文固定为 `deck_only`，只在 assistant 消息
+  转 Deck Draft 时选择现有 owner-scoped、版本冻结且 `ready/valid` 的资产。P5-003
+  不向 Agnes Chat 发送文件、Evidence 或图片。
+- Deck 支持灵感、资料和混合模式。`source_fact`、`calculated_fact` 与
+  `agnes_inference` 分开保存；聊天内容不能升级为 `source_fact`，资料模式继续执行
+  Evidence、术语、单位、冲突和低置信 fail-closed Gate。
+- `agnes-2.5-flash` 是新会话推荐模型，`agnes-2.0-flash` 是用户可选兼容模型且仍为旧
+  文件流程默认。发送前冻结 provider/credential/model/capability/pricing snapshot；
+  任何失败都不得静默切换模型。
+- Thinking 默认关闭；只有已发布模型 snapshot 明确声明 capability 且用户对当前 run
+  显式开启时才发送。UI 不按 model code 猜 capability。
+- 2026-07-29 仅核对 Agnes 官方文档合同：两种文本模型使用
+  `POST /v1/chat/completions` 和 `stream: true`；图片使用
+  `POST /v1/images/generations`；视频使用异步 `POST /v1/videos` 和结果查询。
+  这不是本项目真实 Contract Test 通过证据。未来 adapter 必须以实际 response 中的
+  token、尺寸、时长、Provider ID 和状态为权威。
+- 图片图生图只允许受控 Data URI；本地资产禁止 public URL/tunnel。视频图生视频和
+  keyframes 因官方合同要求公共图片 URL，首期保持关闭；文生视频也必须在 P5-007
+  真实 Contract 后才能发布。
+
+官方合同来源：
+
+- [Agnes 2.5 Flash](https://agnes-ai.com/zh-Hans/docs/agnes-25-flash)
+- [Agnes 2.0 Flash](https://agnes-ai.com/zh-Hans/docs/agnes-20-flash)
+- [Agnes Image 2.1 Flash](https://agnes-ai.com/zh-Hans/docs/agnes-image-21-flash)
+- [Agnes Video V2.0](https://agnes-ai.com/zh-Hans/docs/agnes-video-v20)
+
+#### PRD 第 19 节首期决策
+
+| 待确认项 | `post-alpha-contract.v1` 决策 | Tradeoff / Gate |
+|---|---|---|
+| 正文保留与彻底删除 | 活跃会话最后活动后默认保留 365 天；软删除可恢复 30 天；显式彻底删除在 24 小时内清除活动正文，备份残留最多 30 天 | 账务、审计和已生成资产按原策略保留，只断开正文关联；导出仅为 owner-scoped JSON |
+| 文件上下文 | `deck_only`；Chat 首期不带文件 | 降低 Prompt injection/预算风险；P5-004 才接入冻结 Evidence |
+| Thinking | 默认关闭、per-run 显式开启、capability gated | 不硬编码 2.5/2.0 能力，不保存隐藏 reasoning |
+| 免费模型额度 | 每用户同时 1 个 Chat run、20 次/小时、100 次/日；输入 32768 字符、输出上限 8192 token | Provider 当前价格不等于永久免费；媒体和文件生成继续使用发布价格/积分 snapshot |
+| 首批模板 | 冻结现有 3 套原创系统模板 `ppt.executive-blue.v1`、`ppt.operating-review.v1`、`ppt.data-story.v1` | P5-005 补齐分类、缩略图、来源/版权与兼容 Skill；缺 metadata 不发布 |
+| 视频交付 | `OFFICE_AI_VIDEO_EMBED_ENABLED=false`，独立 MP4 + 海报帧 | P5-007 双 Office/WPS Gate 后才可显式开启 |
+| 公共 Web 搜索 | `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false` | 无搜索工具、无网页事实核验声明；未来另立来源/引用/隐私合同 |
+| 高风险主题 | 医疗/法律/金融使用持续未核验提示；生成前要求 `high_risk_confirmation_required` 显式确认 | 首期固定标准策略，无企业管理员放宽；更严格策略可后续 additive |
+
+以上八项均已选择最小、可逆、fail-closed 默认，没有遗留会阻塞 P5-002 的产品裁决。
+会扩大外部数据处理范围的 public URL、Web 搜索、视频内嵌和 Chat 文件上下文仍由
+feature/capability Gate 关闭，不能通过普通配置默默开启。
+
+#### Post-Alpha 交付 Gate
+
+| Gate | 任务 | 必须新增的证据 |
+|---|---|---|
+| Contract | P5-001 | 五份正式合同、RED/GREEN validator、八项决策 |
+| Recent Tasks | P5-002 | owner-scoped 最近任务、真实进度、空态/失败/轮询 |
+| Chat | P5-003 | 双模型真实 SSE、历史、branch/cancel/reconnect、Markdown 安全 |
+| Deck | P5-004 | `deck-brief.v1`、revision/checksum、Skill、Evidence 与 Preflight |
+| Template | P5-005 | 3 套模板 metadata/缩略图/版本/来源与兼容性 |
+| Image | P5-006 | 真实图片 Contract、受控资产、PPTX Golden |
+| Video | P5-007 | 异步 Provider ID、独立资产；内嵌默认关闭及 Office/WPS Gate |
+| Release | P5-008 | 全链路、broad/security、真实 Provider、Golden、Office/WPS |
+
+P5-001 的完成定义仅为合同一致、validator GREEN、文档/Git/远端对齐。P5-002 是下一唯一
+`READY`；整个 PRD 只有 P5-008 通过且用户整体验收后才能宣称完成。
 
 本文是实施期的精简执行真源，不替代总计划中的详细论证。若描述冲突，以总计划的功能、安全和完成定义为最高优先级，以任务文档限定当前 commit 边界。
 

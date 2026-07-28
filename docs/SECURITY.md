@@ -8,6 +8,126 @@
 - 任务、积分和 Provider 不确定状态可恢复且不会重复扣费。
 - 管理员最高权限可追溯、需重新认证、不能绕过 audit。
 
+## P5-001 Chat、Deck 与 Media 安全合同（`post-alpha-contract.v1`）
+
+本节是 Post-Alpha 新资源的强制最小边界。P5-001 只冻结合同；后续任务必须用 owner
+scope、状态机、TDD、真实 runtime/Provider 和安全回归分别证明实现。
+
+### 正文保留、导出与删除
+
+- Chat 正文是用户明确要求保存的产品数据，只能进入 owner-scoped `chat_messages`。
+  active 会话最后活动后默认保留 365 天；soft delete 后有 30 天恢复期。
+- 用户显式“彻底删除”必须重新认证、确认会话标题并提供 reason。请求幂等，活动 Chat
+  正文、未进入 generation 的 Draft 正文和临时导出在 24 小时内清除；备份残留最多
+  30 天，并在 UI/API 准确告知。
+- `chat_threads` 可保留不含正文的 tombstone、purge 时间和不可逆随机 identity，以保证
+  幂等与审计。已生成文件、账务流水和必须保留的 audit 不伪装为已删除；它们与已清除
+  正文断开关联。
+- owner-scoped JSON 导出不包含 system instructions、隐藏 reasoning、Prompt、
+  Provider response、Credential、storage key、内部路径或其他用户数据。临时导出按
+  exact key 清理，不建立公共下载 URL。
+- 日志、trace、audit、Outbox、Redis、`provider_calls`、错误响应和指标都不得复制
+  Chat/Deck/media Prompt 正文；只允许 ID、checksum、长度、token、latency、状态、
+  stable error 和 `is_redacted=true`。
+
+### Owner scope 与跨用户
+
+- Thread、message、run、tool invocation、Draft/revision/input、media job/input/output、
+  workflow/generation task 和 file asset 的每次 read/mutation 都从 Session user ID
+  开始查询，不能先按裸 ID 读取再比较 owner。
+- 跨用户和不存在 resource 统一 not-found；列表、SSE 重连、export、restore、purge、
+  cancel、Preflight、media download 均不得泄露资源存在性、状态、标题或时间。
+- Draft 的 source message、asset、Evidence、Skill/template snapshot 与 media 必须属于
+  同一 owner；generation 再次复验全链 owner/version/checksum，不能信任浏览器传入关系。
+- Redis channel、rate-limit key 和 queue payload 使用不可逆/opaque identity，不含标题、
+  正文、手机号、Prompt、Provider URL 或 storage key。
+
+### Markdown、链接和超长输入
+
+- assistant Markdown 在服务端先限制总字节、嵌套深度、代码块和链接数量；前端使用
+  Markdown parser 的 raw HTML disabled 模式，再用 DOMPurify allowlist 清理。
+- 禁止 `<script>`、`iframe`、`object`、`embed`、`style`、事件属性、SVG/MathML 活跃
+  内容、`javascript:`、`vbscript:`、`data:text/html`、`file:` 和未知 URL scheme。
+  外链仅允许 `https:`，使用 `rel="noopener noreferrer"`；图片 Markdown 首期不远程
+  加载，防止 tracking/SSRF。
+- user/assistant content 都按不可信文本处理。单消息最大 32768 字符、输出最大 8192
+  token、Deck 最多 40 页；超限在 Provider/Renderer 前稳定拒绝，不做无界 parse/render。
+- Copy 操作复制已清理的文本表示；不得通过 clipboard 写入未清理 HTML。
+
+### Prompt injection 与白名单工具
+
+- 用户正文、历史消息、文件、Evidence、模板 metadata 和 Provider tool arguments 都是
+  untrusted data，不能覆盖 system contract、owner scope、capability、额度或审批要求。
+- Prompt injection 防护以权限隔离和结构化验证为准，不依赖“忽略恶意指令”文本：
+  system instructions 与 user context 分离；附件只在 `deck_only` 边界进入；输出经过
+  strict Schema/allowlist；所有副作用由服务端重新授权。
+- Agnes 只能提出注册白名单工具：
+  `build_ppt_outline`、`open_deck_editor`、`suggest_ppt_template`、
+  `plan_slide_visuals`、`generate_slide_image`、`generate_slide_video`、
+  `run_deck_preflight`、`submit_ppt_generation`。不存在通用 `execute`、shell、SQL、
+  HTTP fetch、文件路径或管理员工具。
+- 每个工具固定 code/version/JSON Schema/最大 payload/capability；未知字段或工具名
+  fail closed。任务创建、积分、图片和视频必须由用户在独立 UI action 显式确认，
+  Provider tool call 本身不构成授权。
+- 工具结果只返回安全 resource ID/status；不向 Agnes 回送 Secret、内部错误、路径、
+  文件正文或不必要的资产内容。
+
+### SSE、取消和不确定状态
+
+- SSE 必须鉴权、owner-scoped、`private, no-store`，并禁用代理缓冲。每个
+  `chat-sse.v1` event 绑定 run/thread 和单调 sequence；客户端只按同 run 去重。
+- 心跳不包含正文；`Last-Event-ID` 不能跨 run。重连以持久累计 partial 生成
+  `message.snapshot`，不从日志/Redis 猜测或承诺逐 token replay。
+- 浏览器断开后 FastAPI 必须请求 Provider cancel 并继续状态收口，不能直接标记成功。
+  Provider 确认取消才进入 `cancelled_partial`；已提交但未知进入
+  `provider_uncertain`，禁止自动重试、静默切换模型或再次计费。
+- completed/failed/cancelled/uncertain 终态由 MySQL 锁定且只能提交一次；网络可重复
+  frame，但不能重复生成 message、tool、job、asset 或 ledger。
+
+### 双模型、Thinking、额度与高风险内容
+
+- `agnes-2.5-flash` 与 `agnes-2.0-flash` 都必须通过发布 model ID 和 capability snapshot
+  选择；2.5 不可用时显示错误，不能自动改用 2.0。旧文件流程 2.0 默认不变。
+- Thinking 默认关闭；仅用户 per-run 显式开启且 capability 为 true 时发送。系统不保存、
+  转发或展示隐藏 reasoning，只保存最终 assistant content 和安全 usage metadata。
+- admission 取产品默认（每用户 1 个 active run、20 次/小时、100 次/日）与 Provider/
+  Credential RPM、TPM、并发的最小值。Redis 不可用时 fail closed，不在没有限流的情况
+  下放行；Provider 标价为零不代表永久免费。
+- 医疗、法律、金融等高风险主题持续显示“AI 生成，尚未核验”；转 Deck、创建媒体或
+  generation 前必须记录当前 revision 的 `high_risk_confirmation_required` 显式确认。
+  确认只表示用户接受作为创作输入，不表示事实、诊断、法律/投资建议或商业版权已验证。
+- 首期企业管理员策略固定为 standard：管理员可以选择更严格的全局关闭，但不能放宽
+  owner scope、未核验提示或显式确认。未来细粒度策略需要 additive contract。
+
+### 文件上下文、Web 与外部内容
+
+- 首期文件上下文固定 `deck_only`。P5-003 Chat 请求携带任何 asset ID 都 fail closed；
+  P5-004 转 Deck 时才允许选择 owner-scoped、版本冻结、`ready/valid` 资产。
+- 资料和混合模式继续保留 Evidence/术语/单位/冲突/低置信规则。Chat 或用户编辑内容
+  只能是 `agnes_inference`/user input，不能升级为 `source_fact`。
+- 公共 Web 搜索保持关闭；没有 search/fetch 工具，不自动打开 Markdown URL，不宣称
+  Agnes 常识或链接已核验。启用公共 Web 搜索必须另立来源许可、robots/SSRF、内容隔离、
+  引用验证、保留/删除和 Prompt injection 合同。
+
+### 图片、视频和 PPTX
+
+- 图片输入仅允许受控 asset 经 MIME/magic/size/full decode/hash 后在内存构造 Data URI；
+  禁止 public URL、签名 URL和 tunnel。Data URI 不写日志、数据库、queue 或
+  `provider_calls`，Provider 调用完成后立即释放。
+- Provider 返回 URL 只能由受限 downloader 拉取：HTTPS、host allowlist、DNS/IP
+  revalidation、禁止 redirect 到 private/link-local/loopback、byte/time limit、类型/
+  magic/decode/hash；成功后复制到 owner-scoped immutable storage，原 URL 不返回 Browser。
+- 图片以实际 bytes 的宽高/格式为权威，不信任请求的 2K/16:9 或 Provider metadata。
+  Renderer 再执行容量、裁切、版面、可访问性和引用 Gate。
+- Agnes Video 官方当前图生视频/关键帧需要 public URL，因此首期只允许 text-to-video；
+  `OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED=false` 不能由普通管理员绕过。Provider opaque
+  ID 进入 encrypted/owner-scoped job metadata，服务端真实轮询，前端不得伪造 progress。
+- 视频成功后先执行容器、codec、容量、时长、解码、hash 和内容策略检查，只交付独立
+  MP4 + poster。`OFFICE_AI_VIDEO_EMBED_ENABLED=false`；只有 P5-007 在 Microsoft
+  PowerPoint 和 WPS 均无修复提示且实际播放后，才允许显式 capability 开启 PPTX 内嵌。
+- 图片/视频重生成创建新 job 和新 asset，不覆盖旧输出。Provider 已提交但不可查询时
+  进入 `provider_uncertain` 并保留 reserve，不自动再次产生可能计费的媒体。
+
 ## 身份与授权
 
 - 密码使用 Argon2id；禁止明文或可逆保存。

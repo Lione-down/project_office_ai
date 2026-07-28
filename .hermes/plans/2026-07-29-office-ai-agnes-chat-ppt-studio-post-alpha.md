@@ -3,7 +3,7 @@
 - 状态：`ACTIVE`
 - 批准来源：`docs/prd/2026-07-29-office-ai-agnes-chat-ppt-studio-prd.md`（`v1.0 / APPROVED`）
 - 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
-- 当前 Gate：`P5-000 DONE -> P5-001 READY`
+- 当前 Gate：`P5-001 DONE -> P5-002 READY`
 - 执行方式：单一 dependency-ready 任务、单一 commit、push 后新会话交接
 
 ## 1. 目标
@@ -33,8 +33,9 @@ Renderer/QA/任务/积分闭环，以及首页最近任务真实投影。
 | 原 P5-002：PRD、技术计划、数据/API/安全设计 | `P5-000` + `P5-001` | P5-000 建计划；P5-001 冻结正式合同 |
 | 原 P5-003～P5-008 | `P5-003`～`P5-008` | 编号和相对顺序保持不变 |
 
-`P5-000` 只建立计划，不修改正式 API/Data/Security/Environment 合同。`P5-001` 是唯一可
-激活的下一任务；只有它完成并 push 后，才允许 `P5-002` 开始业务实现。
+`P5-000` 只建立计划，不修改正式 API/Data/Security/Environment 合同。`P5-001` 已冻结
+`post-alpha-contract.v1` 并同步五份正式文档；完成并 push 后，`P5-002` 成为唯一
+`READY`，只允许开始首页最近任务业务实现。
 
 ## 3. 不可回退边界
 
@@ -102,9 +103,9 @@ P5-000 计划基线
 `P5-002` 等不涉及 Provider 或 Office 文件的任务必须明确写“本任务不产生该类证据”，
 不得用无关旧证据填充。
 
-## 7. P5-001 必须冻结的决策
+## 7. P5-001 已冻结的决策（DONE）
 
-P5-001 在任何业务代码前完成并同步正式专题文档：
+P5-001 已在任何业务代码前完成并同步正式专题文档：
 
 - 会话、消息、soft delete、导出与彻底删除/备份残留的保留合同。
 - 首期文件上下文接入点、冻结条件、Evidence provenance 与上下文预算。

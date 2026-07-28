@@ -1,12 +1,62 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-000 Post-Alpha 执行计划基线`
-- 下一任务：`P5-001 技术、API、Data、Security 与 Environment 合同`（唯一 `READY`）
-- 当前状态：`POST-ALPHA PLAN READY`；Alpha 仍为
+- 最近完成：`P5-001 技术、API、Data、Security 与 Environment 合同`
+- 下一任务：`P5-002 首页最近任务真实展示`（唯一 `READY`）
+- 当前状态：`POST-ALPHA CONTRACT GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-001 技术、API、Data、Security 与 Environment 合同（DONE）
+
+### 合同与第 19 节决策
+
+- 在任何业务代码或 migration 前，把批准 PRD 冻结为 `post-alpha-contract.v1`，同步
+  Post-Alpha 架构、Chat/Deck/Media 状态机、14 个 endpoint、SSE reconnect/cancel/
+  partial/uncertain、owner scope、幂等、错误和缓存合同。
+- 数据计划从当前 22 张表以 9 张 additive 表增至 31 张：thread/message/run/tool、
+  Draft/revision/input、media job/input；P5-001 没有创建实际 migration。
+- 正文保留合同为 active 365 天、soft-delete grace 30 天、显式 purge 24 小时内清除
+  active 正文、备份最长再残留 30 天；账务/audit/既有生成资产不伪装删除。
+- 首期文件上下文固定 `deck_only`，Thinking 默认关闭且 per-run/capability gated；Chat
+  admission 为每用户 1 个 active run、20 次/小时、100 次/日，单消息 32768 字符、
+  输出 8192 token。
+- 首批冻结既有 `ppt.executive-blue.v1`、`ppt.operating-review.v1`、
+  `ppt.data-story.v1` 三套系统模板；P5-005 再补齐分类、缩略图、来源/版权和兼容 Skill。
+- `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false`、
+  `OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED=false`、
+  `OFFICE_AI_VIDEO_EMBED_ENABLED=false` 是首期唯一支持值。视频默认独立 MP4 + poster；
+  内嵌必须等待 P5-007 双 Microsoft PowerPoint/WPS Gate。
+- 医疗、法律、金融等高风险内容持续显示未核验提示，并在 Deck/media/generation 前要求
+  `high_risk_confirmation_required`。确认不等于事实、专业建议或版权已验证。
+
+### RED -> GREEN 与验证
+
+- RED：先新增 `scripts/validate-post-alpha-contracts.py`，旧五份正式文档按预期失败
+  `97` 项，锁定 endpoint、状态、保留/删除、capability、环境变量和证据边界。
+- GREEN：同一 validator 通过，覆盖 `5` 份正式文档、`14` 个 endpoint、`3` 个状态机、
+  `8` 项待确认决策。
+- Broad：18 个相关 Markdown 均为严格 UTF-8，11 个本地链接全部有效；validator Ruff
+  check/format 与 syntax 通过，`git diff --check` 通过。
+- Security：新增 diff/validator 高置信 Secret pattern 命中 0；Git tracked
+  environment-like 文件 0；`.env` 命中 `.gitignore`；业务代码和 migration diff 为 0。
+- 2026-07-29 只读核对 Agnes 官方 2.5/2.0/Image/Video 文档以冻结未来 adapter 入口；
+  没有读取 `.env`、调用 Provider、发送 Prompt 或生成媒体。官方文档核对不等于真实
+  Agnes Contract Test。
+- 本任务不运行产品 test suite、Docker/MySQL/Redis、Renderer 或 Office/WPS；它们与
+  真实 Agnes 2.5/2.0/Image/Video 均保留为后续对应 Gate，未伪报通过。
+
+### Changed files 与交接
+
+- 正式合同：`docs/PLAN.md`、`docs/API.md`、`docs/DATA_MODEL.md`、
+  `docs/SECURITY.md`、`docs/ENVIRONMENT.md`。
+- 可执行合同：`scripts/validate-post-alpha-contracts.py`。
+- 计划与记录：Post-Alpha 总计划、P5-001/P5-002 任务卡、任务索引和本文件。
+- 未修改业务代码、migration、Compose、PRD、`.env`、用户文件或未跟踪
+  `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/`。
+- P5-001 完成后，P5-002 是唯一 `READY`；新 Codex task 只能实现首页最近任务，不得在
+  本会话提前实现。
 
 ## P5-000 Post-Alpha 执行计划基线（DONE）
 
@@ -251,8 +301,8 @@
 | T4-004 | DONE | T4-003 | `test(alpha): record compatibility and recovery drills`；真实 Agnes、Docker/恢复演练与 Office/WPS 证据见下文 |
 | T4-005 | DONE | T4-004 | `chore(release): prepare internal office ai alpha`；Week 4 / Alpha Gate |
 | P5-000 | DONE | Alpha Complete | `docs(plan): establish agnes chat ppt studio delivery baseline` |
-| P5-001 | READY | P5-000 | 唯一下一任务：正式合同基线 |
-| P5-002 | BLOCKED | P5-001 | 首页最近任务真实展示 |
+| P5-001 | DONE | P5-000 | `docs(chat): define agnes studio contracts` |
+| P5-002 | READY | P5-001 | 唯一下一任务：首页最近任务真实展示 |
 | P5-003 | BLOCKED | P5-002 | 双模型会话、SSE 与历史 |
 | P5-004 | BLOCKED | P5-003 | Deck Draft、逐页编辑、Skill 与 Preflight |
 | P5-005 | BLOCKED | P5-004 | 模板目录、缩略图与版本快照 |

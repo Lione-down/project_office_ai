@@ -27,6 +27,151 @@
 }
 ```
 
+## Post-Alpha Chat、Deck 与 Media 合同（`post-alpha-contract.v1`）
+
+本节是 P5-001 冻结的 additive API。所有路径均位于 `/api/v1`；P5-001 只定义合同，
+不表示端点已经实现。所有响应先验证 Session 和 owner scope；跨用户 ID 与不存在 ID
+使用相同 not-found 语义。除 SSE 外，所有本节响应均设置
+`Cache-Control: private, no-store`；写请求必须使用 8–128 字符 `Idempotency-Key`，
+同 owner/key/payload 重放返回原结果，不同 payload 返回 `409 idempotency_conflict`。
+
+### Chat Thread、消息与删除
+
+| Method | Path | 合同 |
+|---|---|---|
+| POST | `/chat/threads` | 新建 owner-scoped 会话；默认模型必须来自当前已发布 Chat capability，2.5 仅为推荐值 |
+| GET | `/chat/threads` | 按 `updated_at,id` 倒序游标分页；默认排除 soft-deleted |
+| GET | `/chat/threads/{thread_id}` | 返回会话与选定 branch 的消息；不返回 system Prompt、隐藏 reasoning 或 Provider response |
+| PATCH | `/chat/threads/{thread_id}` | 重命名、切换后续 run 默认模型或 mode；不修改历史 run snapshot |
+| DELETE | `/chat/threads/{thread_id}` | soft delete；30 天内可恢复，重复删除幂等 |
+| POST | `/chat/threads/{thread_id}/restore` | grace period 内恢复；已 purge 返回 `chat_thread_purged` |
+| GET | `/chat/threads/{thread_id}/export` | owner-scoped UTF-8 JSON 导出正文、branch、provenance 和时间；不含 Secret/Prompt/response/hidden reasoning |
+| POST | `/chat/threads/{thread_id}/purge` | 当前密码、会话标题确认和 reason 后创建彻底删除；活动正文 24 小时内清除 |
+
+Thread create/patch 只接受已发布 `model_id`，服务端冻结真实
+provider/credential/model code/capability snapshot。新 Chat 推荐 `agnes-2.5-flash`；
+`agnes-2.0-flash` 必须保留为用户显式选项，旧文件流程默认不变。模型不可用时返回
+`chat_model_unavailable`，禁止静默切换。Thinking 使用请求中的 `thinking_enabled`，
+默认 `false`；模型 snapshot 没有 capability 时返回 `chat_thinking_unsupported`。
+
+编辑后重发与重新生成均通过 stream request 表达：
+
+- 普通发送提供 `content` 和可空 `parent_message_id`。
+- 编辑后重发提供 `supersedes_message_id` 与新正文，创建新的 user message branch。
+- 重新生成提供 `regenerate_from_message_id`，创建新的 assistant sibling/run。
+- 三者互斥；历史 message/run 永不 UPDATE 覆盖。消息正文最大 32768 字符。
+- 首期 `context_asset_ids` 必须省略或为空；非空稳定返回
+  `chat_file_context_not_enabled`。文件只在转 Deck Draft 时选择。
+
+### Chat SSE
+
+| Method | Path | 合同 |
+|---|---|---|
+| POST | `/chat/threads/{thread_id}/messages:stream` | 同事务保存 user message、assistant placeholder 和 `queued` run 后建立 SSE |
+| GET | `/chat/runs/{run_id}/stream` | 用 `Last-Event-ID` 重连同 owner run；只恢复当前 run |
+| POST | `/chat/runs/{run_id}/cancel` | 幂等请求停止；不因取消再次调用或切换模型 |
+
+SSE Header 固定为 `Content-Type: text/event-stream; charset=utf-8`、
+`Cache-Control: private, no-store`、`X-Accel-Buffering: no`。语义事件 envelope 为
+`chat-sse.v1`：
+
+```json
+{
+  "schema_version": "chat-sse.v1",
+  "run_id": "uuid",
+  "thread_id": "uuid",
+  "sequence": 3,
+  "occurred_at": "UTC timestamp",
+  "trace_id": "uuid",
+  "payload": {}
+}
+```
+
+每个语义 frame 同时设置 `id: <run_id>:<sequence>` 和下列 `event`；同一 run 的
+`sequence` 从 1 严格递增：
+
+1. 恰好一个 `run.started`。
+2. 零到多个 `message.delta`；delta 是不可信 Markdown 文本，不含隐藏 reasoning。
+3. 重连时可返回一个 `message.snapshot`，内容为已持久化的累计 partial；不承诺逐 token
+   replay，客户端用 snapshot 替换当前 partial 后按 sequence 去重。
+4. 工具仅可产生 `tool.proposed` 或 `tool.confirmation_required`；未收到独立用户确认前
+   不执行任务创建、图片或视频。
+5. 恰好一个终态：`run.completed`、`run.cancelled_partial`、`run.failed` 或
+   `run.provider_uncertain`。
+
+`heartbeat` 每 15 秒可发送且没有 `id/sequence`，不参与 replay。服务端先 checkpoint
+assistant partial 再提高 sequence。网络可能重复最后 frame，客户端必须按 run/sequence
+去重；MySQL 终态只提交一次。`Last-Event-ID` 不是当前 run、早于可用 checkpoint 或格式
+非法时返回 `409 chat_stream_resume_invalid`，不会重放其他 run。
+
+浏览器断开不是成功或已取消证明。FastAPI 必须请求上游取消并收口：上游确认停止时保存
+现有正文为 `cancelled_partial`；请求已发送但无法确定结果时保存
+`provider_uncertain`，禁止自动重试或扣费重放。终态 run 重连只返回
+`message.snapshot`（如有）和持久终态。
+
+### Deck Draft
+
+| Method | Path | 合同 |
+|---|---|---|
+| POST | `/chat/messages/{message_id}/deck-drafts` | 从成功 assistant message 创建 `deck-brief.v1` revision 1；可选 `asset_ids` 仅在此处接入 |
+| GET | `/deck-drafts/{draft_id}` | 返回 stable draft identity、最新或显式 revision、Preflight 和媒体摘要 |
+| PATCH | `/deck-drafts/{draft_id}` | 要求 `expected_revision`，创建不可变新 revision/checksum |
+| POST | `/deck-drafts/{draft_id}/confirm` | 确认最新 revision；确认快照不能原地覆盖 |
+| POST | `/deck-drafts/{draft_id}/preflight` | 复验 revision、来源、Evidence、Skill、模板、模型、媒体和费用 |
+| POST | `/deck-drafts/{draft_id}/media/images` | 对显式 slide ID 创建图片任务；需要用户确认和幂等键 |
+| POST | `/deck-drafts/{draft_id}/media/videos` | 对显式 slide ID 创建视频任务；默认只允许文生视频和独立附件 |
+| POST | `/deck-drafts/{draft_id}/generations` | 仅对最新 confirmed/ready revision 创建既有 PPTX generation task |
+
+创建 Draft 前必须收集主题、受众、语言、页数、语气、来源模式和显式 Skill；最多 40 页。
+`asset_ids` 最多 20 个、总量 200 MB，且必须是当前 owner、版本冻结、`ready/valid`。
+灵感、资料和混合模式分别保留 `agnes_inference`、Evidence 和两者分离的 provenance。
+Schema 或引用非法只允许一次 bounded repair；仍失败返回 `deck_schema_invalid` 或
+`deck_evidence_invalid`，不创建 Draft。PATCH 只能更新用户可编辑内容、排序、显式 Skill/
+template/media 选择，不能改写 source snapshot。`expected_revision` 过期返回
+`deck_revision_stale`。
+
+Preflight 的 `blocking/incompatible` 必须归零，且高风险主题已提交
+`high_risk_confirmation_required`，才能进入 `ready`。Generation endpoint 复用现有
+generation task、Outbox、积分、Renderer、QA 和下载合同；返回同一权威 task ID，
+不创建第二套文件生成状态机。
+
+### Media Job
+
+| Method | Path | 合同 |
+|---|---|---|
+| GET | `/media/jobs/{job_id}` | owner-scoped 状态、真实 progress、实际尺寸/时长和输出资产摘要 |
+| POST | `/media/jobs/{job_id}/cancel` | 幂等取消；已提交且结果不确定时收口 `provider_uncertain` |
+
+媒体创建返回 `202` 和 `media_job_id/workflow_task_id`。一个幂等键只对应一个
+draft revision + slide + kind + prompt hash + model/pricing snapshot；重新生成必须使用
+新键并创建新 job/asset，永不覆盖旧结果。图片 adapter 只接受文本或受控 Data URI，
+请求 2K/16:9 只是意图，最终宽高以 Provider bytes 解码结果为权威。public URL 输入默认
+关闭。
+
+视频首期仅允许用户明确选择的页面创建文生视频任务。保存上游 opaque Provider ID，
+由服务端轮询真实 `queued/in_progress/completed/failed` 并映射为本地状态；前端不得用
+timer 伪造 progress。图生视频/关键帧因 public URL 安全传输尚未批准返回
+`media_public_url_input_disabled`。`OFFICE_AI_VIDEO_EMBED_ENABLED=false` 时成功视频只
+产生独立 MP4 和海报帧；请求内嵌返回 `video_embedding_not_enabled`。
+
+### 稳定错误与 HTTP
+
+| HTTP | error_code | 边界 |
+|---:|---|---|
+| 400 | `chat_request_invalid`, `deck_schema_invalid`, `media_request_invalid` | strict Schema/长度/枚举错误，不重试 |
+| 401 | `session_invalid` | 不调用 Provider |
+| 404 | `chat_thread_not_found`, `chat_run_not_found`, `chat_message_not_found`, `deck_draft_not_found`, `media_job_not_found` | 不泄露跨用户存在性 |
+| 409 | `idempotency_conflict`, `chat_stream_resume_invalid`, `chat_run_not_active`, `deck_revision_stale`, `deck_preflight_blocked` | 状态或 snapshot 冲突 |
+| 409 | `high_risk_confirmation_required`, `chat_file_context_not_enabled`, `video_embedding_not_enabled`, `media_public_url_input_disabled` | fail-closed feature Gate |
+| 422 | `chat_model_unavailable`, `chat_thinking_unsupported`, `deck_evidence_invalid`, `media_capability_unavailable` | 发布 capability 不满足 |
+| 429 | `chat_rate_limit_exceeded`, `chat_concurrency_exceeded`, `media_concurrency_exceeded` | 返回安全 `Retry-After` |
+| 502/503 | `provider_failed` | 确定性上游失败，不静默切换模型 |
+| 504 | `provider_uncertain` | 请求已提交但结果未知，不自动重试 |
+
+产品默认 Chat admission 为每用户同时 1 个 run、20 次/小时、100 次/日；服务端还必须取
+Provider/Credential RPM、TPM、最大并发和发布模型额度的最小值。当前 Provider 标价为零
+不能被前端解释为永久免费；每个 run/media/generation 都冻结实际发布价格/积分 snapshot。
+
 ## Platform Health
 
 Health endpoint 是不带 `/api/v1` 前缀的运行时探针，不承载业务数据：

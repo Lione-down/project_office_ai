@@ -77,6 +77,77 @@
 | `OFFICE_AI_T4_FAILURE_DRILL_RUN_ID` | 隔离一次故障演练数据的 UUID | 否 | T4-004 手工联调 | 临时进程环境；不得复用生产 identity |
 | `OFFICE_AI_TASK_TIMEOUT_SECONDS` | 完整任务 timeout，默认 2700 | 否 | T3-001 | Admin config/普通变量 |
 
+## P5-001 Post-Alpha 配置合同（`post-alpha-contract.v1`）
+
+下表只冻结非 Secret 名称与 fail-closed 默认值；P5-001 不修改 Compose、Settings 或任何
+环境文件。后续任务只有在代码、测试和文档同步时才接入对应变量。
+
+| 变量 | 默认值 | 用途与边界 |
+|---|---:|---|
+| `OFFICE_AI_CHAT_MAX_INPUT_CHARS` | `32768` | 单条 user message Unicode 字符上限，Provider 前拒绝 |
+| `OFFICE_AI_CHAT_MAX_OUTPUT_TOKENS` | `8192` | 单个 run 请求上限；仍不得超过发布 model snapshot |
+| `OFFICE_AI_CHAT_STREAM_TIMEOUT_SECONDS` | `180` | 首期完整 SSE run deadline；timeout 依 in-flight 状态收口 |
+| `OFFICE_AI_CHAT_HEARTBEAT_SECONDS` | `15` | 无正文、无 sequence 的 SSE heartbeat 间隔 |
+| `OFFICE_AI_CHAT_MAX_ACTIVE_RUNS_PER_USER` | `1` | 同用户 active run 上限，MySQL admission 为事实 |
+| `OFFICE_AI_CHAT_RUNS_PER_HOUR` | `20` | 用户级 rolling-hour admission |
+| `OFFICE_AI_CHAT_RUNS_PER_DAY` | `100` | 用户级 UTC daily admission |
+| `OFFICE_AI_CHAT_THREAD_RETENTION_DAYS` | `365` | 最后活动后的 active 正文默认保留 |
+| `OFFICE_AI_CHAT_SOFT_DELETE_GRACE_DAYS` | `30` | soft delete 可恢复期 |
+| `OFFICE_AI_CHAT_BACKUP_RETENTION_DAYS` | `30` | active purge 后备份最长残留，不能宣传即时擦除 |
+| `OFFICE_AI_CHAT_PURGE_SLA_HOURS` | `24` | 显式彻底删除清除 active 正文的最长时间 |
+| `OFFICE_AI_CHAT_EXPORT_MAX_BYTES` | `10485760` | owner-scoped JSON 导出上限；不建立公共 URL |
+| `OFFICE_AI_CHAT_FILE_CONTEXT_MODE` | `deck_only` | P5-003 Chat 禁止附件；P5-004 转 Draft 才接入冻结资产 |
+| `OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED` | `false` | per-run opt-in 且 model capability 为 true 才能发送 |
+| `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED` | `false` | 首期无 Web search/fetch 工具；设置 true 必须 fail startup |
+| `OFFICE_AI_DECK_MAX_SLIDES` | `40` | `deck-brief.v1` 最大页数 |
+| `OFFICE_AI_DECK_MAX_CONTEXT_ASSETS` | `20` | 复用 owner-scoped `ready/valid` 资产；总量仍为 200 MB |
+| `OFFICE_AI_MEDIA_MAX_ACTIVE_JOBS_PER_USER` | `2` | image/video 合计 active job admission |
+| `OFFICE_AI_IMAGE_MAX_PROMPT_CHARS` | `4000` | 图片 Prompt 上限；日志只记 hash/length |
+| `OFFICE_AI_IMAGE_PROVIDER_TIMEOUT_SECONDS` | `360` | 图片单请求 deadline；未知结果不得自动重试 |
+| `OFFICE_AI_VIDEO_MAX_PROMPT_CHARS` | `2000` | 视频 Prompt 上限 |
+| `OFFICE_AI_VIDEO_POLL_INTERVAL_SECONDS` | `5` | 服务端最小轮询间隔，支持 Provider Retry-After |
+| `OFFICE_AI_VIDEO_JOB_TIMEOUT_SECONDS` | `1800` | 视频任务 deadline；超时按 Provider ID 可查询性收口 |
+| `OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED` | `false` | 禁止本地 public URL/tunnel；首期视频仅 text-to-video |
+| `OFFICE_AI_VIDEO_EMBED_ENABLED` | `false` | P5-007 双 Office/WPS Gate 前禁止 PPTX 内嵌 |
+
+上述安全开关不是普通 feature toggle：
+`OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false`、
+`OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED=false` 和
+`OFFICE_AI_VIDEO_EMBED_ENABLED=false` 是首期唯一支持值。实现若收到 `true` 必须
+fail startup，直到后续批准合同、migration/代码和对应安全/兼容 Gate 同时交付。
+
+### 真实 Provider Contract opt-in
+
+| 变量 | 用途 | 安全边界 |
+|---|---|---|
+| `OFFICE_AI_RUN_REAL_AGNES_CHAT_CONTRACT` | 精确值 `1` 才运行真实 2.5/2.0 SSE/Thinking/cancel Contract | 默认不设置；Mock 不能替代 |
+| `OFFICE_AI_AGNES_CHAT_CONTRACT_CREDENTIAL_ID` | 管理后台已加密 Credential UUID | 非 API Key；仅与 opt-in 同时使用 |
+| `OFFICE_AI_AGNES_CHAT_CONTRACT_MODEL_IDS` | 两个已发布 text model UUID，顺序不代表 fallback | 测试必须逐个显式选择并分别报告 |
+| `OFFICE_AI_RUN_REAL_AGNES_IMAGE_CONTRACT` | 精确值 `1` 才运行 image text/Data URI/尺寸 Contract | 默认不设置；不发送用户文件 |
+| `OFFICE_AI_AGNES_IMAGE_CONTRACT_CREDENTIAL_ID` | 已加密 image Credential UUID | 不接受明文 Key 变量 |
+| `OFFICE_AI_AGNES_IMAGE_CONTRACT_MODEL_ID` | 已发布 `agnes-image-2.1-flash` model UUID | response bytes/尺寸为权威 |
+| `OFFICE_AI_RUN_REAL_AGNES_VIDEO_CONTRACT` | 精确值 `1` 才运行 text-to-video create/poll Contract | 默认不设置；首期不测 public URL 输入 |
+| `OFFICE_AI_AGNES_VIDEO_CONTRACT_CREDENTIAL_ID` | 已加密 video Credential UUID | 不接受明文 Key 变量 |
+| `OFFICE_AI_AGNES_VIDEO_CONTRACT_MODEL_ID` | 已发布 `agnes-video-v2.0` model UUID | Provider ID 视为 opaque |
+
+真实 Contract 只能用完全合成、无用户内容的输入；不得打印 Key、Prompt、response body、
+Provider URL query、Data URI 或生成内容。测试只记录 model/credential opaque ID、
+request ID、状态、token/latency、实际尺寸/时长和 stable failure category。
+P5-001 没有设置这些 opt-in、没有读取 `.env`、没有调用 Provider。
+
+### Post-Alpha runtime 拓扑
+
+- P5-003 Chat 由 FastAPI 使用现有受控 edge egress 调用唯一选定 text model，并把
+  `chat-sse.v1` 转发给 Browser；API Key 不进入 Frontend、Redis 或 queue。
+- P5-004 Deck 编译可由独立 worker 执行，但只有受控 Provider-capable process 能解密
+  Credential；解析 worker/generation-worker 权限不扩大。
+- P5-006/P5-007 媒体 worker 需要 edge + private、MySQL/Redis 和 owner-scoped media
+  storage；不得挂载用户源文件 broad root，不映射 Host port，non-root/read-only rootfs。
+- image Data URI 只在受限进程内从已验证 asset bytes 临时构造；不得落入环境变量、命令
+  参数、日志、数据库或 queue。Provider URL output 由安全 downloader 拉取后立即转存。
+- 视频轮询使用已持久化 opaque Provider ID；Redis 丢失后从 MySQL job/outbox 恢复。
+  前端 progress 只能来自持久 job/provider response，不能使用 timer 假进度。
+
 本项目固定使用 Frontend Host port `8888` 与 Backend Host port `9999`。这只改变
 Windows Host 映射、Frontend 默认 API base 与 Backend CORS origin；容器内部
 `5173/8000` 及 private-network service URL 不变。需要临时覆盖时可使用上表普通变量，

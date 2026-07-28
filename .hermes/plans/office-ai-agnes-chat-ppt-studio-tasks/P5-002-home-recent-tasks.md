@@ -1,6 +1,6 @@
 # P5-002 首页最近任务真实展示
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`P5-001`
 - 来源：PRD FR-601～FR-605、US-07
 - 建议 commit：`feat(home): show authoritative recent tasks`

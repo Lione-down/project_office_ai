@@ -1,6 +1,6 @@
 # P5-001 技术、API、Data、Security 与 Environment 合同
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`P5-000`
 - 来源：PRD 第 7–16、19、20 节
 - 建议 commit：`docs(chat): define agnes studio contracts`
@@ -66,3 +66,21 @@ git diff --cached --name-only
 - 不实现最近任务、Chat UI/SSE、数据库 migration、Deck、模板或媒体。
 - 不更改批准 PRD；若合同发现范围冲突，在进度中记录并请求产品裁决。
 - 回滚仅恢复本任务修改的正式文档和 validator，不触碰 Alpha 实现。
+
+## 完成记录
+
+- 新增 `scripts/validate-post-alpha-contracts.py`；旧文档首次 RED 为 97 个缺失合同项，
+  覆盖五份文档、endpoint、状态机和 PRD 第 19 节决策。
+- `docs/PLAN.md`、`docs/API.md`、`docs/DATA_MODEL.md`、`docs/SECURITY.md`、
+  `docs/ENVIRONMENT.md` 已统一冻结 `post-alpha-contract.v1`。
+- 八项决策采用最小 fail-closed 默认：365/30/24/30 天保留删除合同、文件
+  `deck_only`、Thinking 默认关闭、Chat 额度、3 套既有原创模板、视频内嵌关闭、
+  Web 搜索关闭、高风险显式确认。
+- Focused validator GREEN：5 份正式文档、14 个 endpoint、3 个状态机、8 项决策。
+- Broad 文档检查：18 个 UTF-8 文件、11 个本地链接、0 个坏链接；validator Ruff
+  check/format、syntax 和 `git diff --check` 通过。
+- Security 检查：新增 diff/validator 高置信 Secret 命中 0、tracked environment-like
+  文件 0、`.env` 命中 `.gitignore`、业务代码/migration diff 0。
+- 本任务未读取 `.env`，未调用真实 Agnes，未生成/打开 Office 文件；Provider 与
+  Microsoft Office/WPS 只固定后续 Gate，不声明兼容已通过。
+- P5-002 已激活为唯一 `READY`；本会话未实现 P5-002。
