@@ -71,11 +71,12 @@ export interface DeckDraft {
   } | null;
   generation_task_id: string | null;
   confirmed_at: string | null;
-  media_jobs: ImageJob[];
+  media_jobs: MediaJob[];
   replayed: boolean;
 }
 
 export interface ImageJob {
+  kind: "image";
   media_job_id: string;
   workflow_task_id: string;
   draft_revision_id: string;
@@ -109,6 +110,64 @@ export interface ImageJob {
   replayed: boolean;
 }
 
+export interface VideoJob {
+  kind: "video";
+  media_job_id: string;
+  workflow_task_id: string;
+  draft_revision_id: string;
+  slide_id: string;
+  action: "generate" | "replace" | "regenerate";
+  mode: "text-to-video";
+  status: string;
+  progress: number;
+  provider_job_id: string | null;
+  model_snapshot: Record<string, unknown>;
+  capability_snapshot: Record<string, unknown>;
+  pricing_snapshot: Record<string, unknown>;
+  prompt_hash: string;
+  requested_width: number;
+  requested_height: number;
+  requested_num_frames: number;
+  requested_frame_rate: number;
+  actual_width: number | null;
+  actual_height: number | null;
+  actual_duration_seconds: number | null;
+  output_video: {
+    asset_id: string;
+    version: number;
+    mime_type: "video/mp4";
+    byte_size: number;
+    sha256: string;
+    width: number;
+    height: number;
+    duration_seconds: number;
+    container: "mp4";
+    codec: "h264";
+    download_path: string;
+    preview_path: string;
+  } | null;
+  poster: {
+    asset_id: string;
+    version: number;
+    mime_type: "image/png";
+    byte_size: number;
+    sha256: string;
+    width: number;
+    height: number;
+    preview_path: string;
+  } | null;
+  embedding_enabled: false;
+  fallback_mode: "poster_and_attachment";
+  error_code: string | null;
+  error_message: string | null;
+  next_poll_after_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+  replayed: boolean;
+}
+
+export type MediaJob = ImageJob | VideoJob;
+
 export interface ImageJobCreateInput {
   expected_revision: number;
   slide_id: string;
@@ -121,6 +180,24 @@ export interface ImageJobCreateInput {
   crop_mode: "contain" | "cover";
   confirmed: true;
   accepted_estimated_credits: number;
+  supersedes_job_id?: string;
+}
+
+export interface VideoJobCreateInput {
+  expected_revision: number;
+  slide_id: string;
+  action: "generate" | "replace" | "regenerate";
+  mode: "text-to-video";
+  prompt: string;
+  negative_prompt?: string;
+  model_id: string;
+  width: number;
+  height: number;
+  num_frames: number;
+  frame_rate: number;
+  confirmed: true;
+  accepted_estimated_credits: number;
+  embed_requested: false;
   supersedes_job_id?: string;
 }
 

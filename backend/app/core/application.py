@@ -32,6 +32,7 @@ from app.services.chat import ChatService
 from app.services.chat_contracts import ChatServices
 from app.services.decks.service import DeckService
 from app.services.media.images.service import ImageJobService
+from app.services.media.videos.service import VideoJobService
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.file_safety.output_store import ParsedOutputStore
 from app.services.generation import GenerationService
@@ -82,6 +83,7 @@ def create_app(
     deck_services: object | None = None,
     template_services: object | None = None,
     media_services: object | None = None,
+    video_services: object | None = None,
     admin_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
@@ -293,6 +295,20 @@ def create_app(
             max_prompt_chars=application_settings.image_max_prompt_chars,
         )
 
+    if (
+        video_services is None
+        and database is not None
+        and auth_services is not None
+        and credential_cipher is not None
+    ):
+        video_services = VideoJobService(
+            database.session_factory,
+            auth_services.sessions,
+            max_active_jobs_per_user=application_settings.media_max_active_jobs_per_user,
+            max_prompt_chars=application_settings.video_max_prompt_chars,
+            embedding_enabled=application_settings.video_embed_enabled,
+        )
+
     if database is not None and redis is not None:
         outbox_runtime = OutboxRuntime(
             OutboxDispatcher(
@@ -345,6 +361,7 @@ def create_app(
     app.state.deck_services = deck_services
     app.state.template_services = template_services
     app.state.media_services = media_services
+    app.state.video_services = video_services
     app.state.chat_heartbeat_seconds = application_settings.chat_heartbeat_seconds
     app.add_middleware(
         UploadBodyLimitMiddleware,

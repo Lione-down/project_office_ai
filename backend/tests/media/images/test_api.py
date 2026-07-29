@@ -59,6 +59,7 @@ async def test_image_api_is_explicit_versioned_and_no_store(image_harness) -> No
         200,
     ]
     assert created.json()["status"] == "queued"
+    assert created.json()["kind"] == "image"
     assert cancelled.json()["status"] == "cancelled"
     assert all(
         response.headers["cache-control"] == "private, no-store"

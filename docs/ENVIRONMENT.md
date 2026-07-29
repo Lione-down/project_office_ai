@@ -108,6 +108,9 @@ Settings/Compose；P5-004 已接入两项 Deck 上限。媒体变量仍只有在
 | `OFFICE_AI_VIDEO_MAX_PROMPT_CHARS` | `2000` | 视频 Prompt 上限 |
 | `OFFICE_AI_VIDEO_POLL_INTERVAL_SECONDS` | `5` | 服务端最小轮询间隔，支持 Provider Retry-After |
 | `OFFICE_AI_VIDEO_JOB_TIMEOUT_SECONDS` | `1800` | 视频任务 deadline；超时按 Provider ID 可查询性收口 |
+| `OFFICE_AI_VIDEO_MAX_BYTES` | `104857600` | 下载后 MP4 最大字节数；stream 中持续强制 |
+| `OFFICE_AI_VIDEO_MAX_DURATION_SECONDS` | `20` | ffprobe/full-decode 接受的最大视频时长 |
+| `OFFICE_AI_VIDEO_OUTPUT_HOST_ALLOWLIST` | `platform-outputs.agnes-ai.space` | 结果 HTTPS hostname 精确 allowlist；不允许 suffix 匹配 |
 | `OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED` | `false` | 禁止本地 public URL/tunnel；首期视频仅 text-to-video |
 | `OFFICE_AI_VIDEO_EMBED_ENABLED` | `false` | P5-007 双 Office/WPS Gate 前禁止 PPTX 内嵌 |
 
@@ -117,6 +120,10 @@ P5-004 runtime 已从 Settings/Compose 注入
 显式 Alembic upgrade；P5-005 不新增环境变量，真实 runtime 已升级到
 `20260729_0018 (head)`，并以当前 source 重建 backend、frontend、generation-worker
 与 ppt-renderer；所有受影响服务 healthy。
+
+P5-007 不新增 migration；workflow-worker 使用包含 `ffmpeg/ffprobe` 的 Backend image
+执行视频完整解码与 poster 提取。`OFFICE_AI_VIDEO_EMBED_ENABLED=true` 仍会 fail
+startup；P5-008 取得 PowerPoint/WPS 双应用实际播放证据前不允许改变。
 
 上述安全开关不是普通 feature toggle：
 `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false`、

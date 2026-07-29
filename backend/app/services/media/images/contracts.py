@@ -83,6 +83,7 @@ class ImageAssetSummary(StrictModel):
 
 
 class ImageJobSnapshot(StrictModel):
+    kind: Literal["image"] = "image"
     media_job_id: UUID
     workflow_task_id: UUID
     draft_revision_id: UUID

@@ -3,7 +3,7 @@
 - 状态：`ACTIVE`
 - 批准来源：`docs/prd/2026-07-29-office-ai-agnes-chat-ppt-studio-prd.md`（`v1.0 / APPROVED`）
 - 任务索引：`.hermes/plans/office-ai-agnes-chat-ppt-studio-tasks/README.md`
-- 当前 Gate：`P5-006 DONE -> P5-007 READY`
+- 当前 Gate：`P5-007 DONE -> P5-008 READY`
 - 执行方式：单一 dependency-ready 任务、单一 commit、push 后新会话交接
 
 ## 1. 目标
@@ -38,7 +38,8 @@ Renderer/QA/任务/积分闭环，以及首页最近任务真实投影。
 任务、权威 progress、失败/retry 和受控轮询。P5-003 已交付双模型真实 SSE、历史、
 取消/重连、分支和安全 Markdown；P5-004 已完成 Deck Gate，P5-005 已完成原创模板
 目录、冻结 snapshot 和 Renderer checksum Gate；P5-006 已完成 Visual Director、显式
-逐页 image job、不可变资产与 PPT image integrity Gate，`P5-007` 是下一唯一 `READY`。
+逐页 image/video job、不可变资产与 PPT media integrity/fallback Gate，`P5-008` 是当前
+唯一 `READY`。
 
 ## 3. 不可回退边界
 

@@ -7,6 +7,11 @@ from app.services.media.images.contracts import (
     ImageJobSnapshot,
 )
 from app.services.media.images.service import ImageJobOperationError
+from app.services.media.videos.contracts import (
+    VideoJobCreateCommand,
+    VideoJobSnapshot,
+)
+from app.services.media.videos.service import VideoJobOperationError
 
 
 router = APIRouter(tags=["media"])
@@ -16,6 +21,13 @@ def _service(request: Request):
     service = request.app.state.media_services
     if service is None:
         raise ImageJobOperationError("media_not_configured", "图片服务未配置", 503)
+    return service
+
+
+def _video_service(request: Request):
+    service = request.app.state.video_services
+    if service is None:
+        raise VideoJobOperationError("media_not_configured", "视频服务未配置", 503)
     return service
 
 
@@ -55,31 +67,66 @@ async def create_image_job(
     return snapshot
 
 
+@router.post(
+    "/api/v1/deck-drafts/{draft_id}/media/videos",
+    response_model=VideoJobSnapshot,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_video_job(
+    draft_id: UUID,
+    command: VideoJobCreateCommand,
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None),
+    idempotency_key: str = Header(alias="Idempotency-Key"),
+) -> VideoJobSnapshot:
+    snapshot = await _video_service(request).create(
+        _bearer_token(authorization),
+        draft_id,
+        command,
+        idempotency_key,
+    )
+    _no_store(response)
+    return snapshot
+
+
 @router.get(
     "/api/v1/media/jobs/{job_id}",
-    response_model=ImageJobSnapshot,
+    response_model=ImageJobSnapshot | VideoJobSnapshot,
 )
 async def get_image_job(
     job_id: UUID,
     request: Request,
     response: Response,
     authorization: str | None = Header(default=None),
-) -> ImageJobSnapshot:
-    snapshot = await _service(request).get(_bearer_token(authorization), job_id)
+) -> ImageJobSnapshot | VideoJobSnapshot:
+    token = _bearer_token(authorization)
+    try:
+        snapshot = await _service(request).get(token, job_id)
+    except ImageJobOperationError as exception:
+        if exception.error_code != "media_job_not_found":
+            raise
+        snapshot = await _video_service(request).get(token, job_id)
     _no_store(response)
     return snapshot
 
 
 @router.post(
     "/api/v1/media/jobs/{job_id}/cancel",
-    response_model=ImageJobSnapshot,
+    response_model=ImageJobSnapshot | VideoJobSnapshot,
 )
 async def cancel_image_job(
     job_id: UUID,
     request: Request,
     response: Response,
     authorization: str | None = Header(default=None),
-) -> ImageJobSnapshot:
-    snapshot = await _service(request).cancel(_bearer_token(authorization), job_id)
+) -> ImageJobSnapshot | VideoJobSnapshot:
+    token = _bearer_token(authorization)
+    try:
+        snapshot = await _service(request).cancel(token, job_id)
+    except ImageJobOperationError as exception:
+        if exception.error_code != "media_job_not_found":
+            raise
+        snapshot = await _video_service(request).cancel(token, job_id)
     _no_store(response)
     return snapshot

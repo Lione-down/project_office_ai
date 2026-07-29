@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from app.models.base import utc_now
 from app.models.generation_tasks import GenerationTask
 from app.models.outbox_events import OutboxEvent
@@ -47,4 +49,25 @@ def build_image_outbox_event(job: MediaJob) -> OutboxEvent:
         status="pending",
         retry_count=0,
         next_attempt_at=utc_now(),
+    )
+
+
+def build_video_outbox_event(
+    job: MediaJob,
+    *,
+    event_type: str,
+    dispatch_sequence: int,
+    delay_seconds: int = 0,
+) -> OutboxEvent:
+    if event_type not in {"video.generate", "video.poll"}:
+        raise ValueError("video outbox event type is invalid")
+    return OutboxEvent(
+        event_type=event_type,
+        aggregate_type="media_job",
+        aggregate_id=job.id,
+        deduplication_key=f"media:{job.id}:video:{dispatch_sequence}",
+        payload={"media_job_id": str(job.id)},
+        status="pending",
+        retry_count=0,
+        next_attempt_at=utc_now() + timedelta(seconds=max(0, delay_seconds)),
     )

@@ -1,6 +1,6 @@
 # P5-007 Agnes 视频资产与兼容性 Gate
 
-- 状态：`READY`
+- 状态：`DONE`
 - Depends on：`P5-006`
 - 来源：PRD FR-501～FR-505、Video 2.0 模型策略
 - 建议 commit：`feat(media): add gated agnes video assets`
@@ -28,6 +28,24 @@ Microsoft PowerPoint 与 WPS 真实兼容 Gate 通过时才开放，否则使用
 4. Renderer package/media relationship tests 先 RED；默认 embedding capability 为 false。
 5. 真实 Agnes Video Contract 成功后，分别用 PowerPoint/WPS 执行嵌入 Gate；未双通过不
    启用 capability。
+
+## 实施计划
+
+1. 先以官方 `agnes-video-v2.0` 合同冻结 create/poll response、opaque `video_id`、
+   Provider 状态映射和 `Retry-After`，并为不受支持的上游 cancel 保留
+   `provider_uncertain`。
+2. 在现有 media job/Outbox/credit/workflow 事实链上增加 text-to-video 创建、轮询与
+   终态结算；任何 public URL、图生视频、关键帧、自动全页和隐式 retry 均 fail closed。
+3. 对成功结果执行受限 HTTPS 下载、MP4/container/codec/容量/时长/完整解码/hash Gate，
+   保存不可变视频资产与从实际视频提取的 poster 资产，提供 owner-scoped 预览/下载。
+4. Deck Studio 只在用户点击并确认后逐页创建、轮询、取消或重新生成视频；界面只展示
+   服务端权威状态，不使用 client timer 推进 progress。
+5. Renderer 在 embedding capability 为 false 时只接收 poster image 与独立视频附件
+   metadata，拒绝 OOXML 外部 relationship；仅当真实 PowerPoint/WPS 双 Gate 均通过后
+   才允许另行启用内嵌。
+6. 依次运行 focused、全量 Backend/Frontend/Renderer、security/dependency、Compose、
+   migration/runtime、真实 Agnes opt-in 与 Office/WPS Gate，并按实际证据同步正式合同、
+   进度、任务状态与 `pitfalls.md`。
 
 ## 验收标准
 
@@ -70,6 +88,21 @@ git diff --check
   Provider ID/status，不记录 Prompt/response body。
 - Office/WPS：LibreOffice/OOXML 不能证明播放；必须分别在 PowerPoint/WPS 实际打开、播放、
   保存/重开。任一失败即保持 embedding false。
+
+## 完成记录（2026-07-29）
+
+- RED -> GREEN：Provider create/poll strict contract、owner/idempotency/ledger/outbox、
+  MP4/H.264/full-decode/poster、SSRF URL、Deck handoff、Frontend confirm/status/fallback
+  与 Renderer package relationship 均先观察预期失败再实现。
+- Mock/machine：Backend focused `94 passed, 5 skipped`，video focused
+  `26 passed, 1 skipped`，Backend full `718 passed, 14 skipped`；Frontend full
+  `31 files / 103 passed` + build；Renderer `29 passed` + build；Ruff、dependency
+  audit、npm audit、Compose config 与 `git diff --check` 通过。
+- Provider：新增真实 Agnes Video opt-in Contract，但本会话未配置 opt-in selector，
+  因而真实 Provider 为 `SKIPPED`，没有声明真实 latency、成功视频或实际时长。
+- Office/WPS/Human：未取得 PowerPoint/WPS 实际播放、保存/重开或 Human 视觉验收；
+  `OFFICE_AI_VIDEO_EMBED_ENABLED=false` 继续 fail startup，PPTX 只含 poster 图片关系，
+  MP4 作为 owner-scoped 独立附件。最终桌面与发布结论交给 P5-008。
 
 ## 非目标与回滚
 

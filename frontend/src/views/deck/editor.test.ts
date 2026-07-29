@@ -19,6 +19,11 @@ const deckMocks = vi.hoisted(() => ({
   listModels: vi.fn(),
   createImageJob: vi.fn(),
   getImageJob: vi.fn(),
+  createVideoJob: vi.fn(),
+  getMediaJob: vi.fn(),
+  cancelMediaJob: vi.fn(),
+  previewMediaAsset: vi.fn(),
+  downloadMediaAsset: vi.fn(),
 }));
 
 vi.mock("@/modules/decks/api", () => ({
@@ -139,12 +144,38 @@ describe("Deck editor", () => {
         is_recommended: true,
         status: "active",
       },
+      {
+        model_id: "video-model-1",
+        model_code: "agnes-video-v2.0",
+        display_name: "Agnes Video V2.0",
+        capabilities: {
+          video_generation: true,
+          video_embedding: false,
+          credit_per_second: 0,
+        },
+        user_visible: true,
+        is_recommended: true,
+        status: "active",
+      },
     ]);
     deckMocks.createImageJob.mockResolvedValue({
+      kind: "image",
       media_job_id: "image-job-1",
       slide_id: "slide-2",
       status: "queued",
       progress: 0,
+    });
+    deckMocks.createVideoJob.mockResolvedValue({
+      kind: "video",
+      media_job_id: "video-job-1",
+      slide_id: "slide-2",
+      mode: "text-to-video",
+      status: "submitted",
+      progress: 0,
+      embedding_enabled: false,
+      fallback_mode: "poster_and_attachment",
+      output_video: null,
+      poster: null,
     });
     deckMocks.listTemplates.mockResolvedValue([
       {
@@ -314,6 +345,50 @@ describe("Deck editor", () => {
     expect(deckMocks.createImageJob).not.toHaveBeenCalled();
     expect(wrapper.get("[data-testid='slide-image-status-1']").text()).toContain(
       "已跳过",
+    );
+  });
+
+  it("creates one text-to-video job only after per-slide confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { wrapper } = await mountEditor();
+
+    expect(deckMocks.createVideoJob).not.toHaveBeenCalled();
+    await wrapper.get("[data-testid='slide-video-generate-1']").trigger("click");
+    await flushPromises();
+
+    expect(deckMocks.createVideoJob).toHaveBeenCalledWith(
+      "draft-1",
+      expect.objectContaining({
+        expected_revision: 1,
+        slide_id: "slide-2",
+        action: "generate",
+        mode: "text-to-video",
+        prompt: "分析的合成商务插画",
+        model_id: "video-model-1",
+        num_frames: 81,
+        frame_rate: 24,
+        confirmed: true,
+        embed_requested: false,
+      }),
+      expect.any(String),
+      "access",
+    );
+    expect(wrapper.get("[data-testid='slide-video-status-1']").text()).toContain(
+      "submitted",
+    );
+  });
+
+  it("never exposes public URL input or an enabled embedding control", async () => {
+    const { wrapper } = await mountEditor();
+
+    expect(wrapper.find("[data-testid='slide-video-input-url-1']").exists()).toBe(
+      false,
+    );
+    expect(wrapper.get("[data-testid='slide-video-fallback-1']").text()).toContain(
+      "海报帧",
+    );
+    expect(wrapper.get("[data-testid='slide-video-fallback-1']").text()).toContain(
+      "独立视频",
     );
   });
 });

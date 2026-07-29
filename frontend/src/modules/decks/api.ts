@@ -6,6 +6,9 @@ import type {
   DeckGenerationResult,
   ImageJob,
   ImageJobCreateInput,
+  MediaJob,
+  VideoJob,
+  VideoJobCreateInput,
   DeckUpdateInput,
 } from "./types";
 import type { TemplateSummary } from "@/modules/workspace/types";
@@ -24,6 +27,10 @@ interface DeckApiClient {
     body: unknown,
     options?: { accessToken?: string },
   ): Promise<T>;
+  download(
+    path: string,
+    options?: { accessToken?: string },
+  ): Promise<Blob>;
 }
 
 export function createDeckApi(client: DeckApiClient) {
@@ -114,6 +121,37 @@ export function createDeckApi(client: DeckApiClient) {
     },
     getImageJob(jobId: string, accessToken: string) {
       return client.get<ImageJob>(`/media/jobs/${jobId}`, { accessToken });
+    },
+    createVideoJob(
+      draftId: string,
+      payload: VideoJobCreateInput,
+      idempotencyKey: string,
+      accessToken: string,
+    ) {
+      return client.post<VideoJob>(
+        `/deck-drafts/${draftId}/media/videos`,
+        payload,
+        {
+          accessToken,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+      );
+    },
+    getMediaJob(jobId: string, accessToken: string) {
+      return client.get<MediaJob>(`/media/jobs/${jobId}`, { accessToken });
+    },
+    cancelMediaJob(jobId: string, accessToken: string) {
+      return client.post<MediaJob>(
+        `/media/jobs/${jobId}/cancel`,
+        {},
+        { accessToken },
+      );
+    },
+    previewMediaAsset(assetId: string, accessToken: string) {
+      return client.download(`/assets/${assetId}/preview`, { accessToken });
+    },
+    downloadMediaAsset(assetId: string, accessToken: string) {
+      return client.download(`/assets/${assetId}/download`, { accessToken });
     },
   };
 }

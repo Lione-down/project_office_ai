@@ -458,7 +458,7 @@ class GenerationService:
             reference_key = item.get("reference_key")
             snapshot = item.get("snapshot")
             if (
-                input_type != "media_image"
+                input_type not in {"media_image", "media_video_attachment"}
                 or not isinstance(reference_key, str)
                 or not reference_key
                 or not isinstance(snapshot, dict)

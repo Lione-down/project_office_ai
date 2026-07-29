@@ -168,7 +168,7 @@ class RedisGenerationPublisher:
     async def publish(self, event_id, event_type, payload) -> None:
         if event_type.startswith("brief."):
             queue_key = self.workflow_queue_key
-        elif event_type.startswith("image."):
+        elif event_type.startswith(("image.", "video.")):
             queue_key = self.workflow_queue_key
         elif event_type.startswith("generation."):
             queue_key = self.queue_key

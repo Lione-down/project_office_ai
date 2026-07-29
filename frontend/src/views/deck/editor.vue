@@ -9,6 +9,8 @@ import type {
   DeckDraft,
   DeckSlide,
   ImageJob,
+  MediaJob,
+  VideoJob,
 } from "@/modules/decks/types";
 import type { ModelSummary, TemplateSummary } from "@/modules/workspace/types";
 import {
@@ -17,6 +19,7 @@ import {
 } from "@/modules/templates/template-catalog";
 import { useSessionStore } from "@/store/session";
 import SlideVisualWorkbench from "@/views/deck/components/slide-visual-workbench.vue";
+import SlideVideoWorkbench from "@/views/deck/components/slide-video-workbench.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -30,6 +33,7 @@ const templates = ref<TemplateSummary[]>([]);
 const selectedTemplateCode = ref("");
 const models = ref<ModelSummary[]>([]);
 const selectedImageModelId = ref("");
+const selectedVideoModelId = ref("");
 let mediaPollTimer: number | undefined;
 
 const draftId = computed(() => String(route.params.draftId));
@@ -53,6 +57,14 @@ const imageModels = computed(() =>
       model.status === "active" &&
       model.user_visible &&
       model.capabilities.image_generation === true,
+  ),
+);
+const videoModels = computed(() =>
+  models.value.filter(
+    (model) =>
+      model.status === "active" &&
+      model.user_visible &&
+      model.capabilities.video_generation === true,
   ),
 );
 function cloneContract<T>(value: T): T {
@@ -86,6 +98,10 @@ async function load() {
     const recommended =
       imageModels.value.find((model) => model.is_recommended) ?? imageModels.value[0];
     selectedImageModelId.value = recommended?.model_id ?? "";
+    const recommendedVideo =
+      videoModels.value.find((model) => model.is_recommended) ??
+      videoModels.value[0];
+    selectedVideoModelId.value = recommendedVideo?.model_id ?? "";
     replaceDraft(nextDraft);
   } catch {
     error.value = "Deck Draft 加载失败，请稍后重试。";
@@ -97,10 +113,16 @@ async function load() {
 function imageJobForSlide(slideId: string): ImageJob | undefined {
   return [...(draft.value?.media_jobs ?? [])]
     .reverse()
-    .find((job) => job.slide_id === slideId);
+    .find((job): job is ImageJob => job.slide_id === slideId && job.kind === "image");
 }
 
-function upsertMediaJob(next: ImageJob) {
+function videoJobForSlide(slideId: string): VideoJob | undefined {
+  return [...(draft.value?.media_jobs ?? [])]
+    .reverse()
+    .find((job): job is VideoJob => job.slide_id === slideId && job.kind === "video");
+}
+
+function upsertMediaJob(next: MediaJob) {
   if (!draft.value) return;
   const jobs = draft.value.media_jobs ?? [];
   const index = jobs.findIndex((job) => job.media_job_id === next.media_job_id);
@@ -114,7 +136,7 @@ async function pollMediaJobs() {
   );
   if (!active.length || !session.accessToken) return;
   const updates = await Promise.all(
-    active.map((job) => deckApi.getImageJob(job.media_job_id, session.accessToken!)),
+    active.map((job) => deckApi.getMediaJob(job.media_job_id, session.accessToken!)),
   );
   updates.forEach(upsertMediaJob);
 }
@@ -382,6 +404,21 @@ onBeforeUnmount(() => {
           :is-busy="isBusy"
           :access-token="session.accessToken"
           @update:selected-image-model-id="selectedImageModelId = $event"
+          @update:job="upsertMediaJob"
+          @update:busy="isBusy = $event"
+          @update:error="error = $event"
+        />
+        <SlideVideoWorkbench
+          :slide="slide"
+          :index="index"
+          :draft-id="draftId"
+          :draft-revision="draft?.revision ?? 0"
+          :video-models="videoModels"
+          :selected-video-model-id="selectedVideoModelId"
+          :video-job="videoJobForSlide(slide.slide_id)"
+          :is-busy="isBusy"
+          :access-token="session.accessToken"
+          @update:selected-video-model-id="selectedVideoModelId = $event"
           @update:job="upsertMediaJob"
           @update:busy="isBusy = $event"
           @update:error="error = $event"

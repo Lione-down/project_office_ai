@@ -37,7 +37,7 @@ from app.templates.catalog import (
 )
 from app.models.media_jobs import MediaJob
 from app.services.media.images.contracts import plan_deck_visuals
-from app.services.media.images.service import ImageJobService
+from app.services.media.snapshot import build_media_job_snapshot
 
 
 class DeckService:
@@ -261,15 +261,11 @@ class DeckService:
                     .where(
                         MediaJob.user_id == current_user.user_id,
                         MediaJob.draft_revision_id == row.id,
-                        MediaJob.kind == "image",
                     )
                     .order_by(MediaJob.created_at, MediaJob.id)
                 )
             )
-            media = tuple(
-                (await ImageJobService._snapshot(session, job)).model_dump(mode="json")
-                for job in jobs
-            )
+            media = tuple(await build_media_job_snapshot(session, job) for job in jobs)
             return snapshot.model_copy(update={"media_jobs": media})
 
     async def update(

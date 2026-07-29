@@ -141,13 +141,14 @@ Preflight 的 `blocking/incompatible` 必须归零，且高风险主题已提交
 generation task、Outbox、积分、Renderer、QA 和下载合同；返回同一权威 task ID，
 不创建第二套文件生成状态机。
 
-P5-004 已实现六条 Deck endpoint，P5-006 已实现 image media endpoint；video endpoint
-仍属于 P5-007。所有响应均为
+P5-004 已实现六条 Deck endpoint，P5-006/P5-007 已实现 image/video media endpoint。
+所有响应均为
 `private, no-store`；create/generation 要求 `Idempotency-Key`，PATCH 要求
 `expected_revision`，confirm 要求当前 revision。成功 confirm 会建立受控 bridge Brief，
 Preflight 与 generation 始终调用既有服务；Chat assistant message 的 additive projection
 只返回 `deck_draft_id/deck_status/generation_task_id/generation_status`。图片 endpoint
-返回 owner-scoped 权威 job/asset 摘要；video endpoint 当前不得解释为可用。
+返回 owner-scoped 权威 job/asset 摘要；video endpoint 仅对显式确认的 text-to-video
+请求可用，embedding/public URL 路径继续 fail closed。
 
 ### Media Job
 
@@ -166,7 +167,9 @@ draft revision + slide + kind + prompt hash + model/pricing snapshot；重新生
 由服务端轮询真实 `queued/in_progress/completed/failed` 并映射为本地状态；前端不得用
 timer 伪造 progress。图生视频/关键帧因 public URL 安全传输尚未批准返回
 `media_public_url_input_disabled`。`OFFICE_AI_VIDEO_EMBED_ENABLED=false` 时成功视频只
-产生独立 MP4 和海报帧；请求内嵌返回 `video_embedding_not_enabled`。
+产生独立 MP4 和海报帧；请求内嵌返回 `video_embedding_not_enabled`。轮询只对同一
+opaque Provider ID 执行；可重试上游错误最多产生两次延迟 poll，连续失败进入
+`provider_uncertain`，不会再次 create 或重复 reserve。
 
 ### 稳定错误与 HTTP
 

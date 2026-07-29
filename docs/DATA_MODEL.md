@@ -77,7 +77,7 @@ P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，P5-00
    - 资料/混合模式只接受 owner 的 `ready/valid` 资产；灵感内容固定为
      `agnes_inference`，不能升级为 `source_fact`。
 
-30. `media_jobs`（P5-006 已实现 image；video 字段由 P5-007 扩展）
+30. `media_jobs`（P5-006/P5-007 已实现 image/video）
    - owner、draft revision、slide stable ID、workflow task、kind `image/video`、
      mode、idempotency key、prompt hash、模型/capability/pricing snapshot、状态、
      Provider opaque ID、真实 progress、请求/实际尺寸与时长、cancel/error/时间。
@@ -101,7 +101,9 @@ P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，P5-00
 - `workflow_tasks` 已增加 `resource_kind/resource_id`，使首页和任务页投影 Deck/media/
   generation 的同一权威状态；Redis 不承担该关系。
 - `generation_task_inputs` 以稳定 source kind/ID/version/checksum 引用 confirmed Deck
-  revision、选中 media asset、Skill 和 template snapshot；Renderer 仍只接收 strict Plan。
+  revision、选中 media asset、Skill 和 template snapshot；video 成功时同时冻结
+  `media_image` poster 与 `media_video_attachment`，Renderer 只接收 poster 的 strict
+  image Plan，MP4 继续走独立 owner-scoped 下载。
 - `ai_models.capabilities` 必须显式描述 `chat_stream`、`thinking`、`tool_calling`、
   `image_generation`、`video_generation` 和 `video_embedding`；缺失视为 `false`。
 

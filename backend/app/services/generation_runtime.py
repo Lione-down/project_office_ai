@@ -489,6 +489,8 @@ class _GenerationPipeline:
                 mime_type = str(snapshot["mime_type"])
                 crop_mode = str(snapshot["crop_mode"])
                 alt_text = str(snapshot["alt_text"])
+                media_role = str(snapshot.get("media_role", "image"))
+                source_kind = str(snapshot.get("source_kind", "image"))
             except (KeyError, TypeError, ValueError) as exception:
                 raise BriefPlanCompilationError(
                     "generation_deck_image_invalid"
@@ -508,13 +510,28 @@ class _GenerationPipeline:
                 or job.slide_id != slide_id
                 or job.status != "succeeded"
                 or job.output_asset_version != asset_version
-                or job.output_sha256 != expected_sha256
-                or job.crop_mode != crop_mode
-                or job.alt_text != alt_text
+                or (
+                    source_kind == "image"
+                    and (
+                        job.kind != "image"
+                        or job.output_sha256 != expected_sha256
+                        or job.crop_mode != crop_mode
+                        or job.alt_text != alt_text
+                    )
+                )
+                or (
+                    source_kind == "video_poster"
+                    and (
+                        job.kind != "video"
+                        or media_role != "poster"
+                        or crop_mode != "contain"
+                    )
+                )
+                or source_kind not in {"image", "video_poster"}
                 or asset.user_id != task.user_id
                 or asset.project_id != task.project_id
                 or asset.generated_media_job_id != job.id
-                or asset.media_role != "image"
+                or asset.media_role != media_role
                 or asset.asset_version != asset_version
                 or asset.processing_status != "ready"
                 or asset.deleted_at is not None

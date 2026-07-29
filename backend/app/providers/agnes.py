@@ -99,6 +99,34 @@ class ProviderImage:
 
 
 @dataclass(frozen=True)
+class VideoGenerationRequest:
+    model: str
+    prompt: str
+    width: int
+    height: int
+    num_frames: int
+    frame_rate: int
+    negative_prompt: str | None
+    timeout_seconds: int
+    trace_id: str
+
+
+@dataclass(frozen=True)
+class ProviderVideo:
+    provider_request_id: str | None
+    video_id: str
+    task_id: str | None
+    status: str
+    progress: int
+    seconds: float | None
+    width: int | None
+    height: int | None
+    result_url: str | None
+    retry_after_seconds: int | None
+    status_summary: int
+
+
+@dataclass(frozen=True)
 class ErrorClassification:
     category: str
     retryable: bool
@@ -382,6 +410,144 @@ class AgnesAdapter:
         return ProviderImage(
             provider_request_id=provider_request_id,
             image_bytes=image_bytes,
+            status_summary=response.status_code,
+        )
+
+    async def create_video(
+        self,
+        *,
+        api_key: str,
+        request: VideoGenerationRequest,
+    ) -> ProviderVideo:
+        payload: dict[str, Any] = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "width": request.width,
+            "height": request.height,
+            "num_frames": request.num_frames,
+            "frame_rate": request.frame_rate,
+        }
+        if request.negative_prompt:
+            payload["negative_prompt"] = request.negative_prompt
+        response = await self._post(
+            "/videos",
+            api_key=api_key,
+            trace_id=request.trace_id,
+            payload=payload,
+            timeout_seconds=request.timeout_seconds,
+        )
+        response.raise_for_status()
+        return self._extract_video(response)
+
+    async def get_video(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        video_id: str,
+        timeout_seconds: int,
+        trace_id: str,
+    ) -> ProviderVideo:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "X-Trace-ID": trace_id,
+        }
+        base_url = self.configuration.base_url
+        gateway_url = (
+            f"{base_url[:-3]}/agnesapi"
+            if base_url.endswith("/v1")
+            else f"{base_url}/agnesapi"
+        )
+        params = {"video_id": video_id, "model_name": model}
+        if self._client is not None:
+            response = await self._client.get(
+                gateway_url,
+                params=params,
+                headers=headers,
+                timeout=timeout_seconds,
+            )
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    gateway_url,
+                    params=params,
+                    headers=headers,
+                    timeout=timeout_seconds,
+                )
+        response.raise_for_status()
+        return self._extract_video(response)
+
+    @staticmethod
+    def _extract_video(response: httpx.Response) -> ProviderVideo:
+        try:
+            body = response.json()
+            status = body["status"]
+            video_id = body["video_id"]
+            if status not in {"queued", "in_progress", "completed", "failed"}:
+                raise ValueError("unknown video status")
+            if not isinstance(video_id, str) or not video_id:
+                raise ValueError("missing video id")
+            task_id = body.get("task_id") or body.get("id")
+            if task_id is not None and (not isinstance(task_id, str) or not task_id):
+                raise ValueError("invalid task id")
+            progress = int(body.get("progress", 0))
+            if progress < 0 or progress > 100:
+                raise ValueError("invalid progress")
+            seconds = (
+                float(body["seconds"]) if body.get("seconds") is not None else None
+            )
+            size = body.get("size")
+            width = height = None
+            if size is not None:
+                if not isinstance(size, str) or "x" not in size:
+                    raise ValueError("invalid video size")
+                raw_width, raw_height = size.lower().split("x", 1)
+                width, height = int(raw_width), int(raw_height)
+                if width < 1 or height < 1:
+                    raise ValueError("invalid video size")
+            metadata = body.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                raise ValueError("invalid video metadata")
+            result_url = metadata.get("url")
+            if status == "completed":
+                parsed_result = (
+                    urlparse(result_url) if isinstance(result_url, str) else None
+                )
+                if (
+                    parsed_result is None
+                    or parsed_result.scheme != "https"
+                    or not parsed_result.hostname
+                ):
+                    raise ValueError("missing video result")
+            elif result_url is not None:
+                raise ValueError("premature video result")
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exception:
+            raise ProviderConfigurationError(
+                "provider_response_invalid",
+                "Agnes 视频响应合同无效",
+            ) from exception
+        provider_request_id = response.headers.get("x-request-id")
+        retry_after = response.headers.get("retry-after")
+        return ProviderVideo(
+            provider_request_id=provider_request_id,
+            video_id=video_id,
+            task_id=task_id,
+            status=status,
+            progress=progress,
+            seconds=seconds,
+            width=width,
+            height=height,
+            result_url=result_url,
+            retry_after_seconds=(
+                min(int(retry_after), 3600)
+                if retry_after is not None and retry_after.isdigit()
+                else None
+            ),
             status_summary=response.status_code,
         )
 

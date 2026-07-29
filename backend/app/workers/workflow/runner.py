@@ -8,6 +8,7 @@ from app.services.briefs.service import BriefGenerationService
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.provider_security import CredentialCipher
 from app.services.media.images.worker import ImageJobWorkerService
+from app.services.media.videos.worker import VideoJobWorkerService
 from app.services.workflow_worker import WorkflowTaskWorkerService
 from app.settings.config import get_settings
 from app.storage.local import LocalStorageAdapter
@@ -47,6 +48,16 @@ async def run() -> None:
             max_image_bytes=settings.max_image_bytes,
             max_decoded_bytes=settings.max_image_decoded_bytes,
             provider_timeout_seconds=settings.image_provider_timeout_seconds,
+        ),
+        VideoJobWorkerService(
+            database.session_factory,
+            credential_cipher,
+            LocalStorageAdapter(settings.files_root),
+            max_video_bytes=settings.video_max_bytes,
+            max_duration_seconds=settings.video_max_duration_seconds,
+            poll_interval_seconds=settings.video_poll_interval_seconds,
+            job_timeout_seconds=settings.video_job_timeout_seconds,
+            output_host_allowlist=settings.video_output_hosts,
         ),
     )
     try:

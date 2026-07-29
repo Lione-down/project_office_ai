@@ -149,6 +149,9 @@ registry checksum，Python adapter 再与 catalog 比较。API/错误/日志不�
 - 视频成功后先执行容器、codec、容量、时长、解码、hash 和内容策略检查，只交付独立
   MP4 + poster。`OFFICE_AI_VIDEO_EMBED_ENABLED=false`；只有 P5-007 在 Microsoft
   PowerPoint 和 WPS 均无修复提示且实际播放后，才允许显式 capability 开启 PPTX 内嵌。
+- 结果下载只接受配置中精确 allowlist 的 HTTPS host，拒绝 URL credential、redirect、
+  私有/保留 DNS 地址和超限/MIME 不匹配响应；PPTX fallback 不保存外部 URL 或 video
+  relationship。
 - 图片/视频重生成创建新 job 和新 asset，不覆盖旧输出。Provider 已提交但不可查询时
   进入 `provider_uncertain` 并保留 reserve，不自动再次产生可能计费的媒体。
 

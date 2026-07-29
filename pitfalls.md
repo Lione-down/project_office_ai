@@ -803,6 +803,19 @@
   checksum，worker 不得用“最新”查询替代 snapshot；测试同时覆盖 snapshot 生成和
   Renderer 前 owner/version/bytes integrity Gate。
 
+### 2026-07-29 · P5-007 · 视频兼容未知时不能把 URL 或 MP4 relationship 塞进 PPTX
+
+- 现象：Agnes 返回可下载视频 URL，但官方没有可验证 cancel endpoint，PowerPoint/WPS
+  对内嵌视频的实际播放、保存和重开也尚无双应用证据。
+- 影响：直接写 external relationship 会扩大 SSRF/泄露边界；仅凭 OOXML 或
+  LibreOffice 可打开就启用内嵌，会把 machine evidence 冒充真实桌面播放兼容。
+- 本次处理：上游 URL 只由精确 allowlist downloader 拉取，经 MP4/H.264/full-decode
+  Gate 后转存；PPTX 只含 poster image，MP4 作为独立 owner-scoped 附件。
+  `OFFICE_AI_VIDEO_EMBED_ENABLED=true` 继续 fail startup。
+- 预防/验证：视频内嵌必须同时取得 PowerPoint/WPS 无修复、实际播放、保存/重开的新鲜
+  证据；在此之前 package test 应明确拒绝 external/video relationship，并把
+  Provider、Renderer、Office/WPS 与 Human 证据分层报告。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

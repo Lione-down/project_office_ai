@@ -86,6 +86,11 @@ class LocalStorageAdapter:
                 and parts[2] == "media"
                 and parts[4] in {"image.png", "image.jpg"}
             )
+            is_media_video = (
+                len(parts) == 5
+                and parts[2] == "media"
+                and parts[4] in {"video.mp4", "poster.png"}
+            )
             is_valid = (
                 not key.is_absolute()
                 and has_asset_prefix
@@ -94,6 +99,7 @@ class LocalStorageAdapter:
                     or is_generated_output
                     or is_quality_repaired_output
                     or is_media_image
+                    or is_media_video
                 )
             )
         except (ValueError, AttributeError):
@@ -160,6 +166,59 @@ class LocalStorageAdapter:
         if extension not in {".png", ".jpg"}:
             raise StorageOperationError("file_extension_invalid", "文件扩展名无效")
         storage_key = f"users/{user_id}/media/{asset_id}/image{extension}"
+        destination = self.resolve_asset_key(user_id, asset_id, storage_key)
+        asset_directory = destination.parent
+        asset_directory.mkdir(parents=True, exist_ok=False)
+        try:
+            with destination.open("xb") as file_handle:
+                file_handle.write(data)
+        except Exception as original_error:
+            try:
+                shutil.rmtree(asset_directory)
+            except FileNotFoundError:
+                pass
+            except OSError as cleanup_error:
+                record_cleanup_failure(original_error, cleanup_error)
+            raise
+        return StoredObject(storage_key, len(data), sha256(data).hexdigest())
+
+    def write_media_video(
+        self,
+        *,
+        user_id: UUID,
+        asset_id: UUID,
+        data: bytes,
+    ) -> StoredObject:
+        return self._write_media_object(
+            user_id=user_id,
+            asset_id=asset_id,
+            object_name="video.mp4",
+            data=data,
+        )
+
+    def write_media_poster(
+        self,
+        *,
+        user_id: UUID,
+        asset_id: UUID,
+        data: bytes,
+    ) -> StoredObject:
+        return self._write_media_object(
+            user_id=user_id,
+            asset_id=asset_id,
+            object_name="poster.png",
+            data=data,
+        )
+
+    def _write_media_object(
+        self,
+        *,
+        user_id: UUID,
+        asset_id: UUID,
+        object_name: str,
+        data: bytes,
+    ) -> StoredObject:
+        storage_key = f"users/{user_id}/media/{asset_id}/{object_name}"
         destination = self.resolve_asset_key(user_id, asset_id, storage_key)
         asset_directory = destination.parent
         asset_directory.mkdir(parents=True, exist_ok=False)

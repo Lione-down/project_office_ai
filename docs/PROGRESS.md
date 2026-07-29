@@ -1,12 +1,58 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-006 Agnes 图片资产与 PPT 视觉集成`
-- 下一任务：`P5-007 Agnes 视频资产与兼容性 Gate`（唯一 `READY`）
-- 当前状态：`POST-ALPHA IMAGE GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-007 Agnes 视频资产与兼容性 Gate`
+- 当前任务：`P5-008 端到端 Golden、安全、Office/WPS 与发布 Gate`（`READY`）
+- 当前状态：`POST-ALPHA RELEASE GATE READY`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-007 Agnes 视频资产与兼容性 Gate（DONE）
+
+### RED -> GREEN 与实现
+
+- RED 先锁定官方 Agnes Video V2.0 create/poll、opaque Provider ID、Retry-After、
+  idempotency、cancel/uncertain、MP4/H.264/full decode/poster、SSRF、Deck immutable
+  handoff、逐页 UI confirm 与 Renderer package fallback；初始分别因缺 video contract、
+  service/worker/API、UI component 和 media handoff 失败。
+- GREEN 在现有 `media_jobs`/Outbox/workflow/credit/FileAsset 事实链上新增显式
+  text-to-video；不接受 public URL、图生视频、keyframe、自动全页或 embed 请求。
+  Provider progress 持久化，429/5xx 类 poll 最多受限重试两次，连续失败/timeout/cancel
+  收口 `provider_uncertain`，不重复 create 或释放不确定 reserve。
+- 成功结果经精确 HTTPS allowlist、DNS、redirect、MIME、容量、MP4 container、
+  H.264 codec、时长、完整 decode 和 SHA Gate 后，保存 immutable MP4 + 实际 poster。
+  Deck generation 同时冻结 poster 与独立附件 snapshot；Renderer 只写 poster image
+  relationship，不写外部 URL、video relationship 或 embedded video。
+- Deck Studio 只在用户逐页点击并浏览器确认后创建 job，展示服务端权威 progress，
+  支持 cancel、重新生成、poster preview 和 MP4 download；固定说明 Office/WPS
+  fallback，未增加 client 假进度。
+
+### 验证与证据边界
+
+- Focused：Backend media/video/provider/generation `94 passed, 5 skipped`，video/
+  live-contract subset `26 passed, 1 skipped`；Frontend video `2 passed`；Renderer
+  fallback/full `29 passed`。
+- Broad：Backend full `718 passed, 14 skipped`；Frontend full
+  `31 files / 103 passed` + production build；Renderer build；Ruff check、471-file
+  format、`pip check/pip-audit`、两端 npm audit、Compose config 与
+  `git diff --check` 通过。
+- Provider：官方 request/poll contract 已核对并新增显式 opt-in live test；本会话没有
+  opt-in selector，因此真实 Agnes Video 为 `SKIPPED`，没有把 Mock 声明为真实成功。
+- Office/WPS/Human：未取得 PowerPoint/WPS 实际播放、保存/重开或 Human 视觉验收；
+  `OFFICE_AI_VIDEO_EMBED_ENABLED=false` 保持 fail closed，当前证据只支持
+  `poster_and_attachment`。真实 Provider、桌面兼容与最终发布结论由 P5-008 关闭。
+
+### Changed files 与交接
+
+- Backend：Agnes video adapter、video contract/service/worker/downloader/validation、
+  media API/runtime/Outbox/storage、Deck projection/handoff 与 generation snapshot。
+- Frontend/Renderer：逐页 video workbench、types/API/polling/tests，以及无 external
+  video relationship 的 poster fallback package test。
+- Runtime/records：Backend image 加入 ffmpeg，workflow-worker 注入 video settings，
+  同步 Plan/API/Data/Security/Environment、任务索引、`pitfalls.md` 与本文件。
+- 未读取、修改或暂存 `.playwright-cli/`、`design-system/`、旧
+  `docs/ui-mockups/`；P5-008 是下一唯一 `READY`。
 
 ## P5-006 Agnes 图片资产与 PPT 视觉集成（DONE）
 
@@ -565,7 +611,7 @@
 | P5-004 | DONE | P5-003 | Deck Draft、逐页编辑、Skill、Preflight 与 generation handoff |
 | P5-005 | DONE | P5-004 | 模板目录、缩略图、详情、冻结 snapshot 与 Renderer checksum |
 | P5-006 | DONE | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
-| P5-007 | READY | P5-006 | 唯一下一任务：Agnes 视频资产与兼容性 Gate |
+| P5-007 | DOING | P5-006 | 当前唯一任务：Agnes 视频资产与兼容性 Gate |
 | P5-008 | BLOCKED | P5-007 | 端到端 Golden、安全、Office/WPS 与发布 Gate |
 
 ## T1-001 执行记录

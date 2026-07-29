@@ -6,6 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --chown=10001:10001 pyproject.toml ./
 COPY --chown=10001:10001 app ./app
 RUN pip install --no-cache-dir ".[test]"

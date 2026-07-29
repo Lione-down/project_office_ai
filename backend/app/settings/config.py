@@ -322,6 +322,46 @@ class Settings(BaseSettings):
         ge=1,
         le=360,
     )
+    video_max_prompt_chars: int = Field(
+        2000,
+        validation_alias="OFFICE_AI_VIDEO_MAX_PROMPT_CHARS",
+        ge=1,
+        le=2000,
+    )
+    video_poll_interval_seconds: int = Field(
+        5,
+        validation_alias="OFFICE_AI_VIDEO_POLL_INTERVAL_SECONDS",
+        ge=1,
+        le=60,
+    )
+    video_job_timeout_seconds: int = Field(
+        1800,
+        validation_alias="OFFICE_AI_VIDEO_JOB_TIMEOUT_SECONDS",
+        ge=60,
+        le=3600,
+    )
+    video_max_bytes: int = Field(
+        104_857_600,
+        validation_alias="OFFICE_AI_VIDEO_MAX_BYTES",
+        ge=1_048_576,
+        le=524_288_000,
+    )
+    video_max_duration_seconds: int = Field(
+        20,
+        validation_alias="OFFICE_AI_VIDEO_MAX_DURATION_SECONDS",
+        ge=1,
+        le=60,
+    )
+    video_output_host_allowlist: str = Field(
+        "platform-outputs.agnes-ai.space",
+        validation_alias="OFFICE_AI_VIDEO_OUTPUT_HOST_ALLOWLIST",
+        min_length=1,
+        max_length=500,
+    )
+    video_embed_enabled: bool = Field(
+        False,
+        validation_alias="OFFICE_AI_VIDEO_EMBED_ENABLED",
+    )
     media_public_url_input_enabled: bool = Field(
         False,
         validation_alias="OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED",
@@ -399,7 +439,17 @@ class Settings(BaseSettings):
             raise ValueError(
                 "OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED=true is not supported"
             )
+        if self.video_embed_enabled:
+            raise ValueError("OFFICE_AI_VIDEO_EMBED_ENABLED=true is not supported")
         return self
+
+    @property
+    def video_output_hosts(self) -> tuple[str, ...]:
+        return tuple(
+            item.strip().lower()
+            for item in self.video_output_host_allowlist.split(",")
+            if item.strip()
+        )
 
     @property
     def database_url(self) -> SecretStr:

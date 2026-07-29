@@ -2,10 +2,17 @@ from uuid import UUID
 
 
 class WorkflowQueueConsumer:
-    def __init__(self, queue, worker, media_worker=None) -> None:
+    def __init__(
+        self,
+        queue,
+        worker,
+        media_worker=None,
+        video_worker=None,
+    ) -> None:
         self._queue = queue
         self._worker = worker
         self._media_worker = media_worker
+        self._video_worker = video_worker
 
     async def consume_once(self):
         message = await self._queue.dequeue()
@@ -19,6 +26,12 @@ class WorkflowQueueConsumer:
             elif event_type == "image.generate" and self._media_worker is not None:
                 task_id = UUID(str(message["payload"]["media_job_id"]))
                 worker = self._media_worker
+            elif (
+                event_type in {"video.generate", "video.poll"}
+                and self._video_worker is not None
+            ):
+                task_id = UUID(str(message["payload"]["media_job_id"]))
+                worker = self._video_worker
             else:
                 raise ValueError("workflow queue event type is invalid")
         except (KeyError, TypeError, ValueError) as exception:
