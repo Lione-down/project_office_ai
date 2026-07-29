@@ -41,7 +41,8 @@
 .thread-state button,
 .thread-actions button,
 .rename-row button,
-.message footer button {
+.message footer button,
+.message footer .deck-action {
   min-height: 40px;
   border: 0;
   border-radius: 8px;
@@ -49,6 +50,7 @@
   color: var(--oa-accent);
   background: transparent;
   font-weight: 650;
+  text-decoration: none;
   transition:
     transform 120ms ease-out,
     background-color 140ms ease-out;
@@ -57,7 +59,8 @@
 .thread-state button:active,
 .thread-actions button:active,
 .rename-row button:active,
-.message footer button:active {
+.message footer button:active,
+.message footer .deck-action:active {
   transform: scale(0.96);
 }
 

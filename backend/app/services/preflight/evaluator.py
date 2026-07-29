@@ -25,8 +25,10 @@ from app.services.preflight.contracts import (
 )
 from app.skills.catalog import (
     ALPHA_SKILLS,
+    POST_ALPHA_USER_SKILLS,
     SkillSelectionError,
     resolve_alpha_skill_selection,
+    resolve_deck_skill_selection,
     skill_row_matches_definition,
 )
 
@@ -239,7 +241,15 @@ class PreflightEvaluator:
     ) -> list[ConflictFinding]:
         findings = []
         try:
-            selection = resolve_alpha_skill_selection(
+            source_snapshot_is_deck = (
+                content.module == "ppt" and content.domain == "general"
+            )
+            resolver = (
+                resolve_deck_skill_selection
+                if source_snapshot_is_deck
+                else resolve_alpha_skill_selection
+            )
+            selection = resolver(
                 tuple(item.skill_code for item in content.selected_skills)
             )
         except SkillSelectionError as exception:
@@ -258,7 +268,10 @@ class PreflightEvaluator:
                     message="PPTX 与 XLSX 将共享材料、术语库和所选模型",
                 )
             )
-        expected_by_code = {skill.skill_code: skill for skill in ALPHA_SKILLS}
+        definitions = (
+            POST_ALPHA_USER_SKILLS if source_snapshot_is_deck else ALPHA_SKILLS
+        )
+        expected_by_code = {skill.skill_code: skill for skill in definitions}
         rows = list(
             await session.scalars(
                 select(Skill).where(

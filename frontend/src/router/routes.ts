@@ -11,6 +11,8 @@ import NoPermissionView from "@/views/system/no-permission.vue";
 import NotFoundView from "@/views/system/not-found.vue";
 import HomeView from "@/views/user/home.vue";
 import ChatStudioView from "@/views/chat/studio.vue";
+import DeckCreateView from "@/views/deck/create.vue";
+import DeckEditorView from "@/views/deck/editor.vue";
 import UserResourceView from "@/views/user/resource.vue";
 import WorkflowNewView from "@/views/user/workflow-new.vue";
 import WorkflowTaskDetailView from "@/views/task/detail.vue";
@@ -45,6 +47,18 @@ export const routes: RouteRecordRaw[] = [
     path: "/chat",
     name: "chat-studio",
     component: ChatStudioView,
+    meta: { requiresAuth: true, shell: "user" },
+  },
+  {
+    path: "/decks/new",
+    name: "deck-create",
+    component: DeckCreateView,
+    meta: { requiresAuth: true, shell: "user" },
+  },
+  {
+    path: "/decks/:draftId",
+    name: "deck-editor",
+    component: DeckEditorView,
     meta: { requiresAuth: true, shell: "user" },
   },
   {

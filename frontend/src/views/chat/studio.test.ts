@@ -64,6 +64,11 @@ async function mountStudio() {
     history: createMemoryHistory(),
     routes: [
       { path: "/chat", name: "chat-studio", component: ChatStudioView },
+      {
+        path: "/decks/new",
+        name: "deck-create",
+        component: { template: "<div />" },
+      },
       { path: "/", component: { template: "<div />" } },
     ],
   });
@@ -223,6 +228,35 @@ describe("AI creation chat studio", () => {
       expect.any(Function),
     );
     expect(wrapper.text()).toContain("旧回复");
+  });
+
+  it("offers Deck conversion only for a successful assistant message", async () => {
+    chatMocks.getThread.mockResolvedValue({
+      ...thread,
+      messages: [
+        {
+          message_id: "assistant-deck",
+          sequence: 2,
+          role: "assistant",
+          content: "可整理的回复",
+          status: "succeeded",
+          parent_message_id: "user-old",
+          supersedes_message_id: null,
+          branch_root_id: "user-old",
+          run_id: "run-old",
+          model_code: "agnes-2.5-flash",
+          created_at: "2026-07-29T10:00:00Z",
+          finalized_at: "2026-07-29T10:00:01Z",
+        },
+      ],
+    });
+    const wrapper = await mountStudio();
+
+    const link = wrapper.get("[data-testid='create-deck-assistant-deck']");
+    expect(link.text()).toContain("PPT 大纲");
+    expect(link.attributes("href")).toContain(
+      "/decks/new?messageId=assistant-deck",
+    );
   });
 
   it("cancels the active run without discarding its partial content", async () => {

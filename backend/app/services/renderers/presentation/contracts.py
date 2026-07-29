@@ -127,9 +127,10 @@ class EvidenceGeometry(Geometry):
     evidence_ids: EvidenceIds
 
 
-class TextElement(EvidenceGeometry):
+class TextElement(Geometry):
     type: Literal["text"]
     text: ShortText
+    evidence_ids: EvidenceIds | None = None
 
 
 class ImageElement(Geometry):
@@ -181,13 +182,13 @@ class PresentationPlan(StrictModel):
     template: TemplateRef
     locale: Literal["zh-CN"]
     metadata: PresentationMetadata
-    evidence_ids: Annotated[list[ReferenceId], Field(min_length=1, max_length=10_000)]
+    evidence_ids: Annotated[list[ReferenceId], Field(max_length=10_000)]
     images: Annotated[dict[ReferenceId, ImageData], Field(max_length=100)]
     data_sources: Annotated[
         dict[ReferenceId, ChartDataSource | TableDataSource],
         Field(max_length=100),
     ]
-    slides: Annotated[list[PresentationSlide], Field(min_length=3, max_length=30)]
+    slides: Annotated[list[PresentationSlide], Field(min_length=3, max_length=40)]
 
     @model_validator(mode="after")
     def references_exist(self):

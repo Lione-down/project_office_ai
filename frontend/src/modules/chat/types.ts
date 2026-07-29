@@ -39,6 +39,10 @@ export interface ChatMessage {
   branch_root_id: string;
   run_id: string | null;
   model_code: string | null;
+  deck_draft_id: string | null;
+  deck_status: string | null;
+  generation_task_id: string | null;
+  generation_status: string | null;
   created_at: string;
   finalized_at: string | null;
 }

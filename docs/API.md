@@ -141,6 +141,13 @@ Preflight 的 `blocking/incompatible` 必须归零，且高风险主题已提交
 generation task、Outbox、积分、Renderer、QA 和下载合同；返回同一权威 task ID，
 不创建第二套文件生成状态机。
 
+P5-004 已实现除 media 两条 endpoint 之外的六条 Deck endpoint。所有响应均为
+`private, no-store`；create/generation 要求 `Idempotency-Key`，PATCH 要求
+`expected_revision`，confirm 要求当前 revision。成功 confirm 会建立受控 bridge Brief，
+Preflight 与 generation 始终调用既有服务；Chat assistant message 的 additive projection
+只返回 `deck_draft_id/deck_status/generation_task_id/generation_status`。图片/视频 endpoint
+仍属于 P5-006/P5-007，当前不得解释为可用。
+
 ### Media Job
 
 | Method | Path | 合同 |

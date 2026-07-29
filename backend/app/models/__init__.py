@@ -7,6 +7,9 @@ from app.models.chat_messages import ChatMessage
 from app.models.chat_runs import ChatRun
 from app.models.chat_threads import ChatThread
 from app.models.credit_ledger import CreditLedger
+from app.models.deck_draft_inputs import DeckDraftInput
+from app.models.deck_draft_revisions import DeckDraftRevision
+from app.models.deck_drafts import DeckDraft
 from app.models.file_assets import FileAsset
 from app.models.generation_task_inputs import GenerationTaskInput
 from app.models.generation_task_steps import GenerationTaskStep
@@ -35,6 +38,9 @@ __all__ = [
     "ChatRun",
     "ChatThread",
     "CreditLedger",
+    "DeckDraft",
+    "DeckDraftInput",
+    "DeckDraftRevision",
     "FileAsset",
     "GenerationTask",
     "GenerationTaskInput",

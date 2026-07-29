@@ -1,12 +1,17 @@
 from collections.abc import Iterable
+from uuid import UUID
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.briefs import Brief
+from app.models.deck_draft_revisions import DeckDraftRevision
+from app.models.deck_drafts import DeckDraft
 from app.models.file_assets import FileAsset
 from app.models.generation_tasks import GenerationTask
 from app.services.briefs.contracts import BriefContentItem, StructuredBrief
+from app.services.decks.contracts import DeckBrief, deck_content_checksum
+from app.services.decks.presentation import DeckPresentationComposer
 from app.services.evidence.contracts import EvidenceItem, EvidenceProcessingError
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.generation_worker import StepExecutionResult
@@ -304,11 +309,20 @@ class _GenerationPipeline:
             brief, task, template_code = await self._load_brief(context.task_id)
             structured_brief = StructuredBrief.model_validate(brief.content)
             evidence_items = await self._load_evidence(task, structured_brief)
-            plan = self._compile(
-                structured_brief,
-                template_code=template_code,
-                revision=brief.revision,
-                evidence_items=evidence_items,
+            deck = await self._load_deck_revision(brief, task)
+            plan = (
+                DeckPresentationComposer().compose(
+                    deck,
+                    template_code=template_code,
+                    revision=brief.revision,
+                )
+                if deck is not None and self.output_kind == "pptx"
+                else self._compile(
+                    structured_brief,
+                    template_code=template_code,
+                    revision=brief.revision,
+                    evidence_items=evidence_items,
+                )
             )
         except BriefPlanCompilationError as error:
             return StepExecutionResult.permanent_failure(str(error))
@@ -353,6 +367,43 @@ class _GenerationPipeline:
         ):
             raise BriefPlanCompilationError("generation_template_snapshot_invalid")
         return brief, task, frozen[0]["template_code"]
+
+    async def _load_deck_revision(
+        self, brief: Brief, task: GenerationTask
+    ) -> DeckBrief | None:
+        reference = brief.source_snapshot.get("deck_revision_id")
+        if reference is None:
+            return None
+        try:
+            revision_id = UUID(str(reference))
+        except ValueError as exception:
+            raise BriefPlanCompilationError(
+                "generation_deck_snapshot_invalid"
+            ) from exception
+        async with self._session_factory() as session:
+            row = await session.get(DeckDraftRevision, revision_id)
+            draft = (
+                await session.get(DeckDraft, row.draft_id) if row is not None else None
+            )
+        if (
+            row is None
+            or draft is None
+            or draft.user_id != task.user_id
+            or draft.project_id != task.project_id
+            or row.bridge_brief_id != brief.id
+            or row.generation_task_id != task.id
+            or row.status != "generation_queued"
+        ):
+            raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
+        try:
+            deck = DeckBrief.model_validate(row.content)
+        except ValidationError as exception:
+            raise BriefPlanCompilationError(
+                "generation_deck_snapshot_invalid"
+            ) from exception
+        if deck_content_checksum(deck) != row.content_checksum:
+            raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
+        return deck
 
     async def _load_evidence(
         self, task: GenerationTask, brief: StructuredBrief

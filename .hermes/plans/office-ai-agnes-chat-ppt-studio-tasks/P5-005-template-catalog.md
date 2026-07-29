@@ -1,6 +1,6 @@
 # P5-005 模板目录、缩略图与版本快照
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`P5-004`
 - 来源：PRD FR-301～FR-305、模板/Skill 分离原则
 - 建议 commit：`feat(template): add certified deck catalog`

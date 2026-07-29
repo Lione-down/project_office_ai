@@ -1,12 +1,60 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-003 双模型会话、SSE 与历史`
-- 下一任务：`P5-004 Deck Draft、逐页编辑、Skill 与 Preflight`（唯一 `READY`）
-- 当前状态：`POST-ALPHA CHAT GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-004 Deck Draft、逐页编辑、Skill 与 Preflight`
+- 下一任务：`P5-005 模板目录、缩略图与版本快照`（唯一 `READY`）
+- 当前状态：`POST-ALPHA DECK GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-004 Deck Draft、逐页编辑、Skill 与 Preflight（DONE）
+
+### RED -> GREEN 与实现
+
+- RED 先锁定 strict `deck-brief.v1`、一次 bounded repair、owner/source/asset 边界、
+  revision/checksum/state、Skill、Preflight、generation 幂等与 Deck editor；GREEN
+  新增 `deck_drafts`、`deck_draft_revisions`、`deck_draft_inputs` 和 additive migration。
+- 成功 assistant message 才能创建稳定 Draft；灵感、资料和混合 provenance 分离，
+  source asset 必须 owner-scoped、`ready/valid`、版本冻结且不超过 20 个/200 MiB。
+  Outline Director 只允许一次 repair，仍不满足 Schema 时返回稳定错误且不创建 Draft。
+- 固化 `ppt.knowledge-education.v1`，保留销售汇报 Skill；用户显式选择优先，不可用
+  model/Skill 组合 fail closed。每次编辑追加不可变 revision，stale revision 拒绝覆盖。
+- confirm/preflight 复用既有 Brief、WorkflowTask、Outbox、积分、Renderer、QA 和下载
+  状态机；同一 generation idempotency key 只创建一个 task/reserve。Chat message 只投影
+  MySQL 权威 Draft/revision/generation 状态，不建立第二套任务事实。
+- Vue 新增 Chat “整理为 PPT 大纲”入口、独立创建页与 Deck Studio；支持逐页增删、
+  复制、排序、标题/要点/讲者备注/视觉建议编辑、保存、confirm、Preflight 和生成交接。
+
+### 验证与真实证据
+
+- Focused：Backend `tests/decks tests/skills tests/preflight tests/generation`
+  `99 passed`；Frontend Deck `4 passed`。
+- Broad：Backend full `662 passed, 11 skipped`；Ruff check 通过、format
+  `420 files already formatted`；Frontend full `93 passed`、production build 通过；
+  `docker compose config --quiet` 通过。
+- Runtime：重建 backend/frontend/generation-worker 后均 healthy；ready probe 的
+  MySQL/Redis 均为 ready；显式 Alembic upgrade 后为 `20260729_0017 (head)`。
+- Chrome 真实用户态：成功 Agnes assistant message 显示 Deck 入口；真实 Outline
+  调用在一次 repair 后仍不满足 strict Schema，UI 返回 `Deck Brief Schema 无效`，
+  未创建 Draft，证明 fail-closed 边界。没有把该失败宣称为 Provider 成功。
+- Provider-free browser proof 使用脱敏 synthetic Draft 验证 3 页加载、排序
+  `MOVE_TARGET`、复制为 4 页和保存至 `Revision 2`；验证后删除 1 个 Draft、2 个
+  Revision 和 2 个 Input，MySQL 无残留。未提交 generation，因此未创建 synthetic
+  task、文件或积分变动。
+- 本任务没有取得真实 PPTX、LibreOffice、Microsoft PowerPoint 或 WPS 新证据；
+  generation/Renderer/QA 交接由自动化 integration contract 证明，最终兼容性仍属于
+  P5-008 Human/desktop Gate。
+
+### Changed files 与交接
+
+- Backend：Deck migration/models/contracts/repository/service/handoff/API/settings、
+  knowledge/education Skill、Preflight/Generation/Renderer/Chat projection 及 tests。
+- Frontend：Deck types/API/create/editor/routes/tests，以及 Chat Deck action。
+- Runtime/records：Compose Deck limits、P5-004/P5-005 状态、正式 API/Data/Security/
+  Environment/Plan、`pitfalls.md` 与本文件。
+- 未触碰/暂存 `.env`、`.playwright-cli/`、`design-system/` 或旧
+  `docs/ui-mockups/`；未实现 P5-005 模板目录、图片或视频。P5-005 是下一唯一 `READY`。
 
 ## P5-003 双模型会话、SSE 与历史（DONE）
 
@@ -406,8 +454,8 @@
 | P5-001 | DONE | P5-000 | `docs(chat): define agnes studio contracts` |
 | P5-002 | DONE | P5-001 | `feat(home): show authoritative recent tasks` |
 | P5-003 | DONE | P5-002 | 双模型会话、SSE、历史、取消/重连和安全 Markdown |
-| P5-004 | READY | P5-003 | 唯一下一任务：Deck Draft、逐页编辑、Skill 与 Preflight |
-| P5-005 | BLOCKED | P5-004 | 模板目录、缩略图与版本快照 |
+| P5-004 | DONE | P5-003 | Deck Draft、逐页编辑、Skill、Preflight 与 generation handoff |
+| P5-005 | READY | P5-004 | 唯一下一任务：模板目录、缩略图与版本快照 |
 | P5-006 | BLOCKED | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
 | P5-007 | BLOCKED | P5-006 | Agnes 视频资产与兼容性 Gate |
 | P5-008 | BLOCKED | P5-007 | 端到端 Golden、安全、Office/WPS 与发布 Gate |

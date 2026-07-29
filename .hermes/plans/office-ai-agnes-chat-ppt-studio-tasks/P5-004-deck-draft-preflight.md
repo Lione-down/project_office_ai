@@ -1,6 +1,6 @@
 # P5-004 Deck Draft、逐页编辑、Skill 与 Preflight
 
-- 状态：`BLOCKED`
+- 状态：`DONE`
 - Depends on：`P5-003`
 - 来源：PRD FR-201～FR-208、来源模式、Deck Draft 状态机
 - 建议 commit：`feat(deck): add versioned draft and generation handoff`
@@ -71,3 +71,15 @@ git diff --check
 - 不建设 WYSIWYG PPT 编辑器、不实现图片/视频 Provider 任务。
 - 不允许任意 Skill、自由 Markdown 或 chat 正文直接进入 Renderer。
 - 回滚 feature 路由和 additive contract，不覆盖历史 Draft/revision/task。
+
+## 完成记录（2026-07-29）
+
+- RED -> GREEN 已完成 strict Schema、provenance、owner、revision/checksum/state、
+  bounded repair、Skill/Preflight/generation 幂等及 Deck editor contracts。
+- Focused：Backend `99 passed`；Frontend Deck `4 passed`。Broad：Backend
+  `662 passed, 11 skipped`，Frontend `93 passed`，Ruff、format、build 与 Compose
+  config 均通过。
+- Runtime：MySQL/Redis ready，migration 为 `20260729_0017 (head)`。真实 Agnes
+  Outline 一次 repair 后仍 Schema 无效并 fail closed；provider-free synthetic Draft
+  证明 editor 排序、复制、保存到 Revision 2，随后已删除全部 synthetic 数据。
+- 未取得真实 PPTX、Office/WPS 或 Human 视觉验收；这些边界保留给 P5-008。

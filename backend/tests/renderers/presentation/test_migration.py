@@ -21,7 +21,7 @@ def alembic_config() -> Config:
 def test_presentation_output_migration_is_single_additive_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260729_0016"]
+    assert scripts.get_heads() == ["20260729_0017"]
     assert scripts.get_revision("20260723_0012").down_revision == "20260723_0011"
 
 
@@ -57,7 +57,7 @@ def test_migration_upgrades_empty_database_without_adding_a_table(
         item["name"]: item for item in inspector.get_foreign_keys("file_assets")
     }
 
-    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 25
+    assert len(set(inspector.get_table_names()) - {"alembic_version"}) == 28
     assert foreign_keys["fk_file_assets_generated_task"]["referred_table"] == (
         "generation_tasks"
     )

@@ -6,7 +6,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
 from app.settings.config import get_settings
-from app.skills.catalog import ALPHA_SKILLS
+from app.skills.catalog import POST_ALPHA_USER_SKILLS
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -21,7 +21,7 @@ def alembic_config() -> Config:
 def test_brief_migration_is_the_current_single_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260729_0016"]
+    assert scripts.get_heads() == ["20260729_0017"]
     assert scripts.get_revision("20260723_0009").down_revision == "20260723_0008"
 
 
@@ -63,5 +63,10 @@ def test_brief_migration_adds_tables_and_seeds_exact_alpha_skills(
         ).all()
 
     assert rows == [
-        (skill.skill_code, skill.version, skill.checksum) for skill in ALPHA_SKILLS
+        (skill.skill_code, skill.version, skill.checksum)
+        for skill in sorted(
+            POST_ALPHA_USER_SKILLS,
+            key=lambda item: item.skill_code,
+            reverse=True,
+        )
     ]

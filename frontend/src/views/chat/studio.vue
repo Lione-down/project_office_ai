@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 
 import { chatApi } from "@/modules/chat/api";
 import { markdownToPlainText, renderSafeMarkdown } from "@/modules/chat/safe-markdown";
@@ -75,6 +76,10 @@ function temporaryMessage(
     branch_root_id: messageId,
     run_id: null,
     model_code: role === "assistant" ? selectedModel.value?.model_code ?? null : null,
+    deck_draft_id: null,
+    deck_status: null,
+    generation_task_id: null,
+    generation_status: null,
     created_at: new Date().toISOString(),
     finalized_at: null,
   };
@@ -311,6 +316,25 @@ onMounted(loadStudio);
             </p>
             <footer v-if="message.status !== 'streaming'">
               <button type="button" @click="copyMessage(message)">复制</button>
+              <RouterLink
+                v-if="message.role === 'assistant' && message.status === 'succeeded'"
+                class="deck-action"
+                :data-testid="`create-deck-${message.message_id}`"
+                :to="{
+                  name: message.deck_draft_id ? 'deck-editor' : 'deck-create',
+                  params: message.deck_draft_id
+                    ? { draftId: message.deck_draft_id }
+                    : undefined,
+                  query: message.deck_draft_id
+                    ? undefined
+                    : {
+                        messageId: message.message_id,
+                        modelId: selectedModelId,
+                      },
+                }"
+              >
+                {{ message.deck_draft_id ? "打开 PPT 大纲" : "整理为 PPT 大纲" }}
+              </RouterLink>
               <button
                 v-if="message.role === 'user'"
                 type="button"

@@ -8,6 +8,7 @@ from app.services.briefs.contracts import BRIEF_TOP_LEVEL_FIELDS
 
 PPT_SKILL_CODE = "ppt.sales-business-review.v1"
 EXCEL_SKILL_CODE = "excel.sales-analysis-dashboard.v1"
+KNOWLEDGE_EDUCATION_SKILL_CODE = "ppt.knowledge-education.v1"
 
 
 class SkillSelectionError(Exception):
@@ -233,7 +234,78 @@ ALPHA_SKILLS = (
         status="published",
     ),
 )
+KNOWLEDGE_EDUCATION_SKILL = SkillDefinition(
+    skill_code=KNOWLEDGE_EDUCATION_SKILL_CODE,
+    version="1.0.0",
+    kind="user_workflow",
+    display_name="知识科普与培训",
+    description="把用户输入、Agnes推断和可选Evidence组织为可编辑的知识型演示。",
+    output_kind="pptx",
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "topic",
+            "audience",
+            "slide_count",
+            "language",
+            "style",
+            "source_mode",
+            "selected_model",
+        ],
+        "properties": {
+            "topic": {"type": "string", "minLength": 1, "maxLength": 500},
+            "audience": {"type": "string", "minLength": 1, "maxLength": 500},
+            "slide_count": {"type": "integer", "minimum": 3, "maximum": 40},
+            "language": {"const": "zh-CN"},
+            "style": {"type": "string", "minLength": 1, "maxLength": 500},
+            "source_mode": {"enum": ["inspiration", "materials", "mixed"]},
+            "selected_model": {"type": "object"},
+        },
+    },
+    output_schema={
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "office-ai://schemas/deck-brief.v1",
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "schema_version",
+            "topic",
+            "audience",
+            "language",
+            "style",
+            "source_mode",
+            "skill_code",
+            "slides",
+        ],
+        "properties": {
+            "schema_version": {"const": "deck-brief.v1"},
+            "slides": {"type": "array", "minItems": 3, "maxItems": 40},
+        },
+    },
+    workflow={
+        "steps": [
+            "build_ppt_outline",
+            "validate_and_repair_once",
+            "persist_deck_revision",
+            "run_deck_preflight",
+            "submit_ppt_generation",
+        ],
+        "output": "pptx",
+    },
+    capability_requirements={
+        "text_generation": True,
+        "structured_output": True,
+        "image_input": False,
+        "max_context_tokens": 262_144,
+    },
+    status="published",
+)
+POST_ALPHA_USER_SKILLS = (*ALPHA_SKILLS, KNOWLEDGE_EDUCATION_SKILL)
 _SKILL_BY_CODE = {skill.skill_code: skill for skill in ALPHA_SKILLS}
+_POST_ALPHA_SKILL_BY_CODE = {
+    skill.skill_code: skill for skill in POST_ALPHA_USER_SKILLS
+}
 
 
 def resolve_alpha_skill_selection(skill_codes: tuple[str, ...]) -> SkillSelection:
@@ -256,3 +328,15 @@ def resolve_alpha_skill_selection(skill_codes: tuple[str, ...]) -> SkillSelectio
         else "excel"
     )
     return SkillSelection(module=module, skills=selected)
+
+
+def resolve_deck_skill_selection(skill_codes: tuple[str, ...]) -> SkillSelection:
+    if len(skill_codes) != 1 or skill_codes[0] not in {
+        PPT_SKILL_CODE,
+        KNOWLEDGE_EDUCATION_SKILL_CODE,
+    }:
+        raise SkillSelectionError("skill_selection_invalid", "Deck Skill 选择不受支持")
+    return SkillSelection(
+        module="ppt",
+        skills=(_POST_ALPHA_SKILL_BY_CODE[skill_codes[0]],),
+    )

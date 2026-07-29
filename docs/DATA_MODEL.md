@@ -19,8 +19,9 @@
 
 ## P5-001 Post-Alpha 数据合同（`post-alpha-contract.v1`）
 
-P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，剩余表按 P5-004、
-P5-006 和 P5-007 的依赖顺序以 migration 建立。既有表不删除、不改写历史 migration。
+P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，P5-004 migration
+`20260729_0017` 已实现三张 Deck 表。`chat_tool_invocations` 与两张 media 表仍按后续
+批准任务建立。既有表不删除、不改写历史 migration。
 
 ### 计划新增 9 张表
 
@@ -110,10 +111,11 @@ P5-006 和 P5-007 的依赖顺序以 migration 建立。既有表不删除、不
 | `chat_runs` | `(user_id, idempotency_key)` | 重放发送只创建一个 run |
 | `chat_runs` | `(assistant_message_id)` | 一个 assistant branch 只属于一个 run |
 | `chat_tool_invocations` | `(run_id, tool_call_id)` | 重复 tool frame 不重复执行 |
-| `deck_drafts` | `(source_message_id, draft_group_id)` | 同来源允许多个显式 Draft，但 identity 唯一 |
+| `deck_drafts` | `(user_id, draft_group_id)` | owner-scoped stable identity 唯一 |
+| `deck_drafts` | `(user_id, idempotency_key)` | 相同创建键只对应一个 payload fingerprint |
+| `deck_drafts` | `(user_id, source_message_id)` | 一个成功 assistant message 只对应一个稳定 Draft |
 | `deck_draft_revisions` | `(draft_id, revision)` | 不可变 revision |
-| `deck_draft_revisions` | `(draft_id, content_checksum)` | 相同内容重放返回既有 revision |
-| `deck_draft_inputs` | `(draft_revision_id, input_kind, source_id, source_version)` | 输入 snapshot 不重复 |
+| `deck_draft_inputs` | `(revision_id, input_kind, source_asset_id, source_message_id)` | revision 内冻结来源不重复 |
 | `media_jobs` | `(user_id, idempotency_key)` | 重放媒体创建不重复提交/扣费 |
 | `media_jobs` | `(provider_id, provider_job_id)` | 上游 opaque ID 不重复关联 |
 | `media_job_inputs` | `(media_job_id, input_kind, source_asset_id, sequence)` | 输入顺序与角色稳定 |
@@ -143,6 +145,11 @@ P5-006 和 P5-007 的依赖顺序以 migration 建立。既有表不删除、不
 - Deck generation：锁定 latest confirmed/ready revision，复验 input/media/template/
   Skill/model/pricing 后复用既有 generation task、ledger 和 Outbox 事务；重复 submit
   返回同一 task。
+
+P5-004 的 `deck_draft_revisions` 还保存 bridge Brief ID 与 generation task ID，使
+Preflight、credits、Renderer、QA 和 task history 继续使用既有 MySQL 事实。相同内容的
+重放由 service checksum/idempotency contract 收口，不依赖 nullable JSON 字段的数据库
+唯一约束。
 
 ### 保留、导出与删除
 

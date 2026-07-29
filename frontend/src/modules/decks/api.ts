@@ -1,0 +1,93 @@
+import { apiClient } from "@/api/request";
+
+import type {
+  DeckCreateInput,
+  DeckDraft,
+  DeckGenerationResult,
+  DeckUpdateInput,
+} from "./types";
+
+
+interface DeckApiClient {
+  get<T>(path: string, options?: { accessToken?: string }): Promise<T>;
+  post<T>(
+    path: string,
+    body: unknown,
+    options?: { accessToken?: string; headers?: HeadersInit },
+  ): Promise<T>;
+  patch<T>(
+    path: string,
+    body: unknown,
+    options?: { accessToken?: string },
+  ): Promise<T>;
+}
+
+export function createDeckApi(client: DeckApiClient) {
+  return {
+    createDraft(
+      messageId: string,
+      payload: DeckCreateInput,
+      idempotencyKey: string,
+      accessToken: string,
+    ) {
+      return client.post<DeckDraft>(
+        `/chat/messages/${messageId}/deck-drafts`,
+        payload,
+        {
+          accessToken,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+      );
+    },
+    getDraft(draftId: string, accessToken: string) {
+      return client.get<DeckDraft>(`/deck-drafts/${draftId}`, { accessToken });
+    },
+    updateDraft(
+      draftId: string,
+      payload: DeckUpdateInput,
+      accessToken: string,
+    ) {
+      return client.patch<DeckDraft>(`/deck-drafts/${draftId}`, payload, {
+        accessToken,
+      });
+    },
+    confirmDraft(
+      draftId: string,
+      payload: { expected_revision: number; high_risk_confirmed: boolean },
+      accessToken: string,
+    ) {
+      return client.post<DeckDraft>(
+        `/deck-drafts/${draftId}/confirm`,
+        payload,
+        { accessToken },
+      );
+    },
+    preflightDraft(draftId: string, accessToken: string) {
+      return client.post<DeckDraft>(
+        `/deck-drafts/${draftId}/preflight`,
+        {},
+        { accessToken },
+      );
+    },
+    generate(
+      draftId: string,
+      payload: {
+        expected_revision: number;
+        accepted_estimated_credits: number;
+      },
+      idempotencyKey: string,
+      accessToken: string,
+    ) {
+      return client.post<DeckGenerationResult>(
+        `/deck-drafts/${draftId}/generations`,
+        payload,
+        {
+          accessToken,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+      );
+    },
+  };
+}
+
+export const deckApi = createDeckApi(apiClient);

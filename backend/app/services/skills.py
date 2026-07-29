@@ -6,6 +6,7 @@ from app.services.auth_sessions import AuthSessionService
 from app.services.briefs.service import BriefOperationError
 from app.skills.catalog import (
     ALPHA_SKILLS,
+    POST_ALPHA_USER_SKILLS,
     SkillDefinition,
     skill_row_matches_definition,
 )
@@ -33,19 +34,26 @@ class SkillCatalogService:
                     .order_by(Skill.skill_code)
                 )
             )
-        expected_by_code = {skill.skill_code: skill for skill in ALPHA_SKILLS}
+        expected_by_code = {skill.skill_code: skill for skill in POST_ALPHA_USER_SKILLS}
+        required_alpha_codes = {skill.skill_code for skill in ALPHA_SKILLS}
         rows_by_code = {row.skill_code: row for row in rows}
-        if set(rows_by_code) != set(expected_by_code):
+        if not required_alpha_codes.issubset(rows_by_code) or not set(
+            rows_by_code
+        ).issubset(expected_by_code):
             raise BriefOperationError(
                 "skill_contract_invalid", "Alpha Skill发布集合无效", 409
             )
-        for code, expected in expected_by_code.items():
-            row = rows_by_code[code]
+        for code, row in rows_by_code.items():
+            expected = expected_by_code[code]
             if not skill_row_matches_definition(row, expected):
                 raise BriefOperationError(
                     "skill_contract_invalid", "Skill版本合同不可用", 409
                 )
-        return ALPHA_SKILLS
+        return tuple(
+            skill
+            for skill in POST_ALPHA_USER_SKILLS
+            if skill.skill_code in rows_by_code
+        )
 
     async def get_published(
         self, access_token: str, skill_code: str

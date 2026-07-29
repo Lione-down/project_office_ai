@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.models import Base, Skill
 from app.services.briefs.service import BriefOperationError
 from app.services.skills import SkillCatalogService
-from app.skills.catalog import ALPHA_SKILLS
+from app.skills.catalog import (
+    ALPHA_SKILLS,
+    KNOWLEDGE_EDUCATION_SKILL,
+    POST_ALPHA_USER_SKILLS,
+)
 
 
 class FakeSessions:
@@ -59,6 +63,36 @@ async def test_skill_catalog_returns_only_checksum_verified_published_versions(
 
     assert skills == ALPHA_SKILLS
     assert selected == ALPHA_SKILLS[0]
+
+
+async def test_skill_catalog_accepts_the_versioned_post_alpha_deck_skill(
+    skill_session_factory,
+) -> None:
+    async with skill_session_factory() as session, session.begin():
+        skill = KNOWLEDGE_EDUCATION_SKILL
+        session.add(
+            Skill(
+                skill_code=skill.skill_code,
+                version=skill.version,
+                kind=skill.kind,
+                display_name=skill.display_name,
+                description=skill.description,
+                output_kind=skill.output_kind,
+                input_schema=skill.input_schema,
+                output_schema=skill.output_schema,
+                workflow=skill.workflow,
+                capability_requirements=skill.capability_requirements,
+                status=skill.status,
+                checksum=skill.checksum,
+            )
+        )
+    service = SkillCatalogService(skill_session_factory, FakeSessions())
+
+    skills = await service.list_published("access-token")
+    selected = await service.get_published("access-token", "ppt.knowledge-education.v1")
+
+    assert skills == POST_ALPHA_USER_SKILLS
+    assert selected == KNOWLEDGE_EDUCATION_SKILL
 
 
 async def test_skill_catalog_fails_closed_on_database_contract_drift(

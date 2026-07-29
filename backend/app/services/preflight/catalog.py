@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
 from typing import Literal
 
-from app.skills.catalog import EXCEL_SKILL_CODE, PPT_SKILL_CODE
+from app.skills.catalog import (
+    EXCEL_SKILL_CODE,
+    KNOWLEDGE_EDUCATION_SKILL_CODE,
+    PPT_SKILL_CODE,
+)
 
 
 PPT_DEFAULT_TEMPLATE = "ppt.operating-review.v1"
@@ -46,6 +50,11 @@ _TEMPLATE_BY_REFERENCE = {
 }
 _SKILL_OUTPUTS = {
     PPT_SKILL_CODE: ("pptx", "销售经营汇报", PPT_DEFAULT_TEMPLATE),
+    KNOWLEDGE_EDUCATION_SKILL_CODE: (
+        "pptx",
+        "知识科普与培训",
+        "ppt.executive-blue.v1",
+    ),
     EXCEL_SKILL_CODE: ("xlsx", "销售数据分析与经营看板", EXCEL_DEFAULT_TEMPLATE),
 }
 

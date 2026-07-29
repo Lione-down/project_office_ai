@@ -118,6 +118,10 @@ class ChatMessageSnapshot(BaseModel):
     branch_root_id: UUID
     run_id: UUID | None
     model_code: str | None
+    deck_draft_id: UUID | None = None
+    deck_status: str | None = None
+    generation_task_id: UUID | None = None
+    generation_status: str | None = None
     created_at: datetime
     finalized_at: datetime | None
 

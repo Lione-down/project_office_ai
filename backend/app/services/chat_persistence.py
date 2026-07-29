@@ -8,6 +8,9 @@ from app.models.ai_providers import AiProvider
 from app.models.base import new_uuid7, utc_now
 from app.models.chat_messages import ChatMessage
 from app.models.chat_runs import ChatRun
+from app.models.deck_draft_revisions import DeckDraftRevision
+from app.models.deck_drafts import DeckDraft
+from app.models.generation_tasks import GenerationTask
 from app.models.chat_threads import ChatThread
 from app.models.provider_credentials import ProviderCredential
 from app.services.auth_sessions import CurrentUser
@@ -237,6 +240,30 @@ async def chat_message_snapshot(
         run = await session.get(ChatRun, message.run_id)
         if run is not None:
             model_code = run.provider_snapshot.get("model_code")
+    deck = await session.scalar(
+        select(DeckDraft)
+        .where(
+            DeckDraft.source_message_id == message.id,
+            DeckDraft.deleted_at.is_(None),
+        )
+        .order_by(DeckDraft.created_at.desc())
+        .limit(1)
+    )
+    generation_task_id = None
+    generation_status = None
+    if deck is not None:
+        revision = await session.scalar(
+            select(DeckDraftRevision).where(
+                DeckDraftRevision.draft_id == deck.id,
+                DeckDraftRevision.revision == deck.latest_revision,
+            )
+        )
+        if revision is not None:
+            generation_task_id = revision.generation_task_id
+            if generation_task_id is not None:
+                generation = await session.get(GenerationTask, generation_task_id)
+                if generation is not None:
+                    generation_status = generation.status
     return ChatMessageSnapshot(
         message_id=message.id,
         sequence=message.sequence,
@@ -248,6 +275,10 @@ async def chat_message_snapshot(
         branch_root_id=message.branch_root_id,
         run_id=message.run_id,
         model_code=model_code,
+        deck_draft_id=deck.id if deck is not None else None,
+        deck_status=deck.status if deck is not None else None,
+        generation_task_id=generation_task_id,
+        generation_status=generation_status,
         created_at=message.created_at,
         finalized_at=message.finalized_at,
     )

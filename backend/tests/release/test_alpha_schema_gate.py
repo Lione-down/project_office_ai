@@ -38,6 +38,9 @@ EXPECTED_CURRENT_TABLES = EXPECTED_ALPHA_TABLES | {
     "chat_threads",
     "chat_messages",
     "chat_runs",
+    "deck_drafts",
+    "deck_draft_revisions",
+    "deck_draft_inputs",
 }
 
 
@@ -52,7 +55,7 @@ def test_current_metadata_preserves_alpha_tables_and_adds_post_alpha_tables() ->
     assert set(Base.metadata.tables) == EXPECTED_CURRENT_TABLES
 
 
-def test_current_head_upgrades_empty_database_to_twenty_five_tables(
+def test_current_head_upgrades_empty_database_to_twenty_eight_tables(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -85,7 +88,8 @@ def test_current_head_upgrades_empty_database_to_twenty_five_tables(
 def test_alpha_schema_remains_a_single_head_chain() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260729_0016"]
+    assert scripts.get_heads() == ["20260729_0017"]
+    assert scripts.get_revision("20260729_0017").down_revision == "20260729_0016"
     assert scripts.get_revision("20260729_0016").down_revision == "20260727_0015"
     assert scripts.get_revision("20260727_0015").down_revision == "20260727_0014"
     assert scripts.get_revision("20260727_0014").down_revision == "20260723_0013"

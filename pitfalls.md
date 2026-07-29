@@ -755,6 +755,27 @@
 - 预防/验证：migration 增加 ORM metadata 未表达的 FK 时，除 SQLite contract 外必须
   验证真实 MySQL 写路径和 flush order；不能以空库 upgrade 或 Mock service 替代事务证据。
 
+### 2026-07-29 · P5-004 · 已发布 Skill 不代表当前用户一定有兼容模型
+
+- 现象：`ppt.knowledge-education.v1` 已发布，但真实用户没有与该 Skill 同时满足
+  publish/capability 约束的可见模型；创建页的模型列表因此为空。
+- 影响：若前端静默换成销售 Skill 或 Agnes 2.0，会把显式选择和 no-fallback 合同变成
+  隐性降级，也会让生成快照与用户看到的选择不一致。
+- 本次处理：UI 保持模型为空并阻止提交；用户显式切换到销售 Skill 后才显示兼容模型。
+- 预防/验证：Skill、model 与 template 的可用性必须按交集查询；空交集显示可恢复说明并
+  fail closed，任何 fallback 都必须由用户显式选择。
+
+### 2026-07-29 · P5-004 · PowerShell pipe 到容器会破坏 synthetic 中文证据
+
+- 现象：PowerShell here-string 经 `docker compose exec -T ... python -` 写入 synthetic
+  Draft 时，中文在容器 stdin 边界变成 `??`，而 ASCII stable marker 保持正确。
+- 影响：这种临时数据可验证 revision/reorder，但不能作为 UTF-8 内容保真、Provider 或
+  Renderer 证据；若不清理还会污染真实用户列表。
+- 本次处理：browser proof 只采用 ASCII `MOVE_TARGET` 和 Revision/card count；结束后
+  删除 1 个 Draft、2 个 Revision、2 个 Input，并确认无残留。
+- 预防/验证：跨 PowerShell/容器传递非 ASCII synthetic payload 时使用 UTF-8 文件、
+  base64 或 API；始终使用稳定 ASCII marker，并把清理/无残留作为 runtime test 收尾。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

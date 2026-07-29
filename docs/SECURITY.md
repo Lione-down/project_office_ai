@@ -105,6 +105,13 @@ Key、Authorization、Prompt 或 response body。DOMPurify allowlist、raw HTML 
 危险 URL/event/script/image 拒绝，跨 owner、文件/tool injection、disconnect/reconnect、
 cancel 与 no-fallback 均有回归；真实 stop 收口为 `cancelled_partial`，未冒充 complete。
 
+P5-004 实现证据：Deck create/get/update/confirm/preflight/generation 均从 Session owner
+查询；source message 必须为成功 assistant，asset 必须 owner-scoped、`ready/valid`、
+版本冻结。strict Schema 只允许一次 repair，ProviderCall 只记脱敏 metadata；真实 Agnes
+返回不合法 Outline 时未创建 Draft。stale revision、跨 owner、Prompt injection、
+high-risk confirm、generation 幂等和 credit reserve 均有回归。浏览器 synthetic Draft
+只用于 editor DOM proof，验证后已从 MySQL 删除，未创建 generation task 或文件。
+
 ### 文件上下文、Web 与外部内容
 
 - 首期文件上下文固定 `deck_only`。P5-003 Chat 请求携带任何 asset ID 都 fail closed；

@@ -292,6 +292,18 @@ class Settings(BaseSettings):
         validation_alias="OFFICE_AI_CHAT_FILE_CONTEXT_MODE",
         pattern=r"^deck_only$",
     )
+    deck_max_slides: int = Field(
+        40,
+        validation_alias="OFFICE_AI_DECK_MAX_SLIDES",
+        ge=3,
+        le=40,
+    )
+    deck_max_context_assets: int = Field(
+        20,
+        validation_alias="OFFICE_AI_DECK_MAX_CONTEXT_ASSETS",
+        ge=1,
+        le=20,
+    )
     chat_thinking_default_enabled: bool = Field(
         False,
         validation_alias="OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED",

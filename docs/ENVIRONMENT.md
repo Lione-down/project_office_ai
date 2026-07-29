@@ -80,7 +80,8 @@
 ## P5-001 Post-Alpha 配置合同（`post-alpha-contract.v1`）
 
 下表冻结非 Secret 名称与 fail-closed 默认值。P5-003 已把 Chat 变量接入
-Settings/Compose；Deck 与媒体变量仍只有在对应代码、测试和文档同步时才接入。
+Settings/Compose；P5-004 已接入两项 Deck 上限。媒体变量仍只有在对应代码、测试和
+文档同步时才接入。
 
 | 变量 | 默认值 | 用途与边界 |
 |---|---:|---|
@@ -109,6 +110,11 @@ Settings/Compose；Deck 与媒体变量仍只有在对应代码、测试和文�
 | `OFFICE_AI_VIDEO_JOB_TIMEOUT_SECONDS` | `1800` | 视频任务 deadline；超时按 Provider ID 可查询性收口 |
 | `OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED` | `false` | 禁止本地 public URL/tunnel；首期视频仅 text-to-video |
 | `OFFICE_AI_VIDEO_EMBED_ENABLED` | `false` | P5-007 双 Office/WPS Gate 前禁止 PPTX 内嵌 |
+
+P5-004 runtime 已从 Settings/Compose 注入
+`OFFICE_AI_DECK_MAX_SLIDES=40` 与 `OFFICE_AI_DECK_MAX_CONTEXT_ASSETS=20`；
+服务端同时维持 200 MiB 总量、owner、状态和冻结版本 Gate。当前 Compose 启动不会替代
+显式 Alembic upgrade；本次真实 runtime 已升级到 `20260729_0017 (head)`。
 
 上述安全开关不是普通 feature toggle：
 `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false`、

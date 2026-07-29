@@ -69,7 +69,10 @@ class TermLibraryVersion(StrictModel):
 
 class SelectedSkill(StrictModel):
     skill_code: str = Field(
-        pattern=r"^(ppt\.sales-business-review|excel\.sales-analysis-dashboard)\.v1$"
+        pattern=(
+            r"^(ppt\.(sales-business-review|knowledge-education)"
+            r"|excel\.sales-analysis-dashboard)\.v1$"
+        )
     )
     version: Literal["1.0.0"]
 
@@ -143,11 +146,9 @@ class StructuredBrief(StrictModel):
     goal: str = Field(min_length=1, max_length=2048)
     audience: str = Field(min_length=1, max_length=512)
     language: Literal["zh-CN"]
-    domain: Literal["sales"]
+    domain: Literal["sales", "general"]
     tone: Literal["professional"]
-    source_asset_versions: tuple[SourceAssetVersion, ...] = Field(
-        min_length=1, max_length=20
-    )
+    source_asset_versions: tuple[SourceAssetVersion, ...] = Field(max_length=20)
     term_library_versions: tuple[TermLibraryVersion, ...] = Field(max_length=20)
     selected_skills: tuple[SelectedSkill, ...] = Field(min_length=1, max_length=2)
     selected_model: SelectedModel
