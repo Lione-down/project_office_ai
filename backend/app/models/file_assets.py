@@ -21,6 +21,12 @@ class FileAsset(Base):
             "idempotency_key",
             name="uq_file_assets_user_idempotency",
         ),
+        UniqueConstraint(
+            "generated_media_job_id",
+            "media_role",
+            "asset_version",
+            name="uq_file_assets_media_job_role_version",
+        ),
         {"comment": "文件资产表"},
     )
 
@@ -80,6 +86,28 @@ class FileAsset(Base):
         ForeignKey("generation_tasks.id", name="fk_file_assets_generated_task"),
         nullable=True,
         comment="生成任务ID",
+    )
+    generated_media_job_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(),
+        ForeignKey("media_jobs.id", name="fk_file_assets_generated_media_job"),
+        nullable=True,
+        index=True,
+        comment="生成媒体任务ID",
+    )
+    media_role: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, comment="媒体角色"
+    )
+    asset_version: Mapped[int] = mapped_column(
+        Integer, default=1, comment="不可变资产版本"
+    )
+    media_width: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="媒体实际宽度"
+    )
+    media_height: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="媒体实际高度"
+    )
+    media_metadata: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, comment="不含Prompt的媒体安全元数据"
     )
     manifest_key: Mapped[str | None] = mapped_column(
         String(768), nullable=True, comment="Evidence Manifest存储键"

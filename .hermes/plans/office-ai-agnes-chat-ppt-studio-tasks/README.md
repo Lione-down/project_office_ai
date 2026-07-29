@@ -32,8 +32,8 @@ PRD 第 18 节原建议把首页最近任务放在设计合同之前；第 20 �
 | `P5-003` | 双模型会话、SSE 与历史 | `P5-002` | `DONE` | Chat |
 | `P5-004` | Deck Draft、逐页编辑、Skill 与 Preflight | `P5-003` | `DONE` | Deck |
 | `P5-005` | 模板目录、缩略图与版本快照 | `P5-004` | `DONE` | Template |
-| `P5-006` | Agnes 图片资产与 PPT 视觉集成 | `P5-005` | `READY` | Image |
-| `P5-007` | Agnes 视频资产与兼容性 Gate | `P5-006` | `BLOCKED` | Video |
+| `P5-006` | Agnes 图片资产与 PPT 视觉集成 | `P5-005` | `DONE` | Image |
+| `P5-007` | Agnes 视频资产与兼容性 Gate | `P5-006` | `READY` | Video |
 | `P5-008` | 端到端 Golden、安全、Office/WPS 与发布 Gate | `P5-007` | `BLOCKED` | Release |
 
 ## 任务文档

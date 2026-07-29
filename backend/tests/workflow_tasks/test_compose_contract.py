@@ -25,7 +25,12 @@ def test_workflow_worker_isolated_runtime_can_consume_brief_jobs() -> None:
         "read_only": True,
         "type": "volume",
     } in worker["volumes"]
-    assert all(volume.get("source") != "app-files" for volume in worker["volumes"])
+    assert {
+        "source": "app-files",
+        "target": "/app/files",
+        "type": "volume",
+    } in worker["volumes"]
+    assert worker["environment"]["OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED"] == "false"
     assert worker["depends_on"]["mysql"]["condition"] == "service_healthy"
     assert worker["depends_on"]["redis"]["condition"] == "service_healthy"
     assert services["worker"]["networks"] == ["private"]

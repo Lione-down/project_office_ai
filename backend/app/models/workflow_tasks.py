@@ -57,6 +57,12 @@ class WorkflowTask(Base):
         index=True,
         comment="确认后关联的文件生成任务ID",
     )
+    resource_kind: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, index=True, comment="投影资源类型"
+    )
+    resource_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(), nullable=True, index=True, comment="投影资源ID"
+    )
     idempotency_key: Mapped[str] = mapped_column(
         String(128),
         comment="同用户创建幂等键",

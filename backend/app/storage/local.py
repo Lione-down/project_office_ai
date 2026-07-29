@@ -81,10 +81,20 @@ class LocalStorageAdapter:
                     ("quality", "validated.xlsx"),
                 }
             )
+            is_media_image = (
+                len(parts) == 5
+                and parts[2] == "media"
+                and parts[4] in {"image.png", "image.jpg"}
+            )
             is_valid = (
                 not key.is_absolute()
                 and has_asset_prefix
-                and (is_quarantine or is_generated_output or is_quality_repaired_output)
+                and (
+                    is_quarantine
+                    or is_generated_output
+                    or is_quality_repaired_output
+                    or is_media_image
+                )
             )
         except (ValueError, AttributeError):
             is_valid = False
@@ -138,6 +148,33 @@ class LocalStorageAdapter:
                 record_cleanup_failure(original_error, cleanup_error)
             raise
         return StoredObject(storage_key, byte_size, digest.hexdigest())
+
+    def write_media_image(
+        self,
+        *,
+        user_id: UUID,
+        asset_id: UUID,
+        extension: str,
+        data: bytes,
+    ) -> StoredObject:
+        if extension not in {".png", ".jpg"}:
+            raise StorageOperationError("file_extension_invalid", "文件扩展名无效")
+        storage_key = f"users/{user_id}/media/{asset_id}/image{extension}"
+        destination = self.resolve_asset_key(user_id, asset_id, storage_key)
+        asset_directory = destination.parent
+        asset_directory.mkdir(parents=True, exist_ok=False)
+        try:
+            with destination.open("xb") as file_handle:
+                file_handle.write(data)
+        except Exception as original_error:
+            try:
+                shutil.rmtree(asset_directory)
+            except FileNotFoundError:
+                pass
+            except OSError as cleanup_error:
+                record_cleanup_failure(original_error, cleanup_error)
+            raise
+        return StoredObject(storage_key, len(data), sha256(data).hexdigest())
 
     def delete_asset(self, user_id: UUID, asset_id: UUID, storage_key: str) -> None:
         asset_path = self.resolve_asset_key(user_id, asset_id, storage_key)

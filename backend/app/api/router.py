@@ -14,6 +14,7 @@ from app.api.v1.providers import model_router
 from app.api.v1.term_libraries import router as terminology_router
 from app.api.v1.templates import router as template_router
 from app.api.v1.workflow_tasks import router as workflow_task_router
+from app.api.v1.media import router as media_router
 
 
 def include_routers(app: FastAPI) -> None:
@@ -36,3 +37,4 @@ def include_routers(app: FastAPI) -> None:
     app.include_router(chat_router)
     app.include_router(chat_deck_router)
     app.include_router(deck_router)
+    app.include_router(media_router)

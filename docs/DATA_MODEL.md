@@ -77,7 +77,7 @@ P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，P5-00
    - 资料/混合模式只接受 owner 的 `ready/valid` 资产；灵感内容固定为
      `agnes_inference`，不能升级为 `source_fact`。
 
-30. `media_jobs`
+30. `media_jobs`（P5-006 已实现 image；video 字段由 P5-007 扩展）
    - owner、draft revision、slide stable ID、workflow task、kind `image/video`、
      mode、idempotency key、prompt hash、模型/capability/pricing snapshot、状态、
      Provider opaque ID、真实 progress、请求/实际尺寸与时长、cancel/error/时间。
@@ -86,18 +86,19 @@ P5-001 冻结下列 additive Schema；P5-003 已实现前三张 Chat 表，P5-00
      owner-scoped job content 字段；system instructions、Provider request wrapper 和
      response 不落库。日志、Outbox 和 `provider_calls` 只保存 hash/metadata。
 
-31. `media_job_inputs`
+31. `media_job_inputs`（P5-006 已实现 owner-scoped image input）
    - job、input kind、owner-scoped asset ID/version/hash、slide ID、顺序和用途。
    - 本地图片只允许经安全解码后构造受控 Data URI；不保存 public URL。视频首期
      text-only，此表为未来经批准的 image/keyframe capability 保留严格关系。
 
 ### 现有表 additive 关系
 
-- `provider_calls` 后续增加可空 `chat_run_id`、`media_job_id` 和各 scope 的 attempt
+- `provider_calls` 已增加可空 `chat_run_id`、`media_job_id` 和各 scope 的 attempt
   唯一约束；仍只保存脱敏 metadata，不保存正文、Prompt 或 response。
-- `file_assets` 后续增加可空 `generated_media_job_id` 与 `media_role`，用既有
+- `file_assets` 已增加可空 `generated_media_job_id`、`media_role`、媒体尺寸/metadata
+  与不可变 `asset_version`，用既有
   owner-scoped immutable storage 承载 image、video、poster；同 job/role/version 唯一。
-- `workflow_tasks` 后续增加 `resource_kind/resource_id`，使首页和任务页投影 Deck/media/
+- `workflow_tasks` 已增加 `resource_kind/resource_id`，使首页和任务页投影 Deck/media/
   generation 的同一权威状态；Redis 不承担该关系。
 - `generation_task_inputs` 以稳定 source kind/ID/version/checksum 引用 confirmed Deck
   revision、选中 media asset、Skill 和 template snapshot；Renderer 仍只接收 strict Plan。

@@ -17,6 +17,7 @@ from app.services.provider_admin import ProviderOperationError
 from app.services.provider_security import ProviderConfigurationError
 from app.services.terminology.service import TerminologyOperationError
 from app.services.workflow_contracts import WorkflowOperationError
+from app.services.media.images.service import ImageJobOperationError
 
 
 _error_logger = logging.getLogger("office_ai.error")
@@ -172,6 +173,18 @@ async def handle_deck_operation_error(
     )
 
 
+async def handle_image_job_operation_error(
+    request: Request,
+    exception: ImageJobOperationError,
+) -> JSONResponse:
+    return _error_response(
+        request,
+        exception.status_code,
+        exception.error_code,
+        exception.message,
+    )
+
+
 async def handle_provider_configuration_error(
     request: Request, exception: ProviderConfigurationError
 ) -> JSONResponse:
@@ -199,6 +212,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     )
     app.add_exception_handler(ChatOperationError, handle_chat_operation_error)
     app.add_exception_handler(DeckOperationError, handle_deck_operation_error)
+    app.add_exception_handler(
+        ImageJobOperationError,
+        handle_image_job_operation_error,
+    )
     app.add_exception_handler(
         ProviderConfigurationError, handle_provider_configuration_error
     )

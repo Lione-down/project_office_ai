@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { ApiError } from "@/api/request";
 import { deckApi } from "@/modules/decks/api";
-import type { DeckBrief, DeckDraft, DeckSlide } from "@/modules/decks/types";
-import type { TemplateSummary } from "@/modules/workspace/types";
+import type {
+  DeckBrief,
+  DeckDraft,
+  DeckSlide,
+  ImageJob,
+} from "@/modules/decks/types";
+import type { ModelSummary, TemplateSummary } from "@/modules/workspace/types";
 import {
   compatibleTemplateOptions,
   safeTemplatePreviewUrl,
 } from "@/modules/templates/template-catalog";
 import { useSessionStore } from "@/store/session";
-
+import SlideVisualWorkbench from "@/views/deck/components/slide-visual-workbench.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +28,9 @@ const error = ref("");
 const isStale = ref(false);
 const templates = ref<TemplateSummary[]>([]);
 const selectedTemplateCode = ref("");
+const models = ref<ModelSummary[]>([]);
+const selectedImageModelId = ref("");
+let mediaPollTimer: number | undefined;
 
 const draftId = computed(() => String(route.params.draftId));
 const estimatedCredits = computed(
@@ -39,7 +47,14 @@ const selectedTemplate = computed(() =>
     (template) => template.template_code === selectedTemplateCode.value,
   ),
 );
-
+const imageModels = computed(() =>
+  models.value.filter(
+    (model) =>
+      model.status === "active" &&
+      model.user_visible &&
+      model.capabilities.image_generation === true,
+  ),
+);
 function cloneContract<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -61,17 +76,47 @@ async function load() {
   isBusy.value = true;
   try {
     const token = requireToken();
-    const [nextDraft, nextTemplates] = await Promise.all([
+    const [nextDraft, nextTemplates, nextModels] = await Promise.all([
       deckApi.getDraft(draftId.value, token),
       deckApi.listTemplates(token),
+      deckApi.listModels(token),
     ]);
     templates.value = nextTemplates;
+    models.value = nextModels;
+    const recommended =
+      imageModels.value.find((model) => model.is_recommended) ?? imageModels.value[0];
+    selectedImageModelId.value = recommended?.model_id ?? "";
     replaceDraft(nextDraft);
   } catch {
     error.value = "Deck Draft 加载失败，请稍后重试。";
   } finally {
     isBusy.value = false;
   }
+}
+
+function imageJobForSlide(slideId: string): ImageJob | undefined {
+  return [...(draft.value?.media_jobs ?? [])]
+    .reverse()
+    .find((job) => job.slide_id === slideId);
+}
+
+function upsertMediaJob(next: ImageJob) {
+  if (!draft.value) return;
+  const jobs = draft.value.media_jobs ?? [];
+  const index = jobs.findIndex((job) => job.media_job_id === next.media_job_id);
+  if (index === -1) jobs.push(next);
+  else jobs.splice(index, 1, next);
+}
+
+async function pollMediaJobs() {
+  const active = (draft.value?.media_jobs ?? []).filter((job) =>
+    ["queued", "submitted", "running"].includes(job.status),
+  );
+  if (!active.length || !session.accessToken) return;
+  const updates = await Promise.all(
+    active.map((job) => deckApi.getImageJob(job.media_job_id, session.accessToken!)),
+  );
+  updates.forEach(upsertMediaJob);
 }
 
 function moveSlide(index: number, offset: number) {
@@ -188,7 +233,15 @@ async function generate() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  mediaPollTimer = window.setInterval(() => {
+    void pollMediaJobs();
+  }, 2000);
+});
+onBeforeUnmount(() => {
+  if (mediaPollTimer !== undefined) window.clearInterval(mediaPollTimer);
+});
 </script>
 
 <template>
@@ -317,6 +370,22 @@ onMounted(load);
             <textarea v-model="slide.visual_suggestion" maxlength="1000" />
           </label>
         </div>
+        <SlideVisualWorkbench
+          v-if="slide.visual_direction"
+          :slide="slide"
+          :index="index"
+          :draft-id="draftId"
+          :draft-revision="draft?.revision ?? 0"
+          :image-models="imageModels"
+          :selected-image-model-id="selectedImageModelId"
+          :image-job="imageJobForSlide(slide.slide_id)"
+          :is-busy="isBusy"
+          :access-token="session.accessToken"
+          @update:selected-image-model-id="selectedImageModelId = $event"
+          @update:job="upsertMediaJob"
+          @update:busy="isBusy = $event"
+          @update:error="error = $event"
+        />
       </article>
       <button class="add-slide" type="button" @click="addSlide">+ 添加页面</button>
     </section>

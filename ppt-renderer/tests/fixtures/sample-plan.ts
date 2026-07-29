@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
+
 export const ONE_PIXEL_PNG =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const onePixelBytes = Buffer.from(ONE_PIXEL_PNG.split(",", 2)[1], "base64");
 
 export const samplePlan = {
   schema_version: "presentation-plan.v1",
@@ -19,7 +22,15 @@ export const samplePlan = {
   evidence_ids: ["ev-revenue", "ev-region", "ev-product", "ev-risk"],
   images: {
     "hero-image": {
+      asset_id: "019fad40-0000-7000-8000-000000000001",
+      asset_version: 1,
       data_uri: ONE_PIXEL_PNG,
+      mime_type: "image/png",
+      byte_size: onePixelBytes.length,
+      sha256: createHash("sha256").update(onePixelBytes).digest("hex"),
+      width: 1,
+      height: 1,
+      crop_mode: "contain",
       alt_text: "脱敏示例图片",
     },
   },

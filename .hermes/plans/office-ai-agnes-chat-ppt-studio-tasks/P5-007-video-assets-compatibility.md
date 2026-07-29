@@ -1,6 +1,6 @@
 # P5-007 Agnes 视频资产与兼容性 Gate
 
-- 状态：`BLOCKED`
+- 状态：`READY`
 - Depends on：`P5-006`
 - 来源：PRD FR-501～FR-505、Video 2.0 模型策略
 - 建议 commit：`feat(media): add gated agnes video assets`

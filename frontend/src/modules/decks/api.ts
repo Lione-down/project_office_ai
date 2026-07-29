@@ -4,9 +4,12 @@ import type {
   DeckCreateInput,
   DeckDraft,
   DeckGenerationResult,
+  ImageJob,
+  ImageJobCreateInput,
   DeckUpdateInput,
 } from "./types";
 import type { TemplateSummary } from "@/modules/workspace/types";
+import type { ModelSummary } from "@/modules/workspace/types";
 
 
 interface DeckApiClient {
@@ -45,6 +48,9 @@ export function createDeckApi(client: DeckApiClient) {
     },
     listTemplates(accessToken: string) {
       return client.get<TemplateSummary[]>("/templates", { accessToken });
+    },
+    listModels(accessToken: string) {
+      return client.get<ModelSummary[]>("/models", { accessToken });
     },
     updateDraft(
       draftId: string,
@@ -90,6 +96,24 @@ export function createDeckApi(client: DeckApiClient) {
           headers: { "Idempotency-Key": idempotencyKey },
         },
       );
+    },
+    createImageJob(
+      draftId: string,
+      payload: ImageJobCreateInput,
+      idempotencyKey: string,
+      accessToken: string,
+    ) {
+      return client.post<ImageJob>(
+        `/deck-drafts/${draftId}/media/images`,
+        payload,
+        {
+          accessToken,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
+      );
+    },
+    getImageJob(jobId: string, accessToken: string) {
+      return client.get<ImageJob>(`/media/jobs/${jobId}`, { accessToken });
     },
   };
 }

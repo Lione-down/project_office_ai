@@ -43,7 +43,15 @@ export interface PresentationMetadata {
 }
 
 export interface ImageData {
+  asset_id: string;
+  asset_version: number;
   data_uri: string;
+  mime_type: "image/png" | "image/jpeg";
+  byte_size: number;
+  sha256: string;
+  width: number;
+  height: number;
+  crop_mode: "contain" | "cover";
   alt_text: string;
 }
 
@@ -151,6 +159,7 @@ export function parsePresentationPlan(input: unknown): PresentationPlan {
     );
   }
   const plan = input as PresentationPlan;
+  validateImages(plan);
   validateReferences(plan);
   return structuredClone(plan);
 }
@@ -177,6 +186,74 @@ function canonicalJson(value: unknown): string {
       (key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`,
     )
     .join(",")}}`;
+}
+
+function validateImages(plan: PresentationPlan): void {
+  for (const image of Object.values(plan.images)) {
+    const comma = image.data_uri.indexOf(",");
+    const declaredMime = image.data_uri.slice(5, comma).split(";", 1)[0];
+    const bytes = Buffer.from(image.data_uri.slice(comma + 1), "base64");
+    const dimensions = decodedImageDimensions(bytes, image.mime_type);
+    if (
+      declaredMime !== image.mime_type ||
+      bytes.length !== image.byte_size ||
+      createHash("sha256").update(bytes).digest("hex") !== image.sha256 ||
+      dimensions.width !== image.width ||
+      dimensions.height !== image.height
+    ) {
+      throw new PresentationContractError("presentation_image_integrity_invalid");
+    }
+  }
+}
+
+function decodedImageDimensions(
+  bytes: Buffer,
+  mimeType: ImageData["mime_type"],
+): { width: number; height: number } {
+  if (
+    mimeType === "image/png" &&
+    bytes.length >= 24 &&
+    bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+  ) {
+    return {
+      width: bytes.readUInt32BE(16),
+      height: bytes.readUInt32BE(20),
+    };
+  }
+  if (
+    mimeType === "image/jpeg" &&
+    bytes.length >= 4 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8
+  ) {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = bytes[offset + 1]!;
+      if (marker === 0xd8 || marker === 0xd9) {
+        offset += 2;
+        continue;
+      }
+      const segmentLength = bytes.readUInt16BE(offset + 2);
+      if (segmentLength < 2 || offset + 2 + segmentLength > bytes.length) break;
+      if (
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf)
+      ) {
+        return {
+          width: bytes.readUInt16BE(offset + 7),
+          height: bytes.readUInt16BE(offset + 5),
+        };
+      }
+      offset += 2 + segmentLength;
+    }
+  }
+  throw new PresentationContractError("presentation_image_decode_invalid");
 }
 
 function validateReferences(plan: PresentationPlan): void {

@@ -132,6 +132,9 @@ registry checksum，Python adapter 再与 catalog 比较。API/错误/日志不�
 
 ### 图片、视频和 PPTX
 
+- 图片创建先执行版本化 `prompt-policy.v1` 基础规则，对确定性的高风险 Prompt
+  fail closed；Agnes 的 Provider safety/rejection 仍是图片内容安全合同的一部分。
+  本地规则不声称执行独立视觉 moderation，P5-008 继续保留这一能力边界。
 - 图片输入仅允许受控 asset 经 MIME/magic/size/full decode/hash 后在内存构造 Data URI；
   禁止 public URL、签名 URL和 tunnel。Data URI 不写日志、数据库、queue 或
   `provider_calls`，Provider 调用完成后立即释放。

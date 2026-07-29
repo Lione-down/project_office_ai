@@ -9,6 +9,8 @@ from app.models.briefs import Brief
 from app.models.deck_draft_inputs import DeckDraftInput
 from app.models.deck_draft_revisions import DeckDraftRevision
 from app.models.deck_drafts import DeckDraft
+from app.models.file_assets import FileAsset
+from app.models.media_jobs import MediaJob
 from app.models.workflow_tasks import WorkflowTask
 from app.services.auth_sessions import AuthSessionService, CurrentUser
 from app.services.briefs.contracts import StructuredBrief
@@ -193,13 +195,17 @@ class DeckHandoffService:
                 )
             bridge_brief_id = row.bridge_brief_id
             revision_id = row.id
+            media_inputs = await self._image_inputs(session, draft, row)
         await self._brief_workflow.confirm(
             access_token,
             bridge_brief_id,
             accepted_estimated_credits=command.accepted_estimated_credits,
         )
         generation = await self._generation.create(
-            access_token, bridge_brief_id, idempotency_key
+            access_token,
+            bridge_brief_id,
+            idempotency_key,
+            additional_inputs=media_inputs,
         )
         async with self._session_factory() as session, session.begin():
             draft = await self._owned_draft(
@@ -218,6 +224,73 @@ class DeckHandoffService:
             row.status = "generation_queued"
             draft.status = "generation_queued"
         return generation
+
+    @staticmethod
+    async def _image_inputs(
+        session: AsyncSession,
+        draft: DeckDraft,
+        row: DeckDraftRevision,
+    ) -> tuple[dict, ...]:
+        jobs = list(
+            await session.scalars(
+                select(MediaJob)
+                .where(
+                    MediaJob.user_id == draft.user_id,
+                    MediaJob.project_id == draft.project_id,
+                    MediaJob.draft_revision_id == row.id,
+                    MediaJob.kind == "image",
+                    MediaJob.status == "succeeded",
+                )
+                .order_by(MediaJob.created_at, MediaJob.id)
+            )
+        )
+        latest_by_slide = {job.slide_id: job for job in jobs}
+        inputs: list[dict] = []
+        for slide_id, job in latest_by_slide.items():
+            asset = await session.scalar(
+                select(FileAsset).where(
+                    FileAsset.generated_media_job_id == job.id,
+                    FileAsset.media_role == "image",
+                    FileAsset.asset_version == job.output_asset_version,
+                )
+            )
+            if (
+                asset is None
+                or asset.user_id != draft.user_id
+                or asset.project_id != draft.project_id
+                or asset.deleted_at is not None
+                or asset.processing_status != "ready"
+                or asset.mime_type not in {"image/png", "image/jpeg"}
+                or asset.sha256 != job.output_sha256
+                or asset.media_width != job.actual_width
+                or asset.media_height != job.actual_height
+            ):
+                raise DeckOperationError(
+                    "deck_image_asset_invalid",
+                    "Deck 图片资产完整性校验失败",
+                    409,
+                )
+            inputs.append(
+                {
+                    "input_type": "media_image",
+                    "reference_key": str(slide_id),
+                    "snapshot": {
+                        "draft_revision_id": str(row.id),
+                        "slide_id": str(slide_id),
+                        "media_job_id": str(job.id),
+                        "asset_id": str(asset.id),
+                        "asset_version": asset.asset_version,
+                        "mime_type": asset.mime_type,
+                        "byte_size": asset.byte_size,
+                        "sha256": asset.sha256,
+                        "width": asset.media_width,
+                        "height": asset.media_height,
+                        "crop_mode": job.crop_mode,
+                        "alt_text": job.alt_text,
+                    },
+                }
+            )
+        return tuple(inputs)
 
     async def _build_bridge(
         self,

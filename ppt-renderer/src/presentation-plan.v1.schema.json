@@ -91,13 +91,35 @@
     "imageData": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["data_uri", "alt_text"],
+      "required": [
+        "asset_id",
+        "asset_version",
+        "data_uri",
+        "mime_type",
+        "byte_size",
+        "sha256",
+        "width",
+        "height",
+        "crop_mode",
+        "alt_text"
+      ],
       "properties": {
+        "asset_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "asset_version": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
         "data_uri": {
           "type": "string",
-          "maxLength": 10485760,
+          "maxLength": 29360128,
           "pattern": "^data:image\\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$"
         },
+        "mime_type": { "enum": ["image/png", "image/jpeg"] },
+        "byte_size": { "type": "integer", "minimum": 1, "maximum": 20971520 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "crop_mode": { "enum": ["contain", "cover"] },
         "alt_text": { "$ref": "#/$defs/shortText" }
       }
     },

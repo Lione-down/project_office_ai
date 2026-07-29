@@ -93,6 +93,9 @@ def build_executor(settings: Settings, database: DatabaseManager):
                 settings.evidence_root,
                 max_output_bytes=settings.max_evidence_manifest_bytes,
             ),
+            media_storage=LocalStorageAdapter(files_root),
+            max_image_bytes=settings.max_image_bytes,
+            max_image_decoded_bytes=settings.max_image_decoded_bytes,
         ),
         spreadsheet_pipeline=SpreadsheetGenerationPipeline(
             database.session_factory,

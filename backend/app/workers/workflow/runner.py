@@ -7,8 +7,10 @@ from app.core.redis import RedisManager
 from app.services.briefs.service import BriefGenerationService
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.provider_security import CredentialCipher
+from app.services.media.images.worker import ImageJobWorkerService
 from app.services.workflow_worker import WorkflowTaskWorkerService
 from app.settings.config import get_settings
+from app.storage.local import LocalStorageAdapter
 from app.workers.workflow.consumer import RedisWorkflowQueue, WorkflowQueueConsumer
 
 
@@ -31,11 +33,20 @@ async def run() -> None:
         ),
         CredentialCipher(settings.master_key),
     )
+    credential_cipher = CredentialCipher(settings.master_key)
     consumer = WorkflowQueueConsumer(
         RedisWorkflowQueue(redis),
         WorkflowTaskWorkerService(
             database.session_factory,
             brief_generator,
+        ),
+        ImageJobWorkerService(
+            database.session_factory,
+            credential_cipher,
+            LocalStorageAdapter(settings.files_root),
+            max_image_bytes=settings.max_image_bytes,
+            max_decoded_bytes=settings.max_image_decoded_bytes,
+            provider_timeout_seconds=settings.image_provider_timeout_seconds,
         ),
     )
     try:

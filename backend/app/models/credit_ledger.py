@@ -43,6 +43,13 @@ class CreditLedger(Base):
         nullable=True,
         comment="关联生成任务ID",
     )
+    media_job_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(),
+        ForeignKey("media_jobs.id", name="fk_credit_ledger_media_job"),
+        nullable=True,
+        index=True,
+        comment="关联媒体任务ID",
+    )
     entry_type: Mapped[str] = mapped_column(
         String(40), index=True, comment="积分流水类型"
     )

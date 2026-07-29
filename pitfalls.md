@@ -789,6 +789,20 @@
 - 预防/验证：跨语言/跨进程 registry 必须让执行方回传自身版本指纹，并由调用方与冻结
   snapshot 比对；配置文件中“存在同名字段”不能替代请求/响应链路上的相等性证明。
 
+### 2026-07-29 · P5-006 · Render 时查询最新图片不等于冻结生成输入
+
+- 现象：image job 与不可变 FileAsset 已完整持久化，但 PPT pipeline 若在 worker 执行时
+  查询“当前最新成功图片”，用户在 generation task 创建后重新生成或替换图片就可能让
+  同一 task 使用另一版本。
+- 影响：Deck revision、积分与模板已冻结，图片却发生 time-of-check/time-of-use 漂移；
+  owner 检查和 SHA 校验仍会通过，但产物不再对应用户创建任务时看到的选择。
+- 本次处理：Deck generation 创建时选取当前 revision 每页最新成功 job，并把 job/asset/
+  version/hash/真实尺寸/crop/alt text 写入 `generation_task_inputs`；Renderer 只按该
+  snapshot 读取受控存储并再次逐字段核对，任何漂移 fail closed。
+- 预防/验证：所有异步生成所引用的媒体必须在 task transaction 内冻结稳定 ID/version/
+  checksum，worker 不得用“最新”查询替代 snapshot；测试同时覆盖 snapshot 生成和
+  Renderer 前 owner/version/bytes integrity Gate。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

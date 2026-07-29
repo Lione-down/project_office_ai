@@ -2,23 +2,30 @@ from collections.abc import Iterable
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.briefs import Brief
 from app.models.deck_draft_revisions import DeckDraftRevision
 from app.models.deck_drafts import DeckDraft
 from app.models.file_assets import FileAsset
+from app.models.generation_task_inputs import GenerationTaskInput
 from app.models.generation_tasks import GenerationTask
+from app.models.media_jobs import MediaJob
 from app.services.briefs.contracts import BriefContentItem, StructuredBrief
 from app.services.decks.contracts import DeckBrief, deck_content_checksum
-from app.services.decks.presentation import DeckPresentationComposer
+from app.services.decks.presentation import DeckImageBinding, DeckPresentationComposer
 from app.services.evidence.contracts import EvidenceItem, EvidenceProcessingError
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.generation_worker import StepExecutionResult
 from app.services.preflight.catalog import template_checksum_for_reference
 from app.services.management_presentation import ManagementPresentationComposer
 from app.services.renderers.excel.contracts import WorkbookPlan
-from app.services.renderers.presentation.contracts import PresentationPlan
+from app.services.renderers.presentation.contracts import (
+    PresentationContractError,
+    PresentationPlan,
+)
+from app.storage.local import LocalStorageAdapter, StorageOperationError
 
 
 class BriefPlanCompilationError(ValueError):
@@ -298,24 +305,31 @@ class _GenerationPipeline:
         *,
         compiler: StructuredBriefPlanCompiler | None = None,
         evidence_manifests: EvidenceManifestStore | None = None,
+        media_storage: LocalStorageAdapter | None = None,
+        max_image_bytes: int = 20 * 1024 * 1024,
+        max_image_decoded_bytes: int = 128 * 1024 * 1024,
     ) -> None:
         self._session_factory = session_factory
         self._output = output_service
         self._quality = quality_service
         self._compiler = compiler or StructuredBriefPlanCompiler()
         self._evidence_manifests = evidence_manifests
+        self._media_storage = media_storage
+        self._max_image_bytes = max_image_bytes
+        self._max_image_decoded_bytes = max_image_decoded_bytes
 
     async def execute(self, context):
         try:
             brief, task, template_code = await self._load_brief(context.task_id)
             structured_brief = StructuredBrief.model_validate(brief.content)
             evidence_items = await self._load_evidence(task, structured_brief)
-            deck = await self._load_deck_revision(brief, task)
+            deck, deck_images = await self._load_deck_revision(brief, task)
             plan = (
                 DeckPresentationComposer().compose(
                     deck,
                     template_code=template_code,
                     revision=brief.revision,
+                    images=deck_images,
                 )
                 if deck is not None and self.output_kind == "pptx"
                 else self._compile(
@@ -327,6 +341,10 @@ class _GenerationPipeline:
             )
         except BriefPlanCompilationError as error:
             return StepExecutionResult.permanent_failure(str(error))
+        except PresentationContractError:
+            return StepExecutionResult.permanent_failure(
+                "generation_deck_image_invalid"
+            )
         except ValidationError:
             if isinstance(brief.content, dict) and not any(
                 brief.content.get(field)
@@ -380,10 +398,10 @@ class _GenerationPipeline:
 
     async def _load_deck_revision(
         self, brief: Brief, task: GenerationTask
-    ) -> DeckBrief | None:
+    ) -> tuple[DeckBrief | None, dict[UUID, DeckImageBinding]]:
         reference = brief.source_snapshot.get("deck_revision_id")
         if reference is None:
-            return None
+            return None, {}
         try:
             revision_id = UUID(str(reference))
         except ValueError as exception:
@@ -395,40 +413,152 @@ class _GenerationPipeline:
             draft = (
                 await session.get(DeckDraft, row.draft_id) if row is not None else None
             )
-        frozen_pptx = [
-            item for item in task.skill_snapshot if item.get("kind") == "pptx"
-        ]
-        if (
-            row is None
-            or draft is None
-            or len(frozen_pptx) != 1
-            or draft.user_id != task.user_id
-            or draft.project_id != task.project_id
-            or row.bridge_brief_id != brief.id
-            or row.generation_task_id != task.id
-            or row.status != "generation_queued"
-            or (
-                row.template_snapshot is not None
-                and (
-                    row.template_snapshot.get("template_code")
-                    != frozen_pptx[0].get("template_code")
-                    or row.template_snapshot.get("version")
-                    != frozen_pptx[0].get("template_version")
-                    or row.template_snapshot.get("checksum")
-                    != frozen_pptx[0].get("template_checksum")
+            frozen_pptx = [
+                item for item in task.skill_snapshot if item.get("kind") == "pptx"
+            ]
+            if (
+                row is None
+                or draft is None
+                or len(frozen_pptx) != 1
+                or draft.user_id != task.user_id
+                or draft.project_id != task.project_id
+                or row.bridge_brief_id != brief.id
+                or row.generation_task_id != task.id
+                or row.status != "generation_queued"
+                or (
+                    row.template_snapshot is not None
+                    and (
+                        row.template_snapshot.get("template_code")
+                        != frozen_pptx[0].get("template_code")
+                        or row.template_snapshot.get("version")
+                        != frozen_pptx[0].get("template_version")
+                        or row.template_snapshot.get("checksum")
+                        != frozen_pptx[0].get("template_checksum")
+                    )
+                )
+            ):
+                raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
+            try:
+                deck = DeckBrief.model_validate(row.content)
+            except ValidationError as exception:
+                raise BriefPlanCompilationError(
+                    "generation_deck_snapshot_invalid"
+                ) from exception
+            if deck_content_checksum(deck) != row.content_checksum:
+                raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
+            images = await self._load_deck_images(
+                session,
+                task,
+                revision_id,
+                {slide.slide_id for slide in deck.slides},
+            )
+        return deck, images
+
+    async def _load_deck_images(
+        self,
+        session: AsyncSession,
+        task: GenerationTask,
+        revision_id: UUID,
+        slide_ids: set[UUID],
+    ) -> dict[UUID, DeckImageBinding]:
+        inputs = list(
+            await session.scalars(
+                select(GenerationTaskInput).where(
+                    GenerationTaskInput.task_id == task.id,
+                    GenerationTaskInput.input_type == "media_image",
                 )
             )
-        ):
-            raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
-        try:
-            deck = DeckBrief.model_validate(row.content)
-        except ValidationError as exception:
-            raise BriefPlanCompilationError(
-                "generation_deck_snapshot_invalid"
-            ) from exception
-        if deck_content_checksum(deck) != row.content_checksum:
-            raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
-        return deck
+        )
+        if not inputs:
+            return {}
+        if self._media_storage is None:
+            raise BriefPlanCompilationError("generation_deck_image_invalid")
+        images: dict[UUID, DeckImageBinding] = {}
+        for item in inputs:
+            snapshot = item.snapshot
+            try:
+                slide_id = UUID(str(snapshot["slide_id"]))
+                job_id = UUID(str(snapshot["media_job_id"]))
+                asset_id = UUID(str(snapshot["asset_id"]))
+                snapshot_revision_id = UUID(str(snapshot["draft_revision_id"]))
+                asset_version = int(snapshot["asset_version"])
+                expected_width = int(snapshot["width"])
+                expected_height = int(snapshot["height"])
+                expected_bytes = int(snapshot["byte_size"])
+                expected_sha256 = str(snapshot["sha256"])
+                mime_type = str(snapshot["mime_type"])
+                crop_mode = str(snapshot["crop_mode"])
+                alt_text = str(snapshot["alt_text"])
+            except (KeyError, TypeError, ValueError) as exception:
+                raise BriefPlanCompilationError(
+                    "generation_deck_image_invalid"
+                ) from exception
+            job = await session.get(MediaJob, job_id)
+            asset = await session.get(FileAsset, asset_id)
+            if (
+                slide_id not in slide_ids
+                or slide_id in images
+                or snapshot_revision_id != revision_id
+                or item.reference_key != str(slide_id)
+                or job is None
+                or asset is None
+                or job.user_id != task.user_id
+                or job.project_id != task.project_id
+                or job.draft_revision_id != revision_id
+                or job.slide_id != slide_id
+                or job.status != "succeeded"
+                or job.output_asset_version != asset_version
+                or job.output_sha256 != expected_sha256
+                or job.crop_mode != crop_mode
+                or job.alt_text != alt_text
+                or asset.user_id != task.user_id
+                or asset.project_id != task.project_id
+                or asset.generated_media_job_id != job.id
+                or asset.media_role != "image"
+                or asset.asset_version != asset_version
+                or asset.processing_status != "ready"
+                or asset.deleted_at is not None
+                or asset.mime_type != mime_type
+                or asset.byte_size != expected_bytes
+                or asset.sha256 != expected_sha256
+                or asset.media_width != expected_width
+                or asset.media_height != expected_height
+                or crop_mode not in {"contain", "cover"}
+            ):
+                raise BriefPlanCompilationError("generation_deck_image_invalid")
+            try:
+                path = self._media_storage.resolve_asset_key(
+                    task.user_id,
+                    asset.id,
+                    asset.storage_key,
+                )
+                binding = DeckImageBinding.from_bytes(
+                    asset_id=str(asset.id),
+                    asset_version=asset.asset_version,
+                    data=path.read_bytes(),
+                    alt_text=alt_text,
+                    crop_mode=crop_mode,
+                    max_bytes=self._max_image_bytes,
+                    max_decoded_bytes=self._max_image_decoded_bytes,
+                    expected_sha256=expected_sha256,
+                )
+            except (
+                OSError,
+                StorageOperationError,
+                PresentationContractError,
+            ) as exception:
+                raise BriefPlanCompilationError(
+                    "generation_deck_image_invalid"
+                ) from exception
+            if (
+                binding.mime_type != mime_type
+                or binding.byte_size != expected_bytes
+                or binding.width != expected_width
+                or binding.height != expected_height
+            ):
+                raise BriefPlanCompilationError("generation_deck_image_invalid")
+            images[slide_id] = binding
+        return images
 
     async def _load_evidence(
         self, task: GenerationTask, brief: StructuredBrief

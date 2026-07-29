@@ -1,3 +1,4 @@
+import base64
 from hashlib import sha256
 import json
 import math
@@ -9,6 +10,11 @@ from pydantic import (
     Field,
     ValidationError,
     model_validator,
+)
+
+from app.services.media.images.validation import (
+    ImageAssetValidationError,
+    validate_image_bytes,
 )
 
 
@@ -47,14 +53,44 @@ class PresentationMetadata(StrictModel):
 
 
 class ImageData(StrictModel):
+    asset_id: ReferenceId
+    asset_version: Annotated[int, Field(ge=1)]
     data_uri: Annotated[
         str,
         Field(
-            max_length=10 * 1024 * 1024,
+            max_length=28 * 1024 * 1024,
             pattern=r"^data:image/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$",
         ),
     ]
+    mime_type: Literal["image/png", "image/jpeg"]
+    byte_size: Annotated[int, Field(ge=1, le=20 * 1024 * 1024)]
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    width: Annotated[int, Field(ge=1, le=8192)]
+    height: Annotated[int, Field(ge=1, le=8192)]
+    crop_mode: Literal["contain", "cover"]
     alt_text: ShortText
+
+    @model_validator(mode="after")
+    def integrity_matches_data_uri(self):
+        try:
+            encoded = self.data_uri.split(",", 1)[1]
+            data = base64.b64decode(encoded, validate=True)
+            image = validate_image_bytes(
+                data,
+                max_bytes=20 * 1024 * 1024,
+                max_decoded_bytes=128 * 1024 * 1024,
+            )
+        except (IndexError, ValueError, ImageAssetValidationError) as exception:
+            raise ValueError("image data URI is invalid") from exception
+        if (
+            image.mime_type != self.mime_type
+            or image.byte_size != self.byte_size
+            or image.sha256 != self.sha256
+            or image.width != self.width
+            or image.height != self.height
+        ):
+            raise ValueError("image integrity metadata does not match")
+        return self
 
 
 class ChartSeries(StrictModel):

@@ -1,6 +1,6 @@
 # P5-006 Agnes 图片资产与 PPT 视觉集成
 
-- 状态：`BLOCKED`
+- 状态：`DONE`
 - Depends on：`P5-005`
 - 来源：PRD FR-401～FR-406、Image 2.1 模型策略
 - 建议 commit：`feat(media): add agnes image assets to decks`
@@ -75,3 +75,13 @@ git diff --check
 - 不默认给所有页面生成图片，不启用任意公网 tunnel。
 - 不实现视频或承诺版权/商业适用性。
 - 回滚停用 image feature/capability；保留不可变历史 job/asset/ledger。
+
+## 完成记录（2026-07-29）
+
+- RED -> GREEN 已覆盖 Agnes image request/response、Visual Director、显式逐页确认、
+  idempotency、owner storage、真实 bytes 尺寸、`provider_uncertain`、不可变 generation
+  input、PresentationPlan integrity/crop/alt text、Deck UI 和 Renderer image refs。
+- Mock/focused/broad、SQLite/MySQL migration、Compose runtime、Renderer deterministic
+  PPTX/Golden 和 provider-free desktop/375px browser proof 已通过。
+- 真实 Agnes Image Contract 未显式 opt-in，Microsoft PowerPoint/WPS/Human visual
+  acceptance 未执行；这些边界不阻塞 P5-006 工程交付，由 P5-008 汇总关闭。

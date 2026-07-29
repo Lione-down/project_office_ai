@@ -33,6 +33,11 @@ class ProviderCall(Base):
             "attempt",
             name="uq_provider_calls_chat_run_attempt",
         ),
+        UniqueConstraint(
+            "media_job_id",
+            "attempt",
+            name="uq_provider_calls_media_job_attempt",
+        ),
         {"comment": "Provider调用脱敏元数据表"},
     )
 
@@ -69,6 +74,13 @@ class ProviderCall(Base):
         nullable=True,
         index=True,
         comment="关联Chat Run ID",
+    )
+    media_job_id: Mapped[UUID | None] = mapped_column(
+        UuidBinary(),
+        ForeignKey("media_jobs.id", name="fk_provider_calls_media_job"),
+        nullable=True,
+        index=True,
+        comment="关联媒体任务ID",
     )
     attempt: Mapped[int] = mapped_column(Integer, comment="调用尝试序号")
     provider_id: Mapped[UUID] = mapped_column(

@@ -35,6 +35,9 @@ from app.templates.catalog import (
     get_presentation_template,
     template_row_matches_definition,
 )
+from app.models.media_jobs import MediaJob
+from app.services.media.images.contracts import plan_deck_visuals
+from app.services.media.images.service import ImageJobService
 
 
 class DeckService:
@@ -251,7 +254,23 @@ class DeckService:
                 draft,
                 revision or draft.latest_revision,
             )
-            return self._snapshot(draft, row)
+            snapshot = self._snapshot(draft, row)
+            jobs = list(
+                await session.scalars(
+                    select(MediaJob)
+                    .where(
+                        MediaJob.user_id == current_user.user_id,
+                        MediaJob.draft_revision_id == row.id,
+                        MediaJob.kind == "image",
+                    )
+                    .order_by(MediaJob.created_at, MediaJob.id)
+                )
+            )
+            media = tuple(
+                (await ImageJobService._snapshot(session, job)).model_dump(mode="json")
+                for job in jobs
+            )
+            return snapshot.model_copy(update={"media_jobs": media})
 
     async def update(
         self,
@@ -456,7 +475,22 @@ class DeckService:
             or len(content.slides) != command.slide_count
         ):
             raise ValueError("outline does not match the confirmed request")
-        return content
+        visual_plan = plan_deck_visuals(content)
+        directions = {item.slide_id: item for item in visual_plan.slides}
+        return content.model_copy(
+            update={
+                "slides": tuple(
+                    slide.model_copy(
+                        update={
+                            "visual_direction": directions[slide.slide_id].model_dump(
+                                mode="json"
+                            )
+                        }
+                    )
+                    for slide in content.slides
+                )
+            }
+        )
 
     @staticmethod
     def _outline_messages(

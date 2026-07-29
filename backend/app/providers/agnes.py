@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import base64
+import binascii
 from ipaddress import ip_address
 import json
 from collections.abc import AsyncIterator
@@ -75,6 +77,24 @@ class ProviderCompletion:
     content: str
     usage: ProviderUsage
     finish_reason: str | None
+    status_summary: int
+
+
+@dataclass(frozen=True)
+class ImageGenerationRequest:
+    model: str
+    prompt: str
+    size: str
+    ratio: str
+    input_images: tuple[str, ...]
+    timeout_seconds: int
+    trace_id: str
+
+
+@dataclass(frozen=True)
+class ProviderImage:
+    provider_request_id: str | None
+    image_bytes: bytes
     status_summary: int
 
 
@@ -302,6 +322,68 @@ class AgnesAdapter:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def create_image(
+        self,
+        *,
+        api_key: str,
+        request: ImageGenerationRequest,
+    ) -> ProviderImage:
+        payload: dict[str, Any] = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "size": request.size,
+            "ratio": request.ratio,
+        }
+        if request.input_images:
+            payload["extra_body"] = {
+                "image": list(request.input_images),
+                "response_format": "b64_json",
+            }
+        else:
+            payload["return_base64"] = True
+        response = await self._post(
+            "/images/generations",
+            api_key=api_key,
+            trace_id=request.trace_id,
+            payload=payload,
+            timeout_seconds=request.timeout_seconds,
+        )
+        response.raise_for_status()
+        try:
+            body = response.json()
+            items = body["data"]
+            encoded = items[0]["b64_json"]
+            if (
+                not isinstance(items, list)
+                or len(items) != 1
+                or not isinstance(encoded, str)
+                or not encoded
+            ):
+                raise ValueError("invalid image response")
+            image_bytes = base64.b64decode(encoded, validate=True)
+            if not image_bytes:
+                raise ValueError("empty image response")
+        except (
+            KeyError,
+            IndexError,
+            TypeError,
+            ValueError,
+            binascii.Error,
+            json.JSONDecodeError,
+        ) as exception:
+            raise ProviderConfigurationError(
+                "provider_response_invalid",
+                "Agnes 图片响应合同无效",
+            ) from exception
+        provider_request_id = body.get("id")
+        if not isinstance(provider_request_id, str) or not provider_request_id:
+            provider_request_id = response.headers.get("x-request-id")
+        return ProviderImage(
+            provider_request_id=provider_request_id,
+            image_bytes=image_bytes,
+            status_summary=response.status_code,
+        )
 
     def classify_error(self, error: Exception) -> ErrorClassification:
         if isinstance(error, httpx.TimeoutException):

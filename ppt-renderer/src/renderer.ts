@@ -161,7 +161,7 @@ function renderElement(
       data: image.data_uri,
       altText: image.alt_text,
       ...position,
-      sizing: { type: "contain", ...position },
+      sizing: { type: image.crop_mode, ...position },
     });
     return;
   }

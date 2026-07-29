@@ -69,7 +69,7 @@
 | `OFFICE_AI_PPT_RENDERER_URL` | PPT renderer internal URL | 否 | T3-002 | Compose internal URL |
 | `OFFICE_AI_RENDERED_ROOT` | Backend 只读访问 Renderer work volume 的根目录，默认 `/app/rendered` | 否 | T3-002 | Compose path；不得映射为静态目录 |
 | `OFFICE_AI_PPT_RENDERER_TIMEOUT_SECONDS` | PPT Renderer HTTP timeout，默认 120 秒 | 否 | T3-002 | Compose 普通变量 |
-| `OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES` | PresentationPlan/Renderer request 上限，默认 10 MB | 否 | T3-002 | Compose 普通变量 |
+| `OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES` | PresentationPlan/Renderer request 上限，默认 32 MB；容纳单张 20 MB 图片的 bounded base64 | 否 | P5-006 | Compose 普通变量 |
 | `OFFICE_AI_PROVIDER_TIMEOUT_SECONDS` | Provider 请求 timeout，默认 120 | 否 | T2-004 | Admin config/普通变量 |
 | `OFFICE_AI_RUN_REAL_AGNES_CONTRACT` | 显式启用真实 Agnes Contract Test；仅精确值 `1` 启用 | 否 | T2-004 手工联调 | 临时进程环境；默认不设置 |
 | `OFFICE_AI_AGNES_CONTRACT_CREDENTIAL_ID` | 真实 Contract Test 选择已加密 Agnes Credential 的 UUID，不是 API Key | 否 | T2-004 手工联调 | 临时进程环境；只与显式 opt-in 同时使用 |

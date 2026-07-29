@@ -1,12 +1,68 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-005 模板目录、缩略图与版本快照`
-- 下一任务：`P5-006 Agnes 图片资产与 PPT 视觉集成`（唯一 `READY`）
-- 当前状态：`POST-ALPHA TEMPLATE GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-006 Agnes 图片资产与 PPT 视觉集成`
+- 下一任务：`P5-007 Agnes 视频资产与兼容性 Gate`（唯一 `READY`）
+- 当前状态：`POST-ALPHA IMAGE GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-006 Agnes 图片资产与 PPT 视觉集成（DONE）
+
+### RED -> GREEN 与实现
+
+- RED 先锁定 Agnes Image 2.1 text/Data URI request、strict response、Visual Director、
+  image job state/idempotency/uncertain、asset validation/owner/redaction、Deck UI 显式
+  confirm/skip 和 Renderer image integrity/crop；初始分别因缺 adapter/media module、
+  UI action 与 Renderer metadata 失败。
+- GREEN 新增 `media_jobs/media_job_inputs` 与 additive migration `20260729_0019`；
+  owner/draft revision/slide/workflow、model/capability/pricing、Prompt hash、实际尺寸、
+  provider opaque ID、积分 reserve/finalize/release 与不可变 FileAsset 均持久化。
+- Agnes adapter 使用 `/v1/images/generations`；文生图要求 base64，图生图只允许经
+  MIME/magic/容量/full decode/hash 验证后临时构造的 Data URI。public URL 保持关闭；
+  Provider 返回 bytes 是格式/宽高权威，Prompt/response/Data URI 不进入日志或
+  `provider_calls`。
+- Deck Studio 显示结构化 `none/diagram/chart/illustration/photo`、bounded Prompt、
+  image model、真实 job status，并提供逐页 generate/skip/replace/regenerate；收费调用
+  需独立 browser confirm 和 idempotency key，不显示假进度。
+- PPT generation 创建时把当前 revision 每页最新成功 image job/asset 冻结到
+  `generation_task_inputs`；Renderer 前复验 owner、revision、job、asset version、存储键、
+  MIME、字节数、SHA、实际宽高、crop/alt text。PresentationPlan/Node 再验证 Data URI
+  完整性并按 contain/cover 布局，任一漂移稳定 fail closed。
+
+### 验证与证据边界
+
+- Focused：Backend media/outbox/generation/presentation/quality 组合 `126 passed`；
+  Frontend editor `6 passed` + build；Renderer `28 passed` + build。
+- Broad：Backend full `692 passed, 13 skipped`；13 个 skip 均为未 opt-in 的真实
+  Provider/failure drill。Ruff、451-file format、`pip check/pip-audit` 通过；
+  Frontend full `30 files / 99 passed` + build，两个 npm
+  audit 均 0 vulnerabilities。Renderer Golden 连续 20 次结构确定性通过，且无 macro、
+  external relationship、PII 或 embedded payload；Compose config 与
+  `git diff --check` 通过。
+- Runtime：真实 MySQL 已从 `20260729_0018` 升级为 `20260729_0019 (head)`；当前 source
+  重建后 backend、frontend、workflow-worker、generation-worker、ppt-renderer、
+  LibreOffice、MySQL、Redis 均 healthy，Host backend ready、Frontend 200。migration
+  前短暂 outbox schema error 在升级后 15 秒日志窗口为 0。
+- Browser：provider-free synthetic harness 复用真实 Deck editor；desktop 图片工作台
+  层级、状态固定槽与操作清晰，375x812 为单列，document 360px 小于 viewport 375px。
+  临时 harness、Vite 日志和 5174 进程均已精确清理。
+- Provider：官方合同已核对，但本任务未显式 opt-in 真实 Agnes Image Contract；
+  `agnes-image-2.1-flash` 的真实 latency/bytes/尺寸不能由 Mock 声明。Office/WPS/Human：
+  未执行 Microsoft PowerPoint/WPS 打开或用户视觉验收；Renderer/LibreOffice/OOXML 是
+  machine evidence，最终全量结论仍由 P5-008 关闭。
+
+### Changed files 与交接
+
+- Backend：Agnes image adapter、media API/service/worker/contracts/validation/models/
+  migration、Outbox/workflow/credits/storage、Deck visual plan 与 immutable generation
+  input、PresentationPlan integrity 和 tests。
+- Frontend：Deck image types/API、逐页 visual workbench、polling/confirm/skip/tests。
+- Renderer/runtime：image metadata/integrity/crop、Golden regression、Compose image
+  worker/storage/config，以及正式 Plan/API/Data/Security/Environment 记录。
+- 未读取、修改或暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/`；
+  未实现视频。P5-007 是下一唯一 `READY`。
 
 ## P5-005 模板目录、缩略图与版本快照（DONE）
 
@@ -508,8 +564,8 @@
 | P5-003 | DONE | P5-002 | 双模型会话、SSE、历史、取消/重连和安全 Markdown |
 | P5-004 | DONE | P5-003 | Deck Draft、逐页编辑、Skill、Preflight 与 generation handoff |
 | P5-005 | DONE | P5-004 | 模板目录、缩略图、详情、冻结 snapshot 与 Renderer checksum |
-| P5-006 | READY | P5-005 | 唯一下一任务：Agnes 图片资产与 PPT 视觉集成 |
-| P5-007 | BLOCKED | P5-006 | Agnes 视频资产与兼容性 Gate |
+| P5-006 | DONE | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
+| P5-007 | READY | P5-006 | 唯一下一任务：Agnes 视频资产与兼容性 Gate |
 | P5-008 | BLOCKED | P5-007 | 端到端 Golden、安全、Office/WPS 与发布 Gate |
 
 ## T1-001 执行记录

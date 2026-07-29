@@ -15,6 +15,8 @@ from app.models.generation_task_inputs import GenerationTaskInput
 from app.models.generation_task_steps import GenerationTaskStep
 from app.models.generation_tasks import GenerationTask
 from app.models.invite_codes import InviteCode
+from app.models.media_job_inputs import MediaJobInput
+from app.models.media_jobs import MediaJob
 from app.models.outbox_events import OutboxEvent
 from app.models.projects import Project
 from app.models.provider_calls import ProviderCall
@@ -46,6 +48,8 @@ __all__ = [
     "GenerationTaskInput",
     "GenerationTaskStep",
     "InviteCode",
+    "MediaJob",
+    "MediaJobInput",
     "OutboxEvent",
     "Project",
     "ProviderCall",

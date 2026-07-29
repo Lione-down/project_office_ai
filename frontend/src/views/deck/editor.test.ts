@@ -16,6 +16,9 @@ const deckMocks = vi.hoisted(() => ({
   preflightDraft: vi.fn(),
   generate: vi.fn(),
   listTemplates: vi.fn(),
+  listModels: vi.fn(),
+  createImageJob: vi.fn(),
+  getImageJob: vi.fn(),
 }));
 
 vi.mock("@/modules/decks/api", () => ({
@@ -29,6 +32,15 @@ const slides = ["开场", "分析", "结论"].map((title, index) => ({
   body: [`${title}要点`],
   speaker_notes: "",
   visual_suggestion: "",
+  visual_direction: {
+    schema_version: "ppt.visual-director.v1",
+    kind: index === 0 ? "none" : "illustration",
+    prompt: index === 0 ? "" : `${title}的合成商务插画`,
+    requested_size: "2K",
+    requested_ratio: "16:9",
+    crop_mode: "cover",
+    alt_text: `${title}配图`,
+  },
   provenance: [{ kind: "agnes_inference", evidence_ids: [] }],
 }));
 
@@ -54,6 +66,7 @@ const draft = {
   generation_task_id: null,
   confirmed_at: null,
   replayed: false,
+  media_jobs: [],
   template_snapshot: {
     template_code: "ppt.operating-review.v1",
     version: "1.0.0",
@@ -116,6 +129,23 @@ describe("Deck editor", () => {
       },
     });
     deckMocks.generate.mockResolvedValue({ task_id: "task-1" });
+    deckMocks.listModels.mockResolvedValue([
+      {
+        model_id: "image-model-1",
+        model_code: "agnes-image-2.1-flash",
+        display_name: "Agnes Image 2.1 Flash",
+        capabilities: { image_generation: true, credit_per_image: 0 },
+        user_visible: true,
+        is_recommended: true,
+        status: "active",
+      },
+    ]);
+    deckMocks.createImageJob.mockResolvedValue({
+      media_job_id: "image-job-1",
+      slide_id: "slide-2",
+      status: "queued",
+      progress: 0,
+    });
     deckMocks.listTemplates.mockResolvedValue([
       {
         template_code: "ppt.operating-review.v1",
@@ -250,5 +280,40 @@ describe("Deck editor", () => {
     await wrapper.get("[data-testid='deck-reload']").trigger("click");
     await flushPromises();
     expect(deckMocks.getDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates an Agnes image job only after per-slide user confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { wrapper } = await mountEditor();
+
+    expect(wrapper.get("[data-testid='visual-kind-1']").text()).toContain("插画");
+    await wrapper.get("[data-testid='slide-image-generate-1']").trigger("click");
+    await flushPromises();
+
+    expect(deckMocks.createImageJob).toHaveBeenCalledWith(
+      "draft-1",
+      expect.objectContaining({
+        expected_revision: 1,
+        slide_id: "slide-2",
+        action: "generate",
+        prompt: "分析的合成商务插画",
+        model_id: "image-model-1",
+        confirmed: true,
+      }),
+      expect.any(String),
+      "access",
+    );
+  });
+
+  it("skip keeps the slide asset-free and never creates a billable job", async () => {
+    const { wrapper } = await mountEditor();
+
+    await wrapper.get("[data-testid='slide-image-skip-1']").trigger("click");
+    await flushPromises();
+
+    expect(deckMocks.createImageJob).not.toHaveBeenCalled();
+    expect(wrapper.get("[data-testid='slide-image-status-1']").text()).toContain(
+      "已跳过",
+    );
   });
 });

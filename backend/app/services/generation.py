@@ -60,6 +60,8 @@ class GenerationService:
         access_token: str,
         brief_id: UUID,
         idempotency_key: str,
+        *,
+        additional_inputs: tuple[dict, ...] = (),
     ) -> GenerationSnapshot:
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", idempotency_key) is None:
             raise GenerationOperationError(
@@ -138,7 +140,14 @@ class GenerationService:
                     workflow_task.failure_code = None
                     workflow_task.failure_reason = None
                 session.add_all(self._steps(task, preflight, model))
-                session.add_all(self._inputs(task, brief, preflight))
+                session.add_all(
+                    self._inputs(
+                        task,
+                        brief,
+                        preflight,
+                        additional_inputs=additional_inputs,
+                    )
+                )
                 user.credit_balance -= preflight.estimated_credits
                 session.add(
                     CreditLedger(
@@ -393,7 +402,11 @@ class GenerationService:
 
     @staticmethod
     def _inputs(
-        task: GenerationTask, brief: Brief, preflight: PreflightSnapshot
+        task: GenerationTask,
+        brief: Brief,
+        preflight: PreflightSnapshot,
+        *,
+        additional_inputs: tuple[dict, ...] = (),
     ) -> list[GenerationTaskInput]:
         inputs = [
             GenerationTaskInput(
@@ -438,6 +451,29 @@ class GenerationService:
                     input_type="term_library",
                     reference_key=str(item["library_id"]),
                     snapshot=dict(item),
+                )
+            )
+        for item in additional_inputs:
+            input_type = item.get("input_type")
+            reference_key = item.get("reference_key")
+            snapshot = item.get("snapshot")
+            if (
+                input_type != "media_image"
+                or not isinstance(reference_key, str)
+                or not reference_key
+                or not isinstance(snapshot, dict)
+            ):
+                raise GenerationOperationError(
+                    "generation_input_invalid",
+                    "生成任务输入无效",
+                    409,
+                )
+            inputs.append(
+                GenerationTaskInput(
+                    task_id=task.id,
+                    input_type=input_type,
+                    reference_key=reference_key,
+                    snapshot=dict(snapshot),
                 )
             )
         return inputs

@@ -51,6 +51,7 @@ class DeckSlide(StrictModel):
     body: tuple[str, ...] = Field(min_length=1, max_length=12)
     speaker_notes: str = Field(default="", max_length=4000)
     visual_suggestion: str = Field(default="", max_length=1000)
+    visual_direction: dict | None = None
     provenance: tuple[DeckProvenance, ...] = Field(min_length=1, max_length=20)
 
     @model_validator(mode="after")
@@ -140,6 +141,7 @@ class DeckDraftSnapshot(StrictModel):
     preflight_snapshot: dict | None
     generation_task_id: UUID | None
     confirmed_at: datetime | None
+    media_jobs: tuple[dict, ...] = ()
     replayed: bool = False
 
 

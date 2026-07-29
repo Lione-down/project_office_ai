@@ -14,7 +14,7 @@ def test_renderer_settings_are_non_secret_and_bounded() -> None:
     assert settings.ppt_renderer_url == "http://ppt-renderer:3000"
     assert settings.rendered_root == Path("/app/rendered")
     assert settings.ppt_renderer_timeout_seconds == 120
-    assert settings.max_presentation_request_bytes == 10 * 1024 * 1024
+    assert settings.max_presentation_request_bytes == 32 * 1024 * 1024
 
 
 def test_compose_uses_the_real_isolated_renderer_image_and_read_only_handoff() -> None:

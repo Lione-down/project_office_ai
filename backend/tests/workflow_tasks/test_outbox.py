@@ -42,10 +42,12 @@ async def test_outbox_publisher_routes_brief_and_file_generation_separately() ->
 
     await publisher.publish("event-1", "brief.generate", {"workflow_task_id": "one"})
     await publisher.publish("event-2", "generation.queued", {"task_id": "two"})
+    await publisher.publish("event-3", "image.generate", {"media_job_id": "three"})
 
     assert [item[0] for item in redis.enqueued] == [
         "office_ai:workflow:queue",
         "office_ai:generation:queue",
+        "office_ai:workflow:queue",
     ]
 
 
@@ -79,6 +81,38 @@ async def test_workflow_queue_consumer_is_safe_under_repeated_delivery(
     assert first.status == "awaiting_confirmation"
     assert second.status == "awaiting_confirmation"
     assert len(generator.calls) == 1
+
+
+async def test_workflow_queue_consumer_routes_image_jobs_to_media_worker() -> None:
+    media_job_id = "019fad50-0000-7000-8000-000000000070"
+    redis = RedisRecorder(
+        [
+            {
+                "event_type": "image.generate",
+                "payload": {"media_job_id": media_job_id},
+            }
+        ]
+    )
+
+    class MediaWorker:
+        def __init__(self) -> None:
+            self.calls = []
+
+        async def process(self, job_id):
+            self.calls.append(job_id)
+            return SimpleNamespace(status="succeeded")
+
+    media_worker = MediaWorker()
+    consumer = WorkflowQueueConsumer(
+        RedisWorkflowQueue(redis),
+        object(),
+        media_worker,
+    )
+
+    result = await consumer.consume_once()
+
+    assert result.status == "succeeded"
+    assert [str(job_id) for job_id in media_worker.calls] == [media_job_id]
 
 
 async def test_stale_workflow_recovery_requeues_safe_work_and_marks_running_uncertain(

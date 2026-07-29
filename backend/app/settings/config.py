@@ -96,7 +96,7 @@ class Settings(BaseSettings):
         Path("/app/parsed"), validation_alias="OFFICE_AI_PARSED_ROOT"
     )
     max_parsed_output_bytes: int = Field(
-        10 * 1024 * 1024,
+        32 * 1024 * 1024,
         validation_alias="OFFICE_AI_MAX_PARSED_OUTPUT_BYTES",
         ge=1,
     )
@@ -205,7 +205,7 @@ class Settings(BaseSettings):
         le=600,
     )
     max_presentation_request_bytes: int = Field(
-        10 * 1024 * 1024,
+        32 * 1024 * 1024,
         validation_alias="OFFICE_AI_MAX_PRESENTATION_REQUEST_BYTES",
         ge=1024,
         le=50 * 1024 * 1024,
@@ -304,6 +304,28 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    media_max_active_jobs_per_user: int = Field(
+        2,
+        validation_alias="OFFICE_AI_MEDIA_MAX_ACTIVE_JOBS_PER_USER",
+        ge=1,
+        le=10,
+    )
+    image_max_prompt_chars: int = Field(
+        4000,
+        validation_alias="OFFICE_AI_IMAGE_MAX_PROMPT_CHARS",
+        ge=1,
+        le=4000,
+    )
+    image_provider_timeout_seconds: int = Field(
+        360,
+        validation_alias="OFFICE_AI_IMAGE_PROVIDER_TIMEOUT_SECONDS",
+        ge=1,
+        le=360,
+    )
+    media_public_url_input_enabled: bool = Field(
+        False,
+        validation_alias="OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED",
+    )
     chat_thinking_default_enabled: bool = Field(
         False,
         validation_alias="OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED",
@@ -372,6 +394,10 @@ class Settings(BaseSettings):
         if self.chat_thinking_default_enabled:
             raise ValueError(
                 "OFFICE_AI_CHAT_THINKING_DEFAULT_ENABLED must remain false"
+            )
+        if self.media_public_url_input_enabled:
+            raise ValueError(
+                "OFFICE_AI_MEDIA_PUBLIC_URL_INPUT_ENABLED=true is not supported"
             )
         return self
 
