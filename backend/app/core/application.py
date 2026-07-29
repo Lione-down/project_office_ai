@@ -49,6 +49,7 @@ from app.services.provider_security import CredentialCipher, ProviderConfigurati
 from app.services.preflight.service import BriefWorkflowService
 from app.services.skills import SkillCatalogService
 from app.services.terminology.service import TerminologyLibraryService
+from app.services.templates import TemplateCatalogService
 from app.services.workflow_contracts import WorkflowServices
 from app.services.workflow_tasks import WorkflowTaskService
 from app.settings.config import Settings, get_settings
@@ -78,6 +79,7 @@ def create_app(
     workflow_services: WorkflowServices | None = None,
     chat_services: ChatServices | None = None,
     deck_services: object | None = None,
+    template_services: object | None = None,
     admin_services: object | None = None,
 ) -> FastAPI:
     application_settings = settings or get_settings()
@@ -214,6 +216,12 @@ def create_app(
             ),
         )
 
+    if template_services is None and database is not None and auth_services is not None:
+        template_services = TemplateCatalogService(
+            database.session_factory,
+            auth_services.sessions,
+        )
+
     if (
         generation_services is None
         and database is not None
@@ -320,6 +328,7 @@ def create_app(
     app.state.workflow_services = workflow_services
     app.state.chat_services = chat_services
     app.state.deck_services = deck_services
+    app.state.template_services = template_services
     app.state.chat_heartbeat_seconds = application_settings.chat_heartbeat_seconds
     app.add_middleware(
         UploadBodyLimitMiddleware,

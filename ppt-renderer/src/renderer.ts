@@ -29,6 +29,7 @@ export interface RenderResult {
   slideCount: number;
   templateCode: string;
   templateVersion: string;
+  templateChecksum: string;
   rendererVersion: string;
 }
 
@@ -49,6 +50,7 @@ export async function renderPresentation(
     slideCount: plan.slides.length,
     templateCode: plan.template.code,
     templateVersion: plan.template.version,
+    templateChecksum: template.checksum,
     rendererVersion: plan.renderer_version,
   };
 }

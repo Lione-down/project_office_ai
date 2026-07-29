@@ -10,6 +10,7 @@ from app.services.preflight.catalog import (
     build_alpha_output_plan,
 )
 from app.services.preflight.contracts import ConflictResolution
+from app.templates.catalog import get_presentation_template
 
 
 def test_combined_plan_uses_one_versioned_template_per_output() -> None:
@@ -29,6 +30,11 @@ def test_combined_plan_uses_one_versioned_template_per_output() -> None:
         ("xlsx", EXCEL_DEFAULT_TEMPLATE, "1.0.0"),
     ]
     assert [item.estimated_credits for item in plan] == [800, 800]
+    assert (
+        plan[0].template_checksum
+        == get_presentation_template(PPT_DEFAULT_TEMPLATE).checksum
+    )
+    assert len(plan[1].template_checksum) == 64
 
 
 def test_each_output_credit_is_rounded_up_before_combined_total() -> None:

@@ -13,6 +13,7 @@ from app.services.preflight.contracts import (
     PreflightSnapshot,
 )
 from app.settings.config import Settings
+from app.templates.catalog import get_presentation_template
 from tests.briefs.helpers import BRIEF_GROUP_ID, valid_brief_payload
 from tests.preflight.conftest import BRIEF_ID
 
@@ -61,6 +62,9 @@ def preflight_snapshot(*, status: str = "preflight") -> PreflightSnapshot:
                 title="销售经营汇报",
                 template_code="ppt.executive-blue.v1",
                 template_version="1.0.0",
+                template_checksum=get_presentation_template(
+                    "ppt.executive-blue.v1"
+                ).checksum,
                 estimated_credits=800,
             ),
         ),

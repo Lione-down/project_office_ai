@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">高管钢蓝代表页拼图</title>
+  <desc id="desc">封面、内容和结束页的原创静态拼图</desc>
+  <rect width="1280" height="720" fill="#E9EFF7"/>
+  <g transform="translate(54 122)">
+    <rect width="360" height="476" rx="14" fill="#F5F8FC" stroke="#CAD7E7"/>
+    <rect width="360" height="9" rx="4" fill="#123B6D"/>
+    <text x="34" y="128" fill="#123B6D" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="700">管理层经营汇报</text>
+    <text x="34" y="170" fill="#64748B" font-family="Microsoft YaHei, sans-serif" font-size="16">目标 · 判断 · 行动</text>
+  </g>
+  <g transform="translate(460 78)">
+    <rect width="360" height="564" rx="14" fill="#FFFFFF" stroke="#CAD7E7"/>
+    <rect width="360" height="9" rx="4" fill="#123B6D"/>
+    <text x="30" y="65" fill="#123B6D" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="700">关键判断</text>
+    <rect x="30" y="102" width="300" height="94" rx="10" fill="#F5F8FC"/>
+    <rect x="30" y="216" width="142" height="150" rx="10" fill="#E7F4F4"/>
+    <rect x="188" y="216" width="142" height="150" rx="10" fill="#EDF3FA"/>
+    <rect x="30" y="390" width="300" height="12" rx="6" fill="#123B6D"/>
+    <rect x="30" y="420" width="236" height="9" rx="4" fill="#A9B8CA"/>
+    <rect x="30" y="446" width="270" height="9" rx="4" fill="#A9B8CA"/>
+  </g>
+  <g transform="translate(866 122)">
+    <rect width="360" height="476" rx="14" fill="#123B6D"/>
+    <circle cx="180" cy="166" r="48" fill="#29A3A3"/>
+    <text x="180" y="256" text-anchor="middle" fill="#FFFFFF" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="700">结论与下一步</text>
+    <text x="180" y="300" text-anchor="middle" fill="#D9E6F3" font-family="Microsoft YaHei, sans-serif" font-size="16">让决策进入行动</text>
+  </g>
+</svg>

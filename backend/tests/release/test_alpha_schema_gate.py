@@ -88,7 +88,7 @@ def test_current_head_upgrades_empty_database_to_twenty_eight_tables(
 def test_alpha_schema_remains_a_single_head_chain() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260729_0017"]
+    assert scripts.get_heads() == ["20260729_0018"]
     assert scripts.get_revision("20260729_0017").down_revision == "20260729_0016"
     assert scripts.get_revision("20260729_0016").down_revision == "20260727_0015"
     assert scripts.get_revision("20260727_0015").down_revision == "20260727_0014"

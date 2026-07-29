@@ -22,6 +22,7 @@ from app.services.decks.contracts import (
 )
 from app.services.preflight.contracts import PreflightCommand
 from app.services.preflight.service import BriefWorkflowService
+from app.templates.catalog import get_presentation_template
 
 
 class DeckHandoffService:
@@ -242,11 +243,25 @@ class DeckHandoffService:
             key: row.model_snapshot[key]
             for key in ("model_id", "provider_id", "credential_id", "model_code")
         }
-        template_code = (
-            "ppt.operating-review.v1"
-            if content.skill_code == "ppt.sales-business-review.v1"
-            else "ppt.executive-blue.v1"
+        template_snapshot = row.template_snapshot or {}
+        template_code = template_snapshot.get("template_code")
+        template_version = template_snapshot.get("version")
+        template_checksum = template_snapshot.get("checksum")
+        template = (
+            get_presentation_template(template_code, template_version)
+            if isinstance(template_code, str) and isinstance(template_version, str)
+            else None
         )
+        if (
+            template is None
+            or template.checksum != template_checksum
+            or content.skill_code not in template.compatible_skills
+        ):
+            raise DeckOperationError(
+                "template_contract_invalid",
+                "系统模板版本合同不可用",
+                409,
+            )
         selected_skill = {
             "skill_code": content.skill_code,
             "version": row.skill_snapshot["version"],
@@ -320,7 +335,8 @@ class DeckHandoffService:
                 "template_versions": [
                     {
                         "template_code": template_code,
-                        "version": "1.0.0",
+                        "version": template_version,
+                        "checksum": template_checksum,
                     }
                 ],
                 "resolutions": [],
@@ -421,6 +437,7 @@ class DeckHandoffService:
             status=row.status,
             content=cls._validated_revision(row),
             content_checksum=row.content_checksum,
+            template_snapshot=row.template_snapshot,
             preflight_snapshot=row.preflight_snapshot,
             generation_task_id=row.generation_task_id,
             confirmed_at=row.confirmed_at,

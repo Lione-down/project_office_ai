@@ -7,6 +7,8 @@ type LayoutName = "title" | "content" | "section" | "closing";
 export interface SystemTemplate {
   code: TemplateCode;
   version: "1.0.0";
+  checksum: string;
+  layouts: readonly LayoutName[];
   name: string;
   background: string;
   surface: string;
@@ -23,6 +25,8 @@ export const SYSTEM_TEMPLATES: readonly SystemTemplate[] = [
   {
     code: "ppt.executive-blue.v1",
     version: "1.0.0",
+    checksum: "9cad7dfef0257d6ef3d02b6d448f31fd833bf64b24f6fda20b113677069509a5",
+    layouts: ["title", "content", "section", "closing"],
     name: "Executive Blue",
     background: "F5F8FC",
     surface: "FFFFFF",
@@ -37,6 +41,8 @@ export const SYSTEM_TEMPLATES: readonly SystemTemplate[] = [
   {
     code: "ppt.operating-review.v1",
     version: "1.0.0",
+    checksum: "63a2a2e13735e850bc72d0dec53288c8eb18d2ff6326718187540e84078cbdb0",
+    layouts: ["title", "content", "section", "closing"],
     name: "Operating Review",
     background: "FBF9F6",
     surface: "FFFFFF",
@@ -51,6 +57,8 @@ export const SYSTEM_TEMPLATES: readonly SystemTemplate[] = [
   {
     code: "ppt.data-story.v1",
     version: "1.0.0",
+    checksum: "7351bb75b4e6398a48f0d06ead96bf77723d2df378811811edd9e9809c11e8b5",
+    layouts: ["title", "content", "section", "closing"],
     name: "Data Story",
     background: "F8F6FC",
     surface: "FFFFFF",

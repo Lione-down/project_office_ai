@@ -112,6 +112,14 @@ P5-004 实现证据：Deck create/get/update/confirm/preflight/generation 均从
 high-risk confirm、generation 幂等和 credit reserve 均有回归。浏览器 synthetic Draft
 只用于 editor DOM proof，验证后已从 MySQL 删除，未创建 generation task 或文件。
 
+P5-005 实现证据：template list/detail 先认证，只发布三套无 owner 的
+`system_original/published/pptx` row，并逐项复验 DB 与 runtime catalog；checksum、
+metadata、布局或 compatible Skill 漂移均 fail closed。封面和代表页是仓库内原创 SVG，
+前端只接受 certified local path，拒绝远程 URL、Data URI、路径穿越和 private path。
+Deck 切换只追加 revision，generation 冻结 code/version/checksum；Renderer 回传实际
+registry checksum，Python adapter 再与 catalog 比较。API/错误/日志不包含 storage key、
+文件路径、用户正文或 Provider 数据；本任务未调用 Provider。
+
 ### 文件上下文、Web 与外部内容
 
 - 首期文件上下文固定 `deck_only`。P5-003 Chat 请求携带任何 asset ID 都 fail closed；

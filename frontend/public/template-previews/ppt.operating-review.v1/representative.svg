@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">经营复盘代表页拼图</title>
+  <desc id="desc">封面、经营分析和行动页的原创静态拼图</desc>
+  <rect width="1280" height="720" fill="#F3ECE8"/>
+  <g transform="translate(54 122)">
+    <rect width="360" height="476" rx="14" fill="#FBF9F6" stroke="#DBCBC5"/>
+    <rect width="360" height="9" rx="4" fill="#8B1E1E"/>
+    <text x="34" y="132" fill="#8B1E1E" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="700">经营复盘</text>
+    <text x="34" y="176" fill="#7D6C68" font-family="Microsoft YaHei, sans-serif" font-size="16">目标 · 差距 · 原因</text>
+    <circle cx="274" cy="330" r="54" fill="none" stroke="#C89B3C" stroke-width="12"/>
+  </g>
+  <g transform="translate(460 78)">
+    <rect width="360" height="564" rx="14" fill="#FFFFFF" stroke="#DBCBC5"/>
+    <rect width="360" height="9" rx="4" fill="#8B1E1E"/>
+    <text x="30" y="65" fill="#8B1E1E" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="700">目标完成度</text>
+    <rect x="30" y="104" width="300" height="180" rx="10" fill="#FBF9F6"/>
+    <path d="M60 244L118 198L176 220L236 148L302 166" fill="none" stroke="#B33A3A" stroke-width="8"/>
+    <rect x="30" y="320" width="300" height="58" rx="9" fill="#F2E4E1"/>
+    <rect x="30" y="397" width="300" height="58" rx="9" fill="#F6EDD9"/>
+  </g>
+  <g transform="translate(866 122)">
+    <rect width="360" height="476" rx="14" fill="#8B1E1E"/>
+    <text x="36" y="86" fill="#FFFFFF" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="700">下一步行动</text>
+    <rect x="36" y="132" width="288" height="70" rx="10" fill="#FFFFFF" opacity=".94"/>
+    <rect x="36" y="224" width="288" height="70" rx="10" fill="#FFFFFF" opacity=".94"/>
+    <rect x="36" y="316" width="288" height="70" rx="10" fill="#FFFFFF" opacity=".94"/>
+  </g>
+</svg>

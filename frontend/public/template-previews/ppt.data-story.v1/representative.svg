@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">数据叙事代表页拼图</title>
+  <desc id="desc">封面、指标分析和洞察页的原创静态拼图</desc>
+  <rect width="1280" height="720" fill="#EEEAF6"/>
+  <g transform="translate(54 122)">
+    <rect width="360" height="476" rx="14" fill="#F8F6FC" stroke="#D4CBE5"/>
+    <rect width="360" height="9" rx="4" fill="#3D2C68"/>
+    <text x="34" y="132" fill="#3D2C68" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="700">数据叙事</text>
+    <text x="34" y="176" fill="#746B84" font-family="Microsoft YaHei, sans-serif" font-size="16">指标形成判断链</text>
+    <circle cx="282" cy="338" r="62" fill="#DD6B7B" opacity=".24"/>
+  </g>
+  <g transform="translate(460 78)">
+    <rect width="360" height="564" rx="14" fill="#FFFFFF" stroke="#D4CBE5"/>
+    <rect width="360" height="9" rx="4" fill="#3D2C68"/>
+    <text x="30" y="65" fill="#3D2C68" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="700">趋势与拐点</text>
+    <rect x="30" y="102" width="300" height="240" rx="10" fill="#F8F6FC"/>
+    <path d="M58 294L112 250L168 270L224 188L304 132" fill="none" stroke="#7357A8" stroke-width="8"/>
+    <circle cx="224" cy="188" r="11" fill="#DD6B7B"/>
+    <rect x="30" y="378" width="92" height="108" rx="10" fill="#EEEAF6"/>
+    <rect x="134" y="378" width="92" height="108" rx="10" fill="#F8E7EA"/>
+    <rect x="238" y="378" width="92" height="108" rx="10" fill="#EEEAF6"/>
+  </g>
+  <g transform="translate(866 122)">
+    <rect width="360" height="476" rx="14" fill="#3D2C68"/>
+    <text x="36" y="86" fill="#FFFFFF" font-family="Microsoft YaHei, sans-serif" font-size="26" font-weight="700">关键洞察</text>
+    <rect x="36" y="132" width="288" height="118" rx="12" fill="#FFFFFF" opacity=".96"/>
+    <rect x="36" y="272" width="288" height="118" rx="12" fill="#FFFFFF" opacity=".96"/>
+    <circle cx="64" cy="168" r="10" fill="#DD6B7B"/>
+    <circle cx="64" cy="308" r="10" fill="#DD6B7B"/>
+  </g>
+</svg>

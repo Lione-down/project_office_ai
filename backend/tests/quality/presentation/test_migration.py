@@ -34,7 +34,7 @@ def alembic_config() -> Config:
 def test_quality_metadata_migration_is_single_additive_head() -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
 
-    assert scripts.get_heads() == ["20260729_0017"]
+    assert scripts.get_heads() == ["20260729_0018"]
     assert scripts.get_revision("20260723_0013").down_revision == "20260723_0012"
 
 

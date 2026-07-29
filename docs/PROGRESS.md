@@ -1,12 +1,64 @@
 # Office AI 进度记录
 
 - 最后更新：`2026-07-29`
-- 最近完成：`P5-004 Deck Draft、逐页编辑、Skill 与 Preflight`
-- 下一任务：`P5-005 模板目录、缩略图与版本快照`（唯一 `READY`）
-- 当前状态：`POST-ALPHA DECK GATE COMPLETE`；Alpha 仍为
+- 最近完成：`P5-005 模板目录、缩略图与版本快照`
+- 下一任务：`P5-006 Agnes 图片资产与 PPT 视觉集成`（唯一 `READY`）
+- 当前状态：`POST-ALPHA TEMPLATE GATE COMPLETE`；Alpha 仍为
   `INTERNAL ALPHA COMPLETE / ACCEPT_WITH_DECLARED_BOUNDARIES`
 - 当前分支：`main`
 - 远端：`origin/main`
+
+## P5-005 模板目录、缩略图与版本快照（DONE）
+
+### RED -> GREEN 与实现
+
+- RED 先锁定 catalog metadata/checksum/migration、authenticated list/detail API、
+  local-only preview、Deck compatible selection/revision、generation snapshot 和
+  Renderer checksum；新增 checksum 回传 RED 证明 Python adapter 原先无法检测 Node
+  registry drift。
+- GREEN 发布三套 `1.0.0` 原创 PPTX 模板：`ppt.executive-blue.v1`、
+  `ppt.operating-review.v1`、`ppt.data-story.v1`。完整 canonical metadata 覆盖分类、
+  来源/license、配色、字体、四类布局、适用场景、compatible Skill、本地封面/代表页
+  与 Renderer token；migration `20260729_0018` 只 additive 增加 checksum 并 seed。
+- API 只投影无 owner 的 `system_original/published/pptx` row，逐项复验 DB 与 catalog；
+  metadata/checksum/集合漂移返回 `template_contract_invalid`。前端目录/详情和 Deck
+  Studio 均使用 API；preview helper 只接受 certified local SVG path。
+- 切换模板要求当前 `expected_revision` 且与 Skill 兼容，成功只追加新 revision；
+  confirm/generation 冻结 code/version/checksum。Renderer 成功响应回传实际 registry
+  checksum，Python adapter 再与 catalog 严格比较；历史缺 checksum snapshot/sidecar
+  分别保持 code/version 兼容与安全重渲染。
+
+### 验证与真实证据
+
+- Focused：Backend templates/decks/preflight/generation/Renderer/quality
+  `171 passed`；Frontend template `2 passed`；Renderer worker/render `9 passed`。
+- Broad：Backend full `668 passed, 11 skipped`；Frontend full `97 passed` + production
+  build；Renderer full `23 passed` + build；Ruff check/format、`pip check`、
+  `pip-audit --skip-editable`、两端 `npm audit --audit-level=high`、Compose config 和
+  `git diff --check` 通过。
+- Runtime：真实 MySQL 从 `20260729_0017` 升级至 `20260729_0018 (head)`；当前 source
+  重建后 backend、frontend、generation-worker、ppt-renderer、LibreOffice、MySQL、
+  Redis 均 healthy，Host backend ready、Frontend 200。
+- Renderer/LibreOffice：三套代表性 3-page Plan 分别得到正确 code/version/checksum
+  和约 85 KiB PPTX；LibreOffice `25.2.3.2 520(Build:2)` 均生成 3 页 PDF/PNG。
+  首屏 PNG 视觉抽查确认三套配色、中文标题、footer 和页码，无裁切/重叠；synthetic
+  Renderer/quality/app-files/Host 临时路径随后精确清理。
+- Chrome 登录态：`/templates` 展示三张真实本地封面、版本与 use case；详情显示布局、
+  字体、compatible Skill、来源、配色和代表页拼图，console warning/error 为 0。
+- Provider：本任务不需要且未调用 Agnes。上述为 machine/browser 证据，不等于
+  Microsoft PowerPoint/WPS 或 Human acceptance；最终桌面兼容仍由 P5-008 关闭。
+
+### Changed files 与交接
+
+- Backend：template catalog/model/migration/service/schema/API/application wiring，
+  Deck/preflight/generation/Renderer checksum snapshot 与对应 tests。
+- Frontend：template catalog helper、workspace API/types、目录/详情、Deck selector/tests，
+  以及 6 个原创本地 SVG preview。
+- Renderer：三套 registry token/layout/checksum、成功响应 checksum 与 regression。
+- Records：P5-005/P5-006 状态、Post-Alpha 总计划、正式 API/Data/Security/Environment/
+  Plan、`pitfalls.md` 与本文件。
+- 未读取、修改或暂存 `.playwright-cli/`、`design-system/`、旧 `docs/ui-mockups/`，
+  未实现 P5-006 图片或 P5-007 视频。P5-006 是下一唯一 `READY`。
 
 ## P5-004 Deck Draft、逐页编辑、Skill 与 Preflight（DONE）
 
@@ -455,8 +507,8 @@
 | P5-002 | DONE | P5-001 | `feat(home): show authoritative recent tasks` |
 | P5-003 | DONE | P5-002 | 双模型会话、SSE、历史、取消/重连和安全 Markdown |
 | P5-004 | DONE | P5-003 | Deck Draft、逐页编辑、Skill、Preflight 与 generation handoff |
-| P5-005 | READY | P5-004 | 唯一下一任务：模板目录、缩略图与版本快照 |
-| P5-006 | BLOCKED | P5-005 | Agnes 图片资产与 PPT 视觉集成 |
+| P5-005 | DONE | P5-004 | 模板目录、缩略图、详情、冻结 snapshot 与 Renderer checksum |
+| P5-006 | READY | P5-005 | 唯一下一任务：Agnes 图片资产与 PPT 视觉集成 |
 | P5-007 | BLOCKED | P5-006 | Agnes 视频资产与兼容性 Gate |
 | P5-008 | BLOCKED | P5-007 | 端到端 Golden、安全、Office/WPS 与发布 Gate |
 

@@ -351,6 +351,7 @@ class PresentationOutputService:
             "slide_count": rendered.slide_count,
             "template_code": rendered.template_code,
             "template_version": rendered.template_version,
+            "template_checksum": rendered.template_checksum,
             "renderer_version": rendered.renderer_version,
             "plan_sha256": rendered.plan_sha256,
         }

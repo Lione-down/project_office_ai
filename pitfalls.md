@@ -776,6 +776,19 @@
 - 预防/验证：跨 PowerShell/容器传递非 ASCII synthetic payload 时使用 UTF-8 文件、
   base64 或 API；始终使用稳定 ASCII marker，并把清理/无残留作为 runtime test 收尾。
 
+### 2026-07-29 · P5-005 · Registry 内有 checksum 不代表跨服务已经校验
+
+- 现象：Python catalog、MySQL row 和 Node Renderer registry 都保存同一个 checksum，
+  但 Renderer 成功响应最初只回传 code/version；若 Node token 漂移而字符串 checksum
+  未同步，Python adapter 无法证明实际执行 registry 与冻结 snapshot 一致。
+- 影响：API、Deck 和 generation tests 可以全部通过，最终 PPTX 仍可能由另一组颜色或
+  layout token 渲染；仅检查 64 位格式会产生伪 fail-closed。
+- 本次处理：先用 Renderer worker 与 Python client RED 固定缺口，再让 Renderer 回传
+  实际 registry checksum，Python 与权威 catalog 严格比较；错误值稳定拒绝，历史
+  sidecar 缺字段时安全重渲染。
+- 预防/验证：跨语言/跨进程 registry 必须让执行方回传自身版本指纹，并由调用方与冻结
+  snapshot 比对；配置文件中“存在同名字段”不能替代请求/响应链路上的相等性证明。
+
 ## 规则变更记录
 
 | 日期 | 任务 | 变更 |

@@ -3,7 +3,9 @@
 - 数据库：MySQL 8.0
 - 表数量：Post-Alpha 当前 25 张；`post-alpha-contract.v1` 规划 additive 增至 31 张
 - 状态：Alpha 以 21 张封版；Post-Alpha `20260727_0015` 新增 `workflow_tasks`，
-  P5-003 `20260729_0016` 新增三张 Chat 表并扩展 `provider_calls`，当前 25 张业务表
+  P5-003 `20260729_0016` 新增三张 Chat 表并扩展 `provider_calls`；P5-004
+  `20260729_0017` 新增三张 Deck 表；P5-005 `20260729_0018` 扩展模板 catalog，
+  当前 28 张业务表
 
 ## 全局约定
 
@@ -185,8 +187,13 @@ Preflight、credits、Renderer、QA 和 task history 继续使用既有 MySQL �
    - T2-002 additive metadata：Manifest 状态/SHA-256/Schema 版本、证据引擎版本、warning/blocker 数量、生成时间，以及有上限的 OCR retry count/next retry time。Manifest key 在文件写入前持久化；MySQL 不保存证据正文、OCR 原文、BBox 或本地路径。
 
 6. `templates`
-   - 类型、来源/预览资产、分类、样式关键字、设计配置、版本、状态、排序、使用次数。
-   - 字段兼容未来用户模板，但 Alpha 只发布系统模板。
+   - 类型、来源/预览资产、分类、样式关键字、完整设计配置、版本、状态、排序、使用次数
+     与 catalog checksum。
+   - P5-005 发布三套 `owner_user_id IS NULL / source=system_original / status=published`
+     PPTX row；`design_config` 保存来源/license、配色、字体、布局、场景、兼容 Skill、
+     本地 preview 与 Renderer token，checksum 覆盖完整 canonical payload。
+   - 字段兼容未来用户模板，但当前 API 只发布上述三套系统原创模板；用户模板上传仍不在
+     范围内。
 
 7. `term_libraries`
    - 每个不可变 version 一行：版本行 ID、跨版本稳定 `library_id`、用户、可选项目、前一版本、名称、说明、状态、版本和创建时间。
@@ -362,5 +369,11 @@ Preflight、credits、Renderer、QA 和 task history 继续使用既有 MySQL �
 - `P5-003` 新增 additive `20260729_0016`，建立 owner-scoped `chat_threads`、
   `chat_messages`、`chat_runs`，并向 `provider_calls` 增加 redacted Chat run scope 与
   `(chat_run_id, attempt)` 唯一约束。真实 MySQL 从 `0015` 升级至唯一
-  `20260729_0016 (head)`，当前共 25 张业务表；真实 run 验证先 INSERT run、再绑定
+  `20260729_0016`，真实 run 验证先 INSERT run、再绑定
   assistant 外键，2.5/2.0 ProviderCall 均为 redacted terminal metadata。
+- `P5-004` 新增 additive `20260729_0017`，建立 `deck_drafts`、
+  `deck_draft_revisions` 与 `deck_draft_inputs`，当前共 28 张业务表。
+- `P5-005` 新增 additive `20260729_0018`，为 `templates` 增加 nullable checksum 并
+  发布三套完整原创 PPTX catalog row；真实 MySQL 已从 `0017` 升级到唯一
+  `20260729_0018 (head)`。新 Deck revision 和 generation task 冻结
+  code/version/checksum；旧 snapshot 缺 checksum 保持兼容，错误 checksum fail closed。

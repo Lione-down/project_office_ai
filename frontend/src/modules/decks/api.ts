@@ -6,6 +6,7 @@ import type {
   DeckGenerationResult,
   DeckUpdateInput,
 } from "./types";
+import type { TemplateSummary } from "@/modules/workspace/types";
 
 
 interface DeckApiClient {
@@ -41,6 +42,9 @@ export function createDeckApi(client: DeckApiClient) {
     },
     getDraft(draftId: string, accessToken: string) {
       return client.get<DeckDraft>(`/deck-drafts/${draftId}`, { accessToken });
+    },
+    listTemplates(accessToken: string) {
+      return client.get<TemplateSummary[]>("/templates", { accessToken });
     },
     updateDraft(
       draftId: string,

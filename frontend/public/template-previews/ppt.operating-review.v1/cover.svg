@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">经营复盘模板封面</title>
+  <desc id="desc">Office AI 原创系统模板静态预览</desc>
+  <rect width="1280" height="720" fill="#FBF9F6"/>
+  <rect width="1280" height="18" fill="#8B1E1E"/>
+  <path d="M760 0H1280V720H920Z" fill="#8B1E1E"/>
+  <path d="M886 0H1280V720H1048Z" fill="#B33A3A" opacity=".72"/>
+  <circle cx="1055" cy="348" r="118" fill="none" stroke="#C89B3C" stroke-width="18"/>
+  <text x="94" y="176" fill="#8B1E1E" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="700">OPERATING REVIEW</text>
+  <text x="94" y="292" fill="#2B211F" font-family="Microsoft YaHei, sans-serif" font-size="78" font-weight="700">经营复盘</text>
+  <text x="94" y="360" fill="#7D6C68" font-family="Microsoft YaHei, sans-serif" font-size="30">目标 · 差距 · 原因 · 行动</text>
+  <rect x="94" y="430" width="224" height="16" rx="8" fill="#8B1E1E"/>
+  <rect x="332" y="430" width="120" height="16" rx="8" fill="#C89B3C"/>
+  <text x="94" y="620" fill="#7D6C68" font-family="Microsoft YaHei, sans-serif" font-size="22">Office AI Original · v1.0.0</text>
+</svg>

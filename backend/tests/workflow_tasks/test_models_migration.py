@@ -45,7 +45,7 @@ def test_workflow_task_migration_is_additive_head_and_upgrades_empty_database(
     tmp_path: Path,
 ) -> None:
     scripts = ScriptDirectory.from_config(alembic_config())
-    assert scripts.get_heads() == ["20260729_0017"]
+    assert scripts.get_heads() == ["20260729_0018"]
     assert scripts.get_revision("20260729_0017").down_revision == "20260729_0016"
     assert scripts.get_revision("20260729_0016").down_revision == "20260727_0015"
     assert scripts.get_revision("20260727_0015").down_revision == "20260727_0014"

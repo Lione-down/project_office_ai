@@ -38,6 +38,11 @@ export interface DeckDraft {
   status: string;
   content: DeckBrief;
   content_checksum: string;
+  template_snapshot: {
+    template_code: string;
+    version: "1.0.0";
+    checksum: string;
+  } | null;
   preflight_snapshot: {
     estimated_credits: number;
     has_blockers: boolean;
@@ -68,6 +73,7 @@ export interface DeckCreateInput {
 export interface DeckUpdateInput {
   expected_revision: number;
   content: DeckBrief;
+  template_code?: string;
 }
 
 export interface DeckGenerationResult {

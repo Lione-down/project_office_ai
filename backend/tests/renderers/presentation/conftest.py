@@ -23,6 +23,7 @@ from app.services.renderers.presentation.contracts import (
 )
 from app.services.renderers.presentation.output_store import PresentationOutputStore
 from app.services.renderers.presentation.service import PresentationOutputService
+from app.templates.catalog import get_presentation_template
 
 
 USER_ID = UUID("019f5000-0000-7000-8000-000000000201")
@@ -40,6 +41,12 @@ class FakeRendererClient:
         self.calls.append((request_id, plan))
         payload = self.source.read_bytes()
         plan_sha256 = presentation_plan_sha256(PresentationPlan.model_validate(plan))
+        template = get_presentation_template(
+            plan["template"]["code"],
+            plan["template"]["version"],
+        )
+        if template is None:
+            raise AssertionError("test template must be certified")
         return RenderedPresentation(
             path=self.source,
             sha256=sha256(payload).hexdigest(),
@@ -47,6 +54,7 @@ class FakeRendererClient:
             slide_count=len(plan["slides"]),
             template_code=plan["template"]["code"],
             template_version=plan["template"]["version"],
+            template_checksum=template.checksum,
             renderer_version=plan["renderer_version"],
             plan_sha256=plan_sha256,
         )

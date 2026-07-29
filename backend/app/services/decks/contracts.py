@@ -111,6 +111,10 @@ class DeckCreateCommand(StrictModel):
 class DeckUpdateCommand(StrictModel):
     expected_revision: int = Field(ge=1)
     content: DeckBrief
+    template_code: str | None = Field(
+        default=None,
+        pattern=r"^ppt\.[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)*\.v1$",
+    )
 
 
 class DeckConfirmCommand(StrictModel):
@@ -132,6 +136,7 @@ class DeckDraftSnapshot(StrictModel):
     status: str
     content: DeckBrief
     content_checksum: str = Field(pattern=r"^[a-f0-9]{64}$")
+    template_snapshot: dict | None = None
     preflight_snapshot: dict | None
     generation_task_id: UUID | None
     confirmed_at: datetime | None

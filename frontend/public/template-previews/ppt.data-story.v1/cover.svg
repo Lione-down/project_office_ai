@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">数据叙事模板封面</title>
+  <desc id="desc">Office AI 原创系统模板静态预览</desc>
+  <rect width="1280" height="720" fill="#F8F6FC"/>
+  <rect width="1280" height="18" fill="#3D2C68"/>
+  <circle cx="1030" cy="154" r="190" fill="#7357A8" opacity=".12"/>
+  <circle cx="1116" cy="534" r="142" fill="#DD6B7B" opacity=".18"/>
+  <path d="M760 482L846 402L930 436L1022 298L1146 332" fill="none" stroke="#7357A8" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="1022" cy="298" r="18" fill="#DD6B7B"/>
+  <text x="92" y="180" fill="#7357A8" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="700">DATA STORY</text>
+  <text x="92" y="296" fill="#251F32" font-family="Microsoft YaHei, sans-serif" font-size="78" font-weight="700">数据叙事</text>
+  <text x="92" y="364" fill="#746B84" font-family="Microsoft YaHei, sans-serif" font-size="30">让指标形成清晰的判断链</text>
+  <text x="92" y="620" fill="#746B84" font-family="Microsoft YaHei, sans-serif" font-size="22">Office AI Original · v1.0.0</text>
+</svg>

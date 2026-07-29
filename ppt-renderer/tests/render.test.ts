@@ -163,6 +163,8 @@ describe("deterministic PPTX rendering", () => {
   it.each(SYSTEM_TEMPLATES)(
     "renders certified template $code@$version",
     async (template) => {
+      expect(template.checksum).toMatch(/^[a-f0-9]{64}$/);
+      expect(template.layouts).toEqual(["title", "content", "section", "closing"]);
       const plan = clonePlan();
       plan.template = { code: template.code, version: template.version };
       const target = await outputPath(`${template.code}.pptx`);

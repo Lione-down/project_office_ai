@@ -13,10 +13,12 @@ from app.services.renderers.presentation.contracts import (
     PresentationPlan,
     presentation_plan_sha256,
 )
+from app.templates.catalog import get_presentation_template
 from tests.renderers.presentation.test_contracts import valid_plan
 
 
 REQUEST_ID = UUID("019f5000-0000-7000-8000-000000000111")
+TEMPLATE_CHECKSUM = get_presentation_template("ppt.executive-blue.v1").checksum
 
 
 async def test_client_verifies_relative_path_size_and_digest(tmp_path: Path) -> None:
@@ -42,6 +44,7 @@ async def test_client_verifies_relative_path_size_and_digest(tmp_path: Path) -> 
                 "slide_count": 3,
                 "template_code": "ppt.executive-blue.v1",
                 "template_version": "1.0.0",
+                "template_checksum": TEMPLATE_CHECKSUM,
                 "renderer_version": "ppt-renderer.v1",
                 "plan_sha256": plan_sha256,
             },
@@ -57,6 +60,47 @@ async def test_client_verifies_relative_path_size_and_digest(tmp_path: Path) -> 
 
     assert result.path == output
     assert result.sha256 == digest
+    assert result.template_checksum == TEMPLATE_CHECKSUM
+
+
+async def test_client_rejects_renderer_template_checksum_drift(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "requests" / str(REQUEST_ID) / "presentation.pptx"
+    output.parent.mkdir(parents=True)
+    output.write_bytes(b"synthetic-pptx")
+    digest = sha256(output.read_bytes()).hexdigest()
+    plan_sha256 = presentation_plan_sha256(
+        PresentationPlan.model_validate(valid_plan())
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "schema_version": "ppt-renderer.response.v1",
+                "request_id": str(REQUEST_ID),
+                "status": "succeeded",
+                "output_key": f"requests/{REQUEST_ID}/presentation.pptx",
+                "sha256": digest,
+                "byte_size": output.stat().st_size,
+                "slide_count": 3,
+                "template_code": "ppt.executive-blue.v1",
+                "template_version": "1.0.0",
+                "template_checksum": "0" * 64,
+                "renderer_version": "ppt-renderer.v1",
+                "plan_sha256": plan_sha256,
+            },
+        )
+
+    client = PresentationRendererClient(
+        "http://ppt-renderer:3000",
+        tmp_path,
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(PresentationRendererError, match="renderer_response_invalid"):
+        await client.render(REQUEST_ID, valid_plan())
 
 
 @pytest.mark.parametrize(
@@ -79,6 +123,7 @@ async def test_client_rejects_renderer_path_escape(
                 "slide_count": 3,
                 "template_code": "ppt.executive-blue.v1",
                 "template_version": "1.0.0",
+                "template_checksum": TEMPLATE_CHECKSUM,
                 "renderer_version": "ppt-renderer.v1",
                 "plan_sha256": "b" * 64,
             },
@@ -115,6 +160,7 @@ async def test_client_rejects_a_response_for_a_different_plan(
                 "slide_count": 3,
                 "template_code": "ppt.executive-blue.v1",
                 "template_version": "1.0.0",
+                "template_checksum": TEMPLATE_CHECKSUM,
                 "renderer_version": "ppt-renderer.v1",
                 "plan_sha256": "f" * 64,
             },

@@ -11,6 +11,8 @@ const workspaceMocks = vi.hoisted(() => ({
   getCreditBalance: vi.fn(),
   getCreditLedger: vi.fn(),
   listWorkflowTasks: vi.fn(),
+  listTemplates: vi.fn(),
+  getTemplate: vi.fn(),
 }));
 
 vi.mock("@/modules/workspace/api", () => ({
@@ -51,6 +53,110 @@ describe("User resource views", () => {
     workspaceMocks.getCreditBalance.mockResolvedValue({ balance: 8420 });
     workspaceMocks.getCreditLedger.mockResolvedValue({ entries: [] });
     workspaceMocks.listWorkflowTasks.mockResolvedValue([]);
+    workspaceMocks.listTemplates.mockResolvedValue([
+      {
+        template_code: "ppt.executive-blue.v1",
+        version: "1.0.0",
+        checksum: "a".repeat(64),
+        name: "高管钢蓝",
+        category: "management",
+        style_keywords: ["克制", "专业"],
+        use_cases: ["管理层经营汇报"],
+        compatible_skills: [
+          "ppt.sales-business-review.v1",
+          "ppt.knowledge-education.v1",
+        ],
+        cover_url: "/template-previews/ppt.executive-blue.v1/cover.svg",
+        representative_urls: [
+          "/template-previews/ppt.executive-blue.v1/content.svg",
+        ],
+      },
+      {
+        template_code: "ppt.operating-review.v1",
+        version: "1.0.0",
+        checksum: "b".repeat(64),
+        name: "经营复盘",
+        category: "review",
+        style_keywords: ["行动", "复盘"],
+        use_cases: ["经营复盘"],
+        compatible_skills: ["ppt.sales-business-review.v1"],
+        cover_url: "/template-previews/ppt.operating-review.v1/cover.svg",
+        representative_urls: [
+          "/template-previews/ppt.operating-review.v1/content.svg",
+        ],
+      },
+      {
+        template_code: "ppt.data-story.v1",
+        version: "1.0.0",
+        checksum: "c".repeat(64),
+        name: "数据叙事",
+        category: "data-story",
+        style_keywords: ["数据", "叙事"],
+        use_cases: ["指标分析"],
+        compatible_skills: [
+          "ppt.sales-business-review.v1",
+          "ppt.knowledge-education.v1",
+        ],
+        cover_url: "/template-previews/ppt.data-story.v1/cover.svg",
+        representative_urls: [
+          "/template-previews/ppt.data-story.v1/content.svg",
+        ],
+      },
+    ]);
+    workspaceMocks.getTemplate.mockResolvedValue({
+      template_code: "ppt.executive-blue.v1",
+      version: "1.0.0",
+      checksum: "a".repeat(64),
+      name: "高管钢蓝",
+      category: "management",
+      description: "原创管理汇报模板",
+      style_keywords: ["克制", "专业"],
+      use_cases: ["管理层经营汇报"],
+      colors: ["#F5F8FC", "#123B6D"],
+      fonts: ["Microsoft YaHei"],
+      layouts: ["title", "content", "section", "closing"],
+      compatible_skills: [
+        "ppt.sales-business-review.v1",
+        "ppt.knowledge-education.v1",
+      ],
+      cover_url: "/template-previews/ppt.executive-blue.v1/cover.svg",
+      representative_urls: [
+        "/template-previews/ppt.executive-blue.v1/representative.svg",
+      ],
+      source: {
+        kind: "system_original",
+        license: "Office AI Original",
+        attribution: "Office AI Design System",
+      },
+    });
+  });
+
+  it("opens template details with renderer metadata and original source", async () => {
+    const wrapper = await mountResource("templates");
+
+    await wrapper
+      .get("[data-testid='template-detail-ppt.executive-blue.v1']")
+      .trigger("click");
+    await flushPromises();
+
+    expect(workspaceMocks.getTemplate).toHaveBeenCalledWith(
+      "ppt.executive-blue.v1",
+      "1.0.0",
+      "access",
+    );
+    expect(wrapper.get("[data-testid='template-detail']").text()).toContain(
+      "Office AI Original",
+    );
+    expect(wrapper.get("[data-testid='template-detail']").text()).toContain(
+      "title · content · section · closing",
+    );
+    expect(
+      wrapper
+        .get("[data-testid='template-representative']")
+        .attributes("src"),
+    ).toBe(
+      "/template-previews/ppt.executive-blue.v1/representative.svg",
+    );
   });
 
   it("shows real owner-scoped file metadata and processing state", async () => {
@@ -76,12 +182,24 @@ describe("User resource views", () => {
     expect(wrapper.text()).toContain("可用于生成");
   });
 
-  it("lists the five certified system templates without upload controls", async () => {
+  it("loads the certified PPT catalog with original previews and version metadata", async () => {
     const wrapper = await mountResource("templates");
 
-    expect(wrapper.findAll("[data-testid='system-template']")).toHaveLength(5);
+    expect(workspaceMocks.listTemplates).toHaveBeenCalledWith("access");
+    expect(wrapper.findAll("[data-testid='system-template']")).toHaveLength(3);
     expect(wrapper.text()).toContain("高管钢蓝");
+    expect(wrapper.text()).toContain("v1.0.0");
+    expect(wrapper.text()).toContain("管理层经营汇报");
+    expect(
+      wrapper
+        .find("[data-testid='system-template'] img")
+        .attributes("src"),
+    ).toBe("/template-previews/ppt.executive-blue.v1/cover.svg");
+    expect(
+      wrapper.findAll("[data-testid='system-workbook-template']"),
+    ).toHaveLength(2);
     expect(wrapper.text()).toContain("分析看板");
+    expect(wrapper.text()).toContain("Excel 模板");
     expect(wrapper.text()).not.toContain("上传模板");
   });
 

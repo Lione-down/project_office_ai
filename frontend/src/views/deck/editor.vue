@@ -5,6 +5,11 @@ import { useRoute, useRouter } from "vue-router";
 import { ApiError } from "@/api/request";
 import { deckApi } from "@/modules/decks/api";
 import type { DeckBrief, DeckDraft, DeckSlide } from "@/modules/decks/types";
+import type { TemplateSummary } from "@/modules/workspace/types";
+import {
+  compatibleTemplateOptions,
+  safeTemplatePreviewUrl,
+} from "@/modules/templates/template-catalog";
 import { useSessionStore } from "@/store/session";
 
 
@@ -16,10 +21,23 @@ const content = ref<DeckBrief | null>(null);
 const isBusy = ref(false);
 const error = ref("");
 const isStale = ref(false);
+const templates = ref<TemplateSummary[]>([]);
+const selectedTemplateCode = ref("");
 
 const draftId = computed(() => String(route.params.draftId));
 const estimatedCredits = computed(
   () => draft.value?.preflight_snapshot?.estimated_credits ?? null,
+);
+const compatibleTemplates = computed(() =>
+  compatibleTemplateOptions(
+    templates.value,
+    content.value?.skill_code ?? "",
+  ),
+);
+const selectedTemplate = computed(() =>
+  compatibleTemplates.value.find(
+    (template) => template.template_code === selectedTemplateCode.value,
+  ),
 );
 
 function cloneContract<T>(value: T): T {
@@ -34,6 +52,7 @@ function requireToken() {
 function replaceDraft(next: DeckDraft) {
   draft.value = next;
   content.value = cloneContract(next.content);
+  selectedTemplateCode.value = next.template_snapshot?.template_code ?? "";
   error.value = "";
   isStale.value = false;
 }
@@ -41,7 +60,13 @@ function replaceDraft(next: DeckDraft) {
 async function load() {
   isBusy.value = true;
   try {
-    replaceDraft(await deckApi.getDraft(draftId.value, requireToken()));
+    const token = requireToken();
+    const [nextDraft, nextTemplates] = await Promise.all([
+      deckApi.getDraft(draftId.value, token),
+      deckApi.listTemplates(token),
+    ]);
+    templates.value = nextTemplates;
+    replaceDraft(nextDraft);
   } catch {
     error.value = "Deck Draft 加载失败，请稍后重试。";
   } finally {
@@ -110,7 +135,11 @@ async function save() {
   await run(() =>
     deckApi.updateDraft(
       draftId.value,
-      { expected_revision: expectedRevision, content: nextContent },
+      {
+        expected_revision: expectedRevision,
+        content: nextContent,
+        template_code: selectedTemplateCode.value,
+      },
       requireToken(),
     ),
   );
@@ -196,6 +225,31 @@ onMounted(load);
     <p v-else-if="error" class="oa-error" role="alert">{{ error }}</p>
 
     <section v-if="content" class="deck-grid">
+      <article class="template-selector">
+        <div>
+          <span>认证模板</span>
+          <select
+            v-model="selectedTemplateCode"
+            data-testid="deck-template-select"
+            :disabled="isBusy"
+          >
+            <option
+              v-for="template in compatibleTemplates"
+              :key="template.template_code"
+              :value="template.template_code"
+            >
+              {{ template.name }} · v{{ template.version }}
+            </option>
+          </select>
+          <small>切换后保存会创建新的不可变 Revision。</small>
+        </div>
+        <img
+          v-if="selectedTemplate"
+          data-testid="deck-template-preview"
+          :src="safeTemplatePreviewUrl(selectedTemplate.cover_url)"
+          :alt="`${selectedTemplate.name}静态预览`"
+        />
+      </article>
       <article
         v-for="(slide, index) in content.slides"
         :key="slide.slide_id"
@@ -295,6 +349,10 @@ onMounted(load);
 button { border: 1px solid #c9d2df; border-radius: 9px; padding: 9px 13px; background: #fff; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 .deck-grid { display: grid; gap: 18px; margin: 22px 0 96px; }
+.template-selector { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); gap: 24px; align-items: center; padding: 22px; border: 1px solid #dbe1ea; border-radius: 16px; background: #fff; }
+.template-selector > div { display: grid; gap: 10px; }
+.template-selector select { width: 100%; border: 1px solid #cfd7e2; border-radius: 9px; padding: 10px 12px; background: #fbfcfe; }
+.template-selector img { width: 100%; border: 1px solid #dbe1ea; border-radius: 10px; }
 .slide-card { padding: 22px; border: 1px solid #dbe1ea; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgb(21 35 56 / 5%); }
 .slide-card > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .slide-card label { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; color: #4f5d70; }
@@ -308,5 +366,6 @@ textarea { min-height: 76px; resize: vertical; }
 @media (max-width: 800px) {
   .deck-header, .generation-bar { align-items: stretch; flex-direction: column; }
   .slide-meta { grid-template-columns: 1fr; }
+  .template-selector { grid-template-columns: 1fr; }
 }
 </style>

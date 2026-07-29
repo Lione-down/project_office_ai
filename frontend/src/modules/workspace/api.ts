@@ -12,6 +12,8 @@ import type {
   ProjectSummary,
   SkillSummary,
   TermLibrarySummary,
+  TemplateDetail,
+  TemplateSummary,
   WorkspaceOptions,
   WorkflowTask,
 } from "./types";
@@ -66,6 +68,20 @@ export function createWorkspaceApi(client: WorkspaceApiClient) {
     },
     listWorkflowTasks(accessToken: string) {
       return client.get<WorkflowTask[]>("/workflow-tasks", { accessToken });
+    },
+    listTemplates(accessToken: string) {
+      return client.get<TemplateSummary[]>("/templates", { accessToken });
+    },
+    getTemplate(
+      templateCode: string,
+      version: string,
+      accessToken: string,
+    ) {
+      const query = new URLSearchParams({ version });
+      return client.get<TemplateDetail>(
+        `/templates/${encodeURIComponent(templateCode)}?${query}`,
+        { accessToken },
+      );
     },
     getWorkflowTask(taskId: string, accessToken: string) {
       return client.get<WorkflowTask>(`/workflow-tasks/${taskId}`, {

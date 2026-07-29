@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.services.auth_sessions import CurrentUser
 from app.services.generation import GenerationService
+from app.services.preflight.catalog import template_checksum_for_reference
 
 
 USER_ID = UUID("019f5000-0000-7000-8000-000000000001")
@@ -52,6 +53,10 @@ def confirmed_preflight(*, combined: bool = False) -> dict:
             "title": "销售经营汇报",
             "template_code": "ppt.executive-blue.v1",
             "template_version": "1.0.0",
+            "template_checksum": template_checksum_for_reference(
+                "ppt.executive-blue.v1",
+                "1.0.0",
+            ),
             "estimated_credits": 800,
         }
     ]
@@ -63,6 +68,10 @@ def confirmed_preflight(*, combined: bool = False) -> dict:
                 "title": "销售分析看板",
                 "template_code": "excel.analysis-dashboard.v1",
                 "template_version": "1.0.0",
+                "template_checksum": template_checksum_for_reference(
+                    "excel.analysis-dashboard.v1",
+                    "1.0.0",
+                ),
                 "estimated_credits": 800,
             }
         )

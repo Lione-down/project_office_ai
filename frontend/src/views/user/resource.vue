@@ -7,6 +7,8 @@ import type {
   AssetSummary,
   CreditLedger,
   TermLibrarySummary,
+  TemplateDetail,
+  TemplateSummary,
   WorkflowTask,
 } from "@/modules/workspace/types";
 import {
@@ -15,6 +17,7 @@ import {
   workflowTaskStatusLabel,
 } from "@/modules/workspace/workflow-task-presentation";
 import { useSessionStore } from "@/store/session";
+import { safeTemplatePreviewUrl } from "@/modules/templates/template-catalog";
 
 type UserSection = "tasks" | "files" | "templates" | "term-libraries" | "credits";
 
@@ -25,38 +28,20 @@ const tasks = ref<WorkflowTask[]>([]);
 const termLibraries = ref<TermLibrarySummary[]>([]);
 const creditBalance = ref(0);
 const ledger = ref<CreditLedger["entries"]>([]);
+const templates = ref<TemplateSummary[]>([]);
+const selectedTemplate = ref<TemplateDetail | null>(null);
 const isLoading = ref(false);
 const errorMessage = ref("");
 let taskPollTimer: ReturnType<typeof setTimeout> | undefined;
 
-const templates = [
-  {
-    code: "ppt.executive-blue.v1",
-    kind: "PPTX",
-    name: "高管钢蓝",
-    description: "克制、专业的管理层经营汇报",
-  },
-  {
-    code: "ppt.operating-review.v1",
-    kind: "PPTX",
-    name: "经营复盘",
-    description: "围绕目标、差距和行动项组织内容",
-  },
-  {
-    code: "ppt.data-story.v1",
-    kind: "PPTX",
-    name: "数据叙事",
-    description: "将关键指标转为清晰的数据故事",
-  },
+const workbookTemplates = [
   {
     code: "excel.analysis-dashboard.v1",
-    kind: "XLSX",
     name: "分析看板",
     description: "面向业务分析的指标与图表看板",
   },
   {
     code: "excel.operating-review.v1",
-    kind: "XLSX",
     name: "经营复盘",
     description: "保留明细、汇总和复盘结论",
   },
@@ -66,7 +51,7 @@ const sectionCopy = computed(() => {
   const copy = {
     tasks: ["我的任务", "查看生成进度、质量状态与输出下载"],
     files: ["我的文件", "管理已上传并经过隔离处理的工作材料"],
-    templates: ["系统模板", "使用经过认证的 PPTX 与 XLSX 模板"],
+    templates: ["系统模板", "浏览经过认证的原创 PPTX 模板"],
     "term-libraries": ["术语库", "选择已发布版本，保持业务表达一致"],
     credits: ["积分与流水", "查看可用余额和只追加的积分变动记录"],
   } satisfies Record<UserSection, [string, string]>;
@@ -141,13 +126,16 @@ async function load() {
   assets.value = [];
   tasks.value = [];
   termLibraries.value = [];
+  templates.value = [];
+  selectedTemplate.value = null;
   ledger.value = [];
-  if (props.section === "templates") return;
   isLoading.value = true;
   try {
     const token = requireToken();
     if (props.section === "tasks") {
       tasks.value = await workspaceApi.listWorkflowTasks(token);
+    } else if (props.section === "templates") {
+      templates.value = await workspaceApi.listTemplates(token);
     } else if (props.section === "credits") {
       const [balanceResult, ledgerResult] = await Promise.all([
         workspaceApi.getCreditBalance(token),
@@ -168,6 +156,26 @@ async function load() {
   } finally {
     isLoading.value = false;
     scheduleTaskPoll();
+  }
+}
+
+async function showTemplateDetail(template: TemplateSummary) {
+  if (isLoading.value) return;
+  isLoading.value = true;
+  errorMessage.value = "";
+  try {
+    selectedTemplate.value = await workspaceApi.getTemplate(
+      template.template_code,
+      template.version,
+      requireToken(),
+    );
+  } catch (error) {
+    errorMessage.value =
+      error instanceof ApiError || error instanceof Error
+        ? error.message
+        : "模板详情加载失败";
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -269,16 +277,79 @@ onBeforeUnmount(clearTaskPoll);
       <div v-if="section === 'templates'" class="template-grid">
         <article
           v-for="template in templates"
-          :key="template.code"
+          :key="`${template.template_code}@${template.version}`"
           class="template-card"
           data-testid="system-template"
         >
-          <span>{{ template.kind }}</span>
+          <img
+            :src="safeTemplatePreviewUrl(template.cover_url)"
+            :alt="`${template.name}封面预览`"
+          />
+          <span>{{ template.category }}</span>
           <h2>{{ template.name }}</h2>
-          <p>{{ template.description }}</p>
-          <code>{{ template.code }}</code>
+          <p>{{ template.use_cases.join(" · ") }}</p>
+          <div class="template-meta">
+            <code>{{ template.template_code }}</code>
+            <strong>v{{ template.version }}</strong>
+          </div>
+          <button
+            :data-testid="`template-detail-${template.template_code}`"
+            type="button"
+            @click="showTemplateDetail(template)"
+          >
+            查看详情
+          </button>
         </article>
       </div>
+      <section v-if="section === 'templates'" class="workbook-templates">
+        <header>
+          <h2>Excel 模板</h2>
+          <p>保留现有文件驱动 XLSX 工作流；本次不改变其版本合同。</p>
+        </header>
+        <div class="template-grid">
+          <article
+            v-for="template in workbookTemplates"
+            :key="template.code"
+            class="template-card workbook-template-card"
+            data-testid="system-workbook-template"
+          >
+            <span>XLSX</span>
+            <h2>{{ template.name }}</h2>
+            <p>{{ template.description }}</p>
+            <code>{{ template.code }}</code>
+          </article>
+        </div>
+      </section>
+      <article
+        v-if="section === 'templates' && selectedTemplate"
+        class="template-detail"
+        data-testid="template-detail"
+      >
+        <div>
+          <span>认证模板详情</span>
+          <h2>{{ selectedTemplate.name }}</h2>
+          <p>{{ selectedTemplate.description }}</p>
+          <dl>
+            <div><dt>布局</dt><dd>{{ selectedTemplate.layouts.join(" · ") }}</dd></div>
+            <div><dt>字体</dt><dd>{{ selectedTemplate.fonts.join(" · ") }}</dd></div>
+            <div><dt>兼容 Skill</dt><dd>{{ selectedTemplate.compatible_skills.join(" · ") }}</dd></div>
+            <div><dt>来源</dt><dd>{{ selectedTemplate.source.license }} · {{ selectedTemplate.source.attribution }}</dd></div>
+          </dl>
+          <div class="color-list" aria-label="模板配色">
+            <i
+              v-for="color in selectedTemplate.colors"
+              :key="color"
+              :style="{ backgroundColor: color }"
+              :title="color"
+            />
+          </div>
+        </div>
+        <img
+          data-testid="template-representative"
+          :src="safeTemplatePreviewUrl(selectedTemplate.representative_urls[0] ?? '')"
+          :alt="`${selectedTemplate.name}代表页拼图`"
+        />
+      </article>
 
       <div v-if="section === 'term-libraries'" class="table-panel">
         <table>
@@ -418,8 +489,18 @@ div.empty-copy {
 }
 
 .template-card {
+  display: grid;
   min-height: 190px;
   padding: 22px;
+  gap: 12px;
+}
+
+.template-card > img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--oa-line);
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .template-card > span,
@@ -434,13 +515,13 @@ div.empty-copy {
 }
 
 .template-card h2 {
-  margin: 20px 0 8px;
+  margin: 4px 0 0;
   font-size: 20px;
 }
 
 .template-card p {
-  min-height: 48px;
-  margin: 0 0 18px;
+  min-height: 24px;
+  margin: 0;
   color: var(--oa-muted);
   line-height: 1.6;
 }
@@ -448,6 +529,85 @@ div.empty-copy {
 .template-card code {
   color: #64748b;
   font-size: 12px;
+}
+
+.template-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workbook-templates {
+  display: grid;
+  gap: 16px;
+}
+
+.workbook-templates > header h2,
+.workbook-templates > header p {
+  margin: 0;
+}
+
+.workbook-templates > header p {
+  margin-top: 6px;
+  color: var(--oa-muted);
+}
+
+.workbook-template-card {
+  min-height: 160px;
+}
+
+.template-card button {
+  border: 1px solid var(--oa-line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--oa-ink);
+  background: #fff;
+  cursor: pointer;
+}
+
+.template-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr);
+  gap: 28px;
+  padding: 28px;
+  border: 1px solid var(--oa-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.template-detail > img {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.template-detail dl {
+  display: grid;
+  gap: 10px;
+}
+
+.template-detail dl div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+}
+
+.template-detail dt {
+  color: var(--oa-muted);
+}
+
+.template-detail dd {
+  margin: 0;
+}
+
+.color-list {
+  display: flex;
+  gap: 8px;
+}
+
+.color-list i {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--oa-line);
+  border-radius: 50%;
 }
 
 .balance-card {
@@ -490,6 +650,9 @@ div.empty-copy {
 
 @media (max-width: 820px) {
   .template-grid {
+    grid-template-columns: 1fr;
+  }
+  .template-detail {
     grid-template-columns: 1fr;
   }
 }

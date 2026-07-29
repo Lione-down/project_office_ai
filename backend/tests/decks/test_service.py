@@ -24,6 +24,7 @@ from app.models import (
     Project,
     ProviderCredential,
     Skill,
+    Template,
     User,
     WorkflowTask,
 )
@@ -43,6 +44,7 @@ from app.services.generation_worker import StepExecutionContext, StepExecutionRe
 from app.services.chat_persistence import chat_message_snapshot
 from app.services.preflight.service import BriefWorkflowService
 from app.skills.catalog import KNOWLEDGE_EDUCATION_SKILL
+from app.templates.catalog import PRESENTATION_TEMPLATES
 from tests.decks.test_contracts import valid_deck_payload
 
 
@@ -228,6 +230,26 @@ async def deck_harness(tmp_path) -> AsyncIterator[DeckHarness]:
                     status=KNOWLEDGE_EDUCATION_SKILL.status,
                     checksum=KNOWLEDGE_EDUCATION_SKILL.checksum,
                 ),
+                *[
+                    Template(
+                        template_code=template.template_code,
+                        template_type="pptx",
+                        source="system_original",
+                        display_name=template.name,
+                        category=template.category,
+                        style_keywords=list(template.style_keywords),
+                        design_config=template.design_config(),
+                        version=template.database_version,
+                        status="published",
+                        sort_order=index,
+                        usage_count=0,
+                        checksum=template.checksum,
+                    )
+                    for index, template in enumerate(
+                        PRESENTATION_TEMPLATES,
+                        start=1,
+                    )
+                ],
                 ChatThread(
                     id=THREAD_ID,
                     thread_id=THREAD_ID,
@@ -344,6 +366,11 @@ async def test_create_persists_one_revision_and_replays_without_provider_call(
     assert first.revision == 1
     assert first.status == "draft"
     assert first.content.schema_version == "deck-brief.v1"
+    assert first.template_snapshot == {
+        "template_code": "ppt.executive-blue.v1",
+        "version": "1.0.0",
+        "checksum": PRESENTATION_TEMPLATES[0].checksum,
+    }
     assert replay.draft_id == first.draft_id
     assert replay.replayed is True
     assert source_replay.draft_id == first.draft_id
@@ -352,6 +379,46 @@ async def test_create_persists_one_revision_and_replays_without_provider_call(
     async with deck_harness.session_factory() as session:
         assert await session.scalar(select(func.count(DeckDraft.id))) == 1
         assert await session.scalar(select(func.count(DeckDraftRevision.id))) == 1
+
+
+@pytest.mark.asyncio
+async def test_switching_compatible_template_creates_a_new_frozen_revision(
+    deck_harness: DeckHarness,
+) -> None:
+    created = await deck_harness.service.create(
+        "access-token",
+        MESSAGE_ID,
+        command(),
+        "deck-template-create",
+        trace_id="trace-deck-template-create",
+    )
+
+    updated = await deck_harness.service.update(
+        "access-token",
+        created.draft_id,
+        DeckUpdateCommand(
+            expected_revision=1,
+            content=created.content,
+            template_code="ppt.data-story.v1",
+        ),
+    )
+
+    assert updated.revision == 2
+    assert updated.template_snapshot == {
+        "template_code": "ppt.data-story.v1",
+        "version": "1.0.0",
+        "checksum": PRESENTATION_TEMPLATES[2].checksum,
+    }
+    async with deck_harness.session_factory() as session:
+        revisions = list(
+            await session.scalars(
+                select(DeckDraftRevision)
+                .where(DeckDraftRevision.draft_id == created.draft_id)
+                .order_by(DeckDraftRevision.revision)
+            )
+        )
+    assert revisions[0].template_snapshot == created.template_snapshot
+    assert revisions[1].template_snapshot == updated.template_snapshot
 
 
 @pytest.mark.asyncio
@@ -570,6 +637,7 @@ async def test_confirm_preflight_and_generation_reuse_authoritative_workflow(
             "title": "用通俗方式解释生成式 AI",
             "template_code": "ppt.executive-blue.v1",
             "template_version": "1.0.0",
+            "template_checksum": PRESENTATION_TEMPLATES[0].checksum,
             "estimated_credits": 800,
         }
     ]

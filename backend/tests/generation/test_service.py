@@ -9,6 +9,7 @@ from app.models.outbox_events import OutboxEvent
 from app.models.users import User
 from app.models.ai_models import AiModel
 from app.services.generation_contracts import GenerationOperationError
+from app.templates.catalog import get_presentation_template
 from tests.generation.conftest import BRIEF_ID, MODEL_ID, USER_ID
 
 
@@ -52,6 +53,10 @@ async def test_idempotent_creation_reserves_once_and_freezes_inputs(
     assert reserve.amount == -800
     assert reserve.task_id == first.task_id
     assert task.skill_snapshot[0]["version"] == "1.0.0"
+    assert (
+        task.skill_snapshot[0]["template_checksum"]
+        == get_presentation_template("ppt.executive-blue.v1").checksum
+    )
     assert brief_input.snapshot["resolutions"] == [
         {
             "code": "unit_unknown",

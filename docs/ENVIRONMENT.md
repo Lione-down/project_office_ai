@@ -114,7 +114,9 @@ Settings/Compose；P5-004 已接入两项 Deck 上限。媒体变量仍只有在
 P5-004 runtime 已从 Settings/Compose 注入
 `OFFICE_AI_DECK_MAX_SLIDES=40` 与 `OFFICE_AI_DECK_MAX_CONTEXT_ASSETS=20`；
 服务端同时维持 200 MiB 总量、owner、状态和冻结版本 Gate。当前 Compose 启动不会替代
-显式 Alembic upgrade；本次真实 runtime 已升级到 `20260729_0017 (head)`。
+显式 Alembic upgrade；P5-005 不新增环境变量，真实 runtime 已升级到
+`20260729_0018 (head)`，并以当前 source 重建 backend、frontend、generation-worker
+与 ppt-renderer；所有受影响服务 healthy。
 
 上述安全开关不是普通 feature toggle：
 `OFFICE_AI_CHAT_WEB_SEARCH_ENABLED=false`、

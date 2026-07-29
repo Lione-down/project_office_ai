@@ -62,6 +62,9 @@ class Template(Base):
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, comment="展示排序序号")
     usage_count: Mapped[int] = mapped_column(Integer, default=0, comment="累计使用次数")
+    checksum: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="模板目录合同SHA-256"
+    )
     created_at: Mapped[datetime] = mapped_column(
         utc_datetime_type(), default=utc_now, comment="创建时间（UTC）"
     )

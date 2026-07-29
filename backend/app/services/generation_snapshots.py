@@ -4,6 +4,7 @@ from app.models.briefs import Brief
 from app.models.provider_credentials import ProviderCredential
 from app.services.generation_contracts import GenerationOperationError
 from app.services.preflight.contracts import PreflightSnapshot
+from app.services.preflight.catalog import template_checksum_for_reference
 
 
 def build_model_snapshot(model: AiModel, credential: ProviderCredential) -> dict:
@@ -64,14 +65,27 @@ def build_skill_snapshot(brief: Brief, preflight: PreflightSnapshot) -> list[dic
         raise GenerationOperationError(
             "brief_integrity_failed", "Brief Skill快照不完整", 409
         )
-    return [
-        {
-            "skill_code": output.skill_code,
-            "version": versions[output.skill_code],
-            "kind": output.kind,
-            "template_code": output.template_code,
-            "template_version": output.template_version,
-            "estimated_credits": output.estimated_credits,
-        }
-        for output in preflight.outputs
-    ]
+    snapshots = []
+    for output in preflight.outputs:
+        template_checksum = output.template_checksum or template_checksum_for_reference(
+            output.template_code,
+            output.template_version,
+        )
+        if template_checksum is None:
+            raise GenerationOperationError(
+                "generation_preflight_stale",
+                "模板版本配置已变化，请重新执行 Preflight",
+                409,
+            )
+        snapshots.append(
+            {
+                "skill_code": output.skill_code,
+                "version": versions[output.skill_code],
+                "kind": output.kind,
+                "template_code": output.template_code,
+                "template_version": output.template_version,
+                "template_checksum": template_checksum,
+                "estimated_credits": output.estimated_credits,
+            }
+        )
+    return snapshots

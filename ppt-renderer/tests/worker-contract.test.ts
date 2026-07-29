@@ -42,6 +42,9 @@ describe("versioned renderer worker contract", () => {
       );
       expect(response.output_key).not.toMatch(/^[A-Za-z]:|^\//);
       expect(response.plan_sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(response.template_checksum).toBe(
+        "9cad7dfef0257d6ef3d02b6d448f31fd833bf64b24f6fda20b113677069509a5",
+      );
     }
   });
 

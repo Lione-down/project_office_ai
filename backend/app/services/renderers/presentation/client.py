@@ -14,6 +14,7 @@ from app.services.renderers.presentation.contracts import (
     PresentationPlan,
     presentation_plan_sha256,
 )
+from app.templates.catalog import get_presentation_template
 
 
 SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
@@ -43,6 +44,7 @@ class RenderSuccess(BaseModel):
         "ppt.data-story.v1",
     ]
     template_version: Literal["1.0.0"]
+    template_checksum: str
     renderer_version: Literal["ppt-renderer.v1"]
     plan_sha256: str
 
@@ -55,6 +57,7 @@ class RenderedPresentation:
     slide_count: int
     template_code: str
     template_version: str
+    template_checksum: str
     renderer_version: str
     plan_sha256: str
 
@@ -142,6 +145,10 @@ class PresentationRendererClient:
             result = RenderSuccess.model_validate(body)
         except ValidationError as exception:
             raise self._invalid_response() from exception
+        expected_template = get_presentation_template(
+            validated_plan.template.code,
+            validated_plan.template.version,
+        )
         if (
             result.schema_version != "ppt-renderer.response.v1"
             or result.request_id != request_id
@@ -149,6 +156,9 @@ class PresentationRendererClient:
             or result.renderer_version != "ppt-renderer.v1"
             or result.template_code != validated_plan.template.code
             or result.template_version != validated_plan.template.version
+            or expected_template is None
+            or result.template_checksum != expected_template.checksum
+            or not SHA256_PATTERN.fullmatch(result.template_checksum)
             or not SHA256_PATTERN.fullmatch(result.sha256)
             or not SHA256_PATTERN.fullmatch(result.plan_sha256)
             or result.plan_sha256 != expected_plan_sha256
@@ -165,6 +175,7 @@ class PresentationRendererClient:
             slide_count=result.slide_count,
             template_code=result.template_code,
             template_version=result.template_version,
+            template_checksum=result.template_checksum,
             renderer_version=result.renderer_version,
             plan_sha256=result.plan_sha256,
         )

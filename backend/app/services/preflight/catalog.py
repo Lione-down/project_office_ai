@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
+from hashlib import sha256
+import json
 from typing import Literal
 
 from app.skills.catalog import (
@@ -7,6 +9,7 @@ from app.skills.catalog import (
     KNOWLEDGE_EDUCATION_SKILL_CODE,
     PPT_SKILL_CODE,
 )
+from app.templates.catalog import PRESENTATION_TEMPLATES
 
 
 PPT_DEFAULT_TEMPLATE = "ppt.operating-review.v1"
@@ -26,6 +29,7 @@ class TemplateDefinition:
     template_code: str
     version: str
     output_kind: Literal["pptx", "xlsx"]
+    checksum: str
 
 
 @dataclass(frozen=True)
@@ -35,15 +39,45 @@ class PlannedOutput:
     title: str
     template_code: str
     template_version: str
+    template_checksum: str
     estimated_credits: int
 
 
+def _legacy_checksum(template_code: str, version: str) -> str:
+    canonical = json.dumps(
+        {
+            "template_code": template_code,
+            "version": version,
+            "output_kind": "xlsx",
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return sha256(canonical.encode("utf-8")).hexdigest()
+
+
 ALPHA_TEMPLATES = (
-    TemplateDefinition(PPT_DEFAULT_TEMPLATE, "1.0.0", "pptx"),
-    TemplateDefinition("ppt.executive-blue.v1", "1.0.0", "pptx"),
-    TemplateDefinition("ppt.data-story.v1", "1.0.0", "pptx"),
-    TemplateDefinition(EXCEL_DEFAULT_TEMPLATE, "1.0.0", "xlsx"),
-    TemplateDefinition("excel.operating-review.v1", "1.0.0", "xlsx"),
+    *(
+        TemplateDefinition(
+            template.template_code,
+            template.version,
+            "pptx",
+            template.checksum,
+        )
+        for template in PRESENTATION_TEMPLATES
+    ),
+    TemplateDefinition(
+        EXCEL_DEFAULT_TEMPLATE,
+        "1.0.0",
+        "xlsx",
+        _legacy_checksum(EXCEL_DEFAULT_TEMPLATE, "1.0.0"),
+    ),
+    TemplateDefinition(
+        "excel.operating-review.v1",
+        "1.0.0",
+        "xlsx",
+        _legacy_checksum("excel.operating-review.v1", "1.0.0"),
+    ),
 )
 _TEMPLATE_BY_REFERENCE = {
     (template.template_code, template.version): template for template in ALPHA_TEMPLATES
@@ -97,6 +131,7 @@ def build_alpha_output_plan(
                 title=title,
                 template_code=template.template_code,
                 template_version=template.version,
+                template_checksum=template.checksum,
                 estimated_credits=estimated_credits,
             )
         )
@@ -106,3 +141,11 @@ def build_alpha_output_plan(
             "template_incompatible", "系统模板与所选输出不兼容"
         )
     return tuple(outputs)
+
+
+def template_checksum_for_reference(
+    template_code: str,
+    template_version: str,
+) -> str | None:
+    template = _TEMPLATE_BY_REFERENCE.get((template_code, template_version))
+    return template.checksum if template is not None else None

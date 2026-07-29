@@ -12,6 +12,7 @@ from app.models.ai_providers import AiProvider
 from app.models.deck_draft_inputs import DeckDraftInput
 from app.models.deck_draft_revisions import DeckDraftRevision
 from app.models.deck_drafts import DeckDraft
+from app.models.templates import Template
 from app.providers.agnes import ChatCompletionRequest
 from app.services.auth_sessions import AuthSessionService, CurrentUser
 from app.services.decks.contracts import (
@@ -30,6 +31,10 @@ from app.services.decks.handoff import DeckHandoffService
 from app.services.decks.repository import DeckRepository
 from app.services.provider_contracts import ProviderAdapter, build_provider_adapter
 from app.services.provider_security import CredentialCipher
+from app.templates.catalog import (
+    get_presentation_template,
+    template_row_matches_definition,
+)
 
 
 class DeckService:
@@ -129,6 +134,7 @@ class DeckService:
             provider,
             credential,
             skill,
+            template_definition,
             assets,
         ) = await self._repository.load_create_inputs(
             current_user,
@@ -227,6 +233,7 @@ class DeckService:
             provider=provider,
             credential=credential,
             skill=skill,
+            template_definition=template_definition,
             assets=assets,
         )
 
@@ -274,6 +281,45 @@ class DeckService:
                     "Deck 来源快照不可修改",
                     409,
                 )
+            if command.content.skill_code != prior_content.skill_code:
+                raise DeckOperationError(
+                    "deck_skill_snapshot_immutable",
+                    "Deck Skill 快照不可修改",
+                    409,
+                )
+            template_snapshot = prior.template_snapshot
+            if command.template_code is not None:
+                definition = get_presentation_template(command.template_code)
+                if (
+                    definition is None
+                    or command.content.skill_code not in definition.compatible_skills
+                ):
+                    raise DeckOperationError(
+                        "template_incompatible",
+                        "系统模板与所选 Skill 不兼容",
+                        422,
+                    )
+                template = await session.scalar(
+                    select(Template).where(
+                        Template.template_code == definition.template_code,
+                        Template.version == definition.database_version,
+                        Template.owner_user_id.is_(None),
+                    )
+                )
+                if template is None or not template_row_matches_definition(
+                    template,
+                    definition,
+                ):
+                    raise DeckOperationError(
+                        "template_contract_invalid",
+                        "系统模板版本合同不可用",
+                        409,
+                    )
+                template_snapshot = {
+                    "template_code": definition.template_code,
+                    "version": definition.version,
+                    "checksum": definition.checksum,
+                }
             row = DeckDraftRevision(
                 draft_id=draft.id,
                 revision=prior.revision + 1,
@@ -282,7 +328,7 @@ class DeckService:
                 source_mode=prior.source_mode,
                 skill_snapshot=prior.skill_snapshot,
                 model_snapshot=prior.model_snapshot,
-                template_snapshot=prior.template_snapshot,
+                template_snapshot=template_snapshot,
                 provenance_summary=self._provenance_summary(command.content),
                 preflight_snapshot=None,
                 high_risk_confirmation_required=self._is_high_risk(command.content),
@@ -390,6 +436,7 @@ class DeckService:
             status=row.status,
             content=cls._validated_revision(row),
             content_checksum=row.content_checksum,
+            template_snapshot=row.template_snapshot,
             preflight_snapshot=row.preflight_snapshot,
             generation_task_id=row.generation_task_id,
             confirmed_at=row.confirmed_at,

@@ -12,6 +12,7 @@ from app.api.v1.invite_codes import router as invite_codes_router
 from app.api.v1.providers import admin_router as provider_admin_router
 from app.api.v1.providers import model_router
 from app.api.v1.term_libraries import router as terminology_router
+from app.api.v1.templates import router as template_router
 from app.api.v1.workflow_tasks import router as workflow_task_router
 
 
@@ -26,6 +27,7 @@ def include_routers(app: FastAPI) -> None:
     app.include_router(asset_router)
     app.include_router(terminology_router)
     app.include_router(skill_router)
+    app.include_router(template_router)
     app.include_router(brief_router)
     app.include_router(generation_router)
     app.include_router(task_router)

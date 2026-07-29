@@ -402,6 +402,43 @@ async def test_presentation_pipeline_loads_frozen_brief_and_runs_quality(
     assert quality.calls[0][2]["template"]["code"] == "ppt.executive-blue.v1"
 
 
+async def test_presentation_pipeline_rejects_template_checksum_drift(
+    generation_harness,
+) -> None:
+    created = await generation_harness.service.create(
+        "access-token", BRIEF_ID, "runtime-template-drift-001"
+    )
+    async with generation_harness.session_factory() as session, session.begin():
+        task = await session.get(GenerationTask, created.task_id, with_for_update=True)
+        task.skill_snapshot = [
+            {
+                **item,
+                "template_checksum": "0" * 64,
+            }
+            for item in task.skill_snapshot
+        ]
+    output = RecordingOutput()
+    pipeline = PresentationGenerationPipeline(
+        generation_harness.session_factory,
+        output,
+        RecordingQuality(),
+    )
+    context = StepExecutionContext(
+        task_id=created.task_id,
+        step_id=UUID("019fa500-0000-7000-8000-000000000014"),
+        step_key="render:pptx",
+        output_kind="pptx",
+        attempt=1,
+        model_snapshot={},
+    )
+
+    result = await pipeline.execute(context)
+
+    assert result.status == "permanent_failure"
+    assert result.error_category == "generation_template_snapshot_invalid"
+    assert output.calls == []
+
+
 async def test_spreadsheet_pipeline_loads_frozen_brief_without_numeric_guessing(
     generation_harness,
 ) -> None:

@@ -147,6 +147,10 @@ class PlannedOutputSnapshot(StrictModel):
     title: str
     template_code: str
     template_version: str
+    template_checksum: str | None = Field(
+        default=None,
+        pattern=r"^[a-f0-9]{64}$",
+    )
     estimated_credits: int
 
 

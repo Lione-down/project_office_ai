@@ -15,6 +15,7 @@ from app.services.decks.presentation import DeckPresentationComposer
 from app.services.evidence.contracts import EvidenceItem, EvidenceProcessingError
 from app.services.evidence.store import EvidenceManifestStore
 from app.services.generation_worker import StepExecutionResult
+from app.services.preflight.catalog import template_checksum_for_reference
 from app.services.management_presentation import ManagementPresentationComposer
 from app.services.renderers.excel.contracts import WorkbookPlan
 from app.services.renderers.presentation.contracts import PresentationPlan
@@ -366,6 +367,15 @@ class _GenerationPipeline:
             or not isinstance(frozen[0].get("template_code"), str)
         ):
             raise BriefPlanCompilationError("generation_template_snapshot_invalid")
+        expected_checksum = template_checksum_for_reference(
+            frozen[0]["template_code"],
+            frozen[0]["template_version"],
+        )
+        frozen_checksum = frozen[0].get("template_checksum")
+        if expected_checksum is None or (
+            frozen_checksum is not None and frozen_checksum != expected_checksum
+        ):
+            raise BriefPlanCompilationError("generation_template_snapshot_invalid")
         return brief, task, frozen[0]["template_code"]
 
     async def _load_deck_revision(
@@ -385,14 +395,29 @@ class _GenerationPipeline:
             draft = (
                 await session.get(DeckDraft, row.draft_id) if row is not None else None
             )
+        frozen_pptx = [
+            item for item in task.skill_snapshot if item.get("kind") == "pptx"
+        ]
         if (
             row is None
             or draft is None
+            or len(frozen_pptx) != 1
             or draft.user_id != task.user_id
             or draft.project_id != task.project_id
             or row.bridge_brief_id != brief.id
             or row.generation_task_id != task.id
             or row.status != "generation_queued"
+            or (
+                row.template_snapshot is not None
+                and (
+                    row.template_snapshot.get("template_code")
+                    != frozen_pptx[0].get("template_code")
+                    or row.template_snapshot.get("version")
+                    != frozen_pptx[0].get("template_version")
+                    or row.template_snapshot.get("checksum")
+                    != frozen_pptx[0].get("template_checksum")
+                )
+            )
         ):
             raise BriefPlanCompilationError("generation_deck_snapshot_invalid")
         try:

@@ -18,6 +18,7 @@ from app.models.projects import Project
 from app.models.provider_calls import ProviderCall
 from app.models.provider_credentials import ProviderCredential
 from app.models.skills import Skill
+from app.models.templates import Template
 from app.services.auth_sessions import CurrentUser
 from app.services.decks.contracts import (
     DeckBrief,
@@ -29,6 +30,10 @@ from app.services.decks.contracts import (
 from app.skills.catalog import (
     POST_ALPHA_USER_SKILLS,
     skill_row_matches_definition,
+)
+from app.templates.catalog import (
+    default_presentation_template,
+    template_row_matches_definition,
 )
 
 
@@ -122,6 +127,23 @@ class DeckRepository:
                 raise DeckOperationError(
                     "skill_contract_invalid", "Deck Skill 版本合同不可用", 409
                 )
+            template_definition = default_presentation_template(command.skill_code)
+            template = await session.scalar(
+                select(Template).where(
+                    Template.template_code == template_definition.template_code,
+                    Template.version == template_definition.database_version,
+                    Template.owner_user_id.is_(None),
+                )
+            )
+            if template is None or not template_row_matches_definition(
+                template,
+                template_definition,
+            ):
+                raise DeckOperationError(
+                    "template_contract_invalid",
+                    "系统模板版本合同不可用",
+                    409,
+                )
             assets = ()
             if command.asset_ids:
                 rows = list(
@@ -156,7 +178,15 @@ class DeckRepository:
                         "Deck 来源材料不可用",
                         422,
                     )
-            return message, model, provider, credential, skill, assets
+            return (
+                message,
+                model,
+                provider,
+                credential,
+                skill,
+                template_definition,
+                assets,
+            )
 
     async def persist_created(
         self,
@@ -172,6 +202,7 @@ class DeckRepository:
         provider,
         credential,
         skill,
+        template_definition,
         assets,
     ) -> DeckDraftSnapshot:
         try:
@@ -207,7 +238,11 @@ class DeckRepository:
                         "model_code": model.model_code,
                         "credit_multiplier": str(model.credit_multiplier),
                     },
-                    template_snapshot=None,
+                    template_snapshot={
+                        "template_code": template_definition.template_code,
+                        "version": template_definition.version,
+                        "checksum": template_definition.checksum,
+                    },
                     provenance_summary=self._provenance_summary(content),
                     preflight_snapshot=None,
                     high_risk_confirmation_required=self._is_high_risk(content),
@@ -383,6 +418,7 @@ class DeckRepository:
             status=row.status,
             content=content,
             content_checksum=row.content_checksum,
+            template_snapshot=row.template_snapshot,
             preflight_snapshot=row.preflight_snapshot,
             generation_task_id=row.generation_task_id,
             confirmed_at=row.confirmed_at,

@@ -8,6 +8,7 @@ import {
   presentationPlanSha256,
 } from "./contracts.js";
 import { renderPresentation } from "./renderer.js";
+import { templateFor } from "./templates.js";
 
 export const RENDER_REQUEST_SCHEMA_VERSION = "ppt-renderer.request.v1";
 export const RENDER_RESPONSE_SCHEMA_VERSION = "ppt-renderer.response.v1";
@@ -31,6 +32,7 @@ interface RenderSuccess {
   slide_count: number;
   template_code: string;
   template_version: string;
+  template_checksum: string;
   renderer_version: string;
   plan_sha256: string;
 }
@@ -120,6 +122,7 @@ async function renderValidatedRequest(
     slide_count: result.slideCount,
     template_code: result.templateCode,
     template_version: result.templateVersion,
+    template_checksum: result.templateChecksum,
     renderer_version: result.rendererVersion,
     plan_sha256: planSha256,
   };
@@ -206,6 +209,7 @@ async function readExisting(
       false,
     );
   }
+  if (response.template_checksum === undefined) return null;
   if (
     response.schema_version !== RENDER_RESPONSE_SCHEMA_VERSION ||
     response.request_id !== requestId ||
@@ -214,6 +218,7 @@ async function readExisting(
     response.slide_count !== plan.slides.length ||
     response.template_code !== plan.template.code ||
     response.template_version !== plan.template.version ||
+    response.template_checksum !== templateFor(plan.template).checksum ||
     response.renderer_version !== plan.renderer_version ||
     !/^[a-f0-9]{64}$/.test(response.sha256) ||
     !Number.isSafeInteger(response.byte_size) ||

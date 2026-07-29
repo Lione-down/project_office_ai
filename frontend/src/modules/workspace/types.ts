@@ -63,6 +63,31 @@ export interface TermLibrarySummary {
   status: string;
 }
 
+export interface TemplateSummary {
+  template_code: string;
+  version: "1.0.0";
+  checksum: string;
+  name: string;
+  category: string;
+  style_keywords: string[];
+  use_cases: string[];
+  compatible_skills: string[];
+  cover_url: string;
+  representative_urls: string[];
+}
+
+export interface TemplateDetail extends TemplateSummary {
+  description: string;
+  colors: string[];
+  fonts: string[];
+  layouts: string[];
+  source: {
+    kind: "system_original";
+    license: "Office AI Original";
+    attribution: "Office AI Design System";
+  };
+}
+
 export interface WorkspaceOptions {
   projects: ProjectSummary[];
   assets: AssetSummary[];

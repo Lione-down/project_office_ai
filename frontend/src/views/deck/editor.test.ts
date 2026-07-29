@@ -15,6 +15,7 @@ const deckMocks = vi.hoisted(() => ({
   confirmDraft: vi.fn(),
   preflightDraft: vi.fn(),
   generate: vi.fn(),
+  listTemplates: vi.fn(),
 }));
 
 vi.mock("@/modules/decks/api", () => ({
@@ -53,6 +54,11 @@ const draft = {
   generation_task_id: null,
   confirmed_at: null,
   replayed: false,
+  template_snapshot: {
+    template_code: "ppt.operating-review.v1",
+    version: "1.0.0",
+    checksum: "a".repeat(64),
+  },
 };
 
 async function mountEditor() {
@@ -110,6 +116,39 @@ describe("Deck editor", () => {
       },
     });
     deckMocks.generate.mockResolvedValue({ task_id: "task-1" });
+    deckMocks.listTemplates.mockResolvedValue([
+      {
+        template_code: "ppt.operating-review.v1",
+        version: "1.0.0",
+        checksum: "a".repeat(64),
+        name: "经营复盘",
+        category: "operating-review",
+        style_keywords: ["复盘"],
+        use_cases: ["经营复盘"],
+        compatible_skills: ["ppt.sales-business-review.v1"],
+        cover_url: "/template-previews/ppt.operating-review.v1/cover.svg",
+        representative_urls: [
+          "/template-previews/ppt.operating-review.v1/representative.svg",
+        ],
+      },
+      {
+        template_code: "ppt.data-story.v1",
+        version: "1.0.0",
+        checksum: "b".repeat(64),
+        name: "数据叙事",
+        category: "data-story",
+        style_keywords: ["数据"],
+        use_cases: ["指标分析"],
+        compatible_skills: [
+          "ppt.sales-business-review.v1",
+          "ppt.knowledge-education.v1",
+        ],
+        cover_url: "/template-previews/ppt.data-story.v1/cover.svg",
+        representative_urls: [
+          "/template-previews/ppt.data-story.v1/representative.svg",
+        ],
+      },
+    ]);
   });
 
   it("reorders, duplicates, deletes, and saves a new immutable revision", async () => {
@@ -136,6 +175,40 @@ describe("Deck editor", () => {
             expect.objectContaining({ title: "分析" }),
           ]),
         }),
+      }),
+      "access",
+    );
+    expect(wrapper.text()).toContain("Revision 2");
+  });
+
+  it("previews and freezes a compatible template in a new revision", async () => {
+    deckMocks.updateDraft.mockImplementation(async (_id, payload) => ({
+      ...structuredClone(draft),
+      revision: 2,
+      content: payload.content,
+      template_snapshot: {
+        template_code: payload.template_code,
+        version: "1.0.0",
+        checksum: "b".repeat(64),
+      },
+    }));
+    const { wrapper } = await mountEditor();
+
+    expect(deckMocks.listTemplates).toHaveBeenCalledWith("access");
+    await wrapper
+      .get("[data-testid='deck-template-select']")
+      .setValue("ppt.data-story.v1");
+    expect(
+      wrapper.get("[data-testid='deck-template-preview']").attributes("src"),
+    ).toBe("/template-previews/ppt.data-story.v1/cover.svg");
+    await wrapper.get("[data-testid='deck-save']").trigger("click");
+    await flushPromises();
+
+    expect(deckMocks.updateDraft).toHaveBeenCalledWith(
+      "draft-1",
+      expect.objectContaining({
+        expected_revision: 1,
+        template_code: "ppt.data-story.v1",
       }),
       "access",
     );
